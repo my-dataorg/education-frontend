@@ -72,6 +72,10 @@ export function ManageInstitutesDropdown() {
   function openDialog(type: "create" | "delete" | "join") {
     setMenuOpen(false);
     setError("");
+    if (type === "join") {
+      router.push("/institutes/join");
+      return;
+    }
     setDialog(type);
     if (type === "delete") loadOwned();
   }

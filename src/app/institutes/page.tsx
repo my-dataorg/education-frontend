@@ -1,9 +1,10 @@
 import { auth } from "@/auth";
 import { eduApi, type Institute } from "@/lib/api";
+import { fetchPendingJoinRequests } from "@/lib/fetch-join-requests";
 import { fetchPendingInvitations } from "@/lib/fetch-invitations";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { EduNav } from "@/components/edu-nav";
+import { EduNavGate } from "@/components/edu-nav-gate";
 import { InvitationsList } from "@/components/invitations-list";
 import { isSubscriptionError } from "@/components/subscription-required";
 
@@ -12,6 +13,7 @@ export default async function InstitutesPage() {
   if (!session?.accessToken) redirect("/login");
 
   const pendingInvites = await fetchPendingInvitations(session);
+  const pendingJoinRequests = await fetchPendingJoinRequests(session);
 
   let institutes: Institute[] = [];
   let error = "";
@@ -19,7 +21,7 @@ export default async function InstitutesPage() {
   institutes = result.institutes;
   error = result.error || "";
 
-  if (institutes.length === 1 && pendingInvites.length === 0) {
+  if (institutes.length === 1 && pendingInvites.length === 0 && pendingJoinRequests.length === 0) {
     redirect(`/institutes/${institutes[0].id}`);
   }
 
@@ -27,8 +29,22 @@ export default async function InstitutesPage() {
 
   return (
     <>
-      <EduNav pendingInviteCount={pendingInvites.length} />
+      <EduNavGate pendingInviteCount={pendingInvites.length} />
       <main className="mx-auto max-w-5xl px-6 py-8">
+        {pendingJoinRequests.length > 0 && (
+          <section className="mb-8 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4">
+            <h2 className="text-sm font-semibold text-amber-900">Join requests pending</h2>
+            <ul className="mt-2 space-y-1 text-sm text-amber-800">
+              {pendingJoinRequests.map((req) => (
+                <li key={req.id}>
+                  <strong>{req.instituteName}</strong> — awaiting admin approval (
+                  {req.requestedRole})
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         {pendingInvites.length > 0 && (
           <section className="mb-10">
             <InvitationsList invites={pendingInvites} variant="prominent" />
@@ -64,11 +80,7 @@ function EmptyState({ hasPendingInvites }: { hasPendingInvites: boolean }) {
   if (hasPendingInvites) {
     return (
       <p className="text-center text-sm text-muted-foreground">
-        After accepting an invitation above, subscribe to Education in the{" "}
-        <Link href="http://localhost:3000/marketplace" className="text-primary hover:underline">
-          marketplace
-        </Link>{" "}
-        if prompted.
+        Accept an invitation above to join an institute and open your dashboard.
       </p>
     );
   }
@@ -81,8 +93,14 @@ function EmptyState({ hasPendingInvites }: { hasPendingInvites: boolean }) {
         Use <strong>Manage institutes</strong> in the nav to create or join.
       </p>
       <Link
+        href="/institutes/join"
+        className="mt-6 inline-block rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90"
+      >
+        Request to join with code
+      </Link>
+      <Link
         href="/invitations"
-        className="mt-6 inline-block text-sm text-primary hover:underline"
+        className="mt-4 block text-sm text-primary hover:underline"
       >
         View invitations
       </Link>

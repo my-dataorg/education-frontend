@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ROLE_LABELS } from "@/lib/roles";
@@ -38,9 +37,7 @@ export function InvitationsList({
       setInvites((prev) => prev.filter((i) => i.id !== id));
       setMessage(`You joined ${name}.`);
       router.refresh();
-      if (variant === "prominent") {
-        router.push("/institutes");
-      }
+      router.push(`/institutes/${instituteId}`);
       return;
     }
     setError("Could not accept invitation. Try signing out and back in.");
@@ -73,11 +70,7 @@ export function InvitationsList({
       )}
       {message && (
         <p className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
-          {message}{" "}
-          <Link href="http://localhost:3000/marketplace" className="text-primary hover:underline">
-            Subscribe to Education
-          </Link>{" "}
-          in the marketplace if you have not already, then return here.
+          {message}
         </p>
       )}
       {error && (

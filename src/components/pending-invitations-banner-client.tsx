@@ -32,6 +32,7 @@ export function PendingInvitationsBannerClient({
       setInvites((prev) => prev.filter((i) => i.id !== id));
       setAccepted({ name: instituteName, instituteId });
       router.refresh();
+      router.push(`/institutes/${instituteId}`);
     }
   }
 
@@ -50,14 +51,9 @@ export function PendingInvitationsBannerClient({
         {accepted && (
           <p className="text-sm">
             You joined <strong>{accepted.name}</strong>.{" "}
-            <Link href="/institutes" className="text-primary hover:underline">
-              View institutes
+            <Link href={`/institutes/${accepted.instituteId}`} className="text-primary hover:underline">
+              Open institute dashboard
             </Link>
-            {" · "}
-            <Link href="http://localhost:3000/marketplace" className="text-primary hover:underline">
-              Subscribe to Education
-            </Link>{" "}
-            to open the dashboard.
           </p>
         )}
         {invites.length > 0 && (

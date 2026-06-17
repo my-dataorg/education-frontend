@@ -41,6 +41,7 @@ export type InstituteDetail = {
 
 export type InstituteSummary = {
   branchCount: number;
+  pendingInvitations?: number;
   branches: {
     id: string;
     name: string;
@@ -49,7 +50,21 @@ export type InstituteSummary = {
     city: string;
     teacherCount: number;
     studentCount: number;
-    teachers: { userId: string; role: string }[];
+    teachers: Member[];
+    students: Member[];
+    insights?: {
+      openAssignments: number;
+      averageCompletionPercent: number | null;
+      recentResults: {
+        assignmentId: string;
+        title: string;
+        sectionName: string;
+        dueDate: string | null;
+        submittedCount: number;
+        enrolledStudents: number;
+        completionPercent: number;
+      }[];
+    };
   }[];
   upcomingEvents: {
     type: string;
@@ -67,7 +82,15 @@ export type Section = {
   branchId?: string | null;
   branchName?: string | null;
 };
-export type Member = { userId: string; role: string };
+export type Member = {
+  userId: string;
+  role: string;
+  firstName?: string;
+  lastName?: string;
+  displayName?: string;
+  email?: string;
+  username?: string;
+};
 export type Branch = {
   id: string;
   name: string;
@@ -99,6 +122,15 @@ export const eduApi = {
     apiFetch("/v1/institutes/join", token, { method: "POST", body: JSON.stringify({ joinCode }) }),
   listSections: (token: string, instituteId: string) =>
     apiFetch(`/v1/institutes/${instituteId}/sections`, token),
+  listMySections: (token: string, instituteId: string) =>
+    apiFetch(`/v1/users/me/institutes/${instituteId}/sections`, token),
+  getSectionOverview: (token: string, sectionId: string) =>
+    apiFetch(`/v1/sections/${sectionId}/overview`, token),
+  assignSectionMember: (token: string, sectionId: string, userId: string, memberType: string) =>
+    apiFetch(`/v1/sections/${sectionId}/members`, token, {
+      method: "POST",
+      body: JSON.stringify({ userId, memberType }),
+    }),
   createSection: (token: string, instituteId: string, name: string, className: string, branchId?: string) =>
     apiFetch(`/v1/institutes/${instituteId}/sections`, token, {
       method: "POST",

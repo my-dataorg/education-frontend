@@ -1,5 +1,5 @@
 import { auth } from "@/auth";
-import { EduNav } from "@/components/edu-nav";
+import { EduNavGate } from "@/components/edu-nav-gate";
 import { InvitationsList } from "@/components/invitations-list";
 import { fetchPendingInvitations } from "@/lib/fetch-invitations";
 import { redirect } from "next/navigation";
@@ -12,7 +12,7 @@ export default async function InvitationsPage() {
 
   return (
     <>
-      <EduNav pendingInviteCount={invites.length} />
+      <EduNavGate pendingInviteCount={invites.length} />
       <main className="mx-auto max-w-2xl px-6 py-10">
         <h1 className="text-2xl font-semibold">Institute invitations</h1>
         <p className="mt-2 text-sm text-muted-foreground">

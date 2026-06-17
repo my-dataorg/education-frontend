@@ -6,7 +6,8 @@ Education product UI: institutes, staff/student invitations, owner dashboard, se
 
 | Agent | When to use |
 |-------|-------------|
-| **edu-super** | Architecture, role matrix, cross-tab design |
+| **frontend-developer** | **Primary** — all UI implementation, components, pages, BFF routes |
+| **edu-super** | Architecture, role matrix, cross-cutting design |
 | **edu-staff** | Staff roster, invitations, branches, staff UX |
 | **edu-student** | Student admission, sections, submissions UX |
 

@@ -2,7 +2,7 @@ import { auth } from "@/auth";
 import { eduApi, type Assignment, type Note } from "@/lib/api";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { EduNav } from "@/components/edu-nav";
+import { EduNavGate } from "@/components/edu-nav-gate";
 import { SectionWorkspace } from "@/components/section-workspace";
 import { isSubscriptionError, SubscriptionRequired } from "@/components/subscription-required";
 
@@ -24,7 +24,7 @@ export default async function SectionPage({
   if (listError) {
     return (
       <>
-        <EduNav />
+        <EduNavGate />
         <main className="mx-auto max-w-5xl px-6 py-8">
           <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {listError}
@@ -37,11 +37,13 @@ export default async function SectionPage({
   const institute = institutes.find((i) => i.id === id);
   if (!institute) redirect("/institutes");
 
+  let overview;
   let assignments: Assignment[] = [];
   let notes: Note[] = [];
   let loadError = "";
   try {
-    [assignments, notes] = await Promise.all([
+    [overview, assignments, notes] = await Promise.all([
+      eduApi.getSectionOverview(session.accessToken, sectionId),
       eduApi.listAssignments(session.accessToken, sectionId),
       eduApi.listNotes(session.accessToken, sectionId),
     ]);
@@ -53,13 +55,13 @@ export default async function SectionPage({
     return <SubscriptionRequired description="Subscribe to Education to access this section." />;
   }
 
-  if (loadError) {
+  if (loadError || !overview) {
     return (
       <>
-        <EduNav />
+        <EduNavGate />
         <main className="mx-auto max-w-5xl px-6 py-8">
           <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {loadError}
+            {loadError || "Failed to load section"}
           </p>
         </main>
       </>
@@ -68,16 +70,20 @@ export default async function SectionPage({
 
   return (
     <>
-      <EduNav />
+      <EduNavGate />
       <main className="mx-auto max-w-5xl px-6 py-8">
         <Link href={`/institutes/${id}`} className="text-sm text-muted-foreground hover:text-foreground">
           ← {institute.name}
         </Link>
-        <h1 className="mt-4 text-2xl font-semibold">Section</h1>
+        <h1 className="mt-4 text-2xl font-semibold">{overview.sectionName}</h1>
+        {overview.className && (
+          <p className="mt-1 text-sm text-muted-foreground">{overview.className}</p>
+        )}
         <SectionWorkspace
           instituteId={id}
           sectionId={sectionId}
           role={institute.role}
+          overview={overview}
           assignments={assignments}
           notes={notes}
         />

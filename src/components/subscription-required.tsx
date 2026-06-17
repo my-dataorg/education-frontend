@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { EduNav } from "@/components/edu-nav";
+import { EduNavGate } from "@/components/edu-nav-gate";
 
 export function SubscriptionRequired({
   title = "Education subscription required",
@@ -10,7 +10,7 @@ export function SubscriptionRequired({
 }) {
   return (
     <>
-      <EduNav />
+      <EduNavGate />
       <main className="mx-auto max-w-lg px-6 py-16 text-center">
         <h1 className="text-xl font-semibold">{title}</h1>
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{description}</p>

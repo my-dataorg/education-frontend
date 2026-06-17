@@ -10,13 +10,10 @@ export async function EduNav({ pendingInviteCount = 0 }: { pendingInviteCount?: 
     <>
       <PendingInvitationsBanner />
       <header className="border-b border-border bg-card/80 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-6">
+        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-6">
           <div className="flex items-center gap-6">
             <Link href="/institutes" className="font-semibold">
               Education
-            </Link>
-            <Link href="/institutes" className="text-sm text-muted-foreground hover:text-foreground">
-              My Institutes
             </Link>
             <Link
               href="/invitations"

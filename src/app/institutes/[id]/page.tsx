@@ -1,9 +1,9 @@
 import { auth } from "@/auth";
 import { eduApi, type InstituteSummary, type Section } from "@/lib/api";
-import { MANAGE_ROLES, STAFF_VIEW_ROLES } from "@/lib/roles";
+import { MANAGE_ROLES } from "@/lib/roles";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { EduNav } from "@/components/edu-nav";
+import { EduNavGate } from "@/components/edu-nav-gate";
 import { InstituteDashboard } from "@/components/institute-dashboard";
 import { isSubscriptionError, SubscriptionRequired } from "@/components/subscription-required";
 import { Suspense } from "react";
@@ -13,7 +13,7 @@ export default async function InstitutePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ branch?: string }>;
 }) {
   const { id } = await params;
   await searchParams;
@@ -31,7 +31,7 @@ export default async function InstitutePage({
   if (listError) {
     return (
       <>
-        <EduNav />
+        <EduNavGate />
         <main className="mx-auto max-w-5xl px-6 py-8">
           <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {listError}
@@ -44,11 +44,10 @@ export default async function InstitutePage({
   const institute = institutes.find((i) => i.id === id);
   if (!institute) redirect("/institutes");
 
-  const hasMultiple = institutes.length > 1;
   const canManage = MANAGE_ROLES.has(institute.role);
-  const canViewDirectory = STAFF_VIEW_ROLES.has(institute.role);
+  const showOwnerDashboard = canManage;
 
-  if (canViewDirectory) {
+  if (showOwnerDashboard) {
     let detail;
     let summary: InstituteSummary | null = null;
     let pageError = "";
@@ -71,7 +70,7 @@ export default async function InstitutePage({
     if (pageError || !detail) {
       return (
         <>
-          <EduNav />
+          <EduNavGate />
           <main className="mx-auto max-w-5xl px-6 py-8">
             <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               {pageError || "Failed to load institute"}
@@ -83,14 +82,14 @@ export default async function InstitutePage({
 
     return (
       <>
-        <EduNav />
+        <EduNavGate />
         <Suspense fallback={<div className="p-8 text-sm text-muted-foreground">Loading...</div>}>
           <InstituteDashboard
             instituteId={id}
+            institutes={institutes}
             detail={detail}
             summary={summary}
             canManage={canManage}
-            hasMultiple={hasMultiple}
             currentUserId={session.user?.id || ""}
           />
         </Suspense>
@@ -101,7 +100,7 @@ export default async function InstitutePage({
   let sections: Section[] = [];
   let sectionsError = "";
   try {
-    sections = await eduApi.listSections(session.accessToken, id);
+    sections = await eduApi.listMySections(session.accessToken, id);
   } catch (e) {
     sectionsError = e instanceof Error ? e.message : "Failed to load sections";
   }
@@ -114,7 +113,7 @@ export default async function InstitutePage({
 
   return (
     <>
-      <EduNav />
+      <EduNavGate />
       {sectionsError ? (
         <main className="mx-auto max-w-5xl px-6 py-8">
           <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -122,12 +121,7 @@ export default async function InstitutePage({
           </p>
         </main>
       ) : (
-        <MemberInstituteView
-          institute={institute}
-          sections={sections}
-          instituteId={id}
-          hasMultiple={hasMultiple}
-        />
+        <MemberInstituteView institute={institute} sections={sections} instituteId={id} />
       )}
     </>
   );
@@ -137,24 +131,20 @@ function MemberInstituteView({
   institute,
   sections,
   instituteId,
-  hasMultiple,
 }: {
   institute: { id: string; name: string; role: string };
   sections: Section[];
   instituteId: string;
-  hasMultiple: boolean;
 }) {
   return (
     <main className="mx-auto max-w-5xl px-6 py-8">
-      {hasMultiple && (
-        <Link href="/institutes" className="text-sm text-muted-foreground hover:text-foreground">
-          ← All institutes
-        </Link>
-      )}
-      <h1 className={`text-2xl font-semibold ${hasMultiple ? "mt-4" : ""}`}>{institute.name}</h1>
+      <h1 className="text-2xl font-semibold">{institute.name}</h1>
       <p className="mt-1 text-sm text-muted-foreground">Your role: {institute.role}</p>
 
-      <h2 className="mt-10 font-medium">Sections</h2>
+      <h2 className="mt-10 font-medium">My sections</h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Sections you are assigned to at this institute
+      </p>
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         {sections.map((s) => (
           <Link
@@ -168,7 +158,9 @@ function MemberInstituteView({
         ))}
       </div>
       {sections.length === 0 && (
-        <p className="mt-6 text-sm text-muted-foreground">No sections yet. Ask your institute admin to add one.</p>
+        <p className="mt-6 text-sm text-muted-foreground">
+          You are not enrolled in any sections yet. Ask your admin to assign you.
+        </p>
       )}
     </main>
   );
