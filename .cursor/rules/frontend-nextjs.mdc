@@ -1,0 +1,39 @@
+---
+description: Next.js frontend conventions
+globs: "**/src/**/*.{ts,tsx}"
+alwaysApply: false
+---
+
+# Next.js Frontend
+
+## Stack
+
+- Next.js 15 App Router
+- TypeScript strict
+- Tailwind + shadcn/ui
+- TanStack Query + `useInfiniteQuery` for marketplace catalog
+- `@tanstack/react-virtual` for 100+ product grids
+- React Hook Form + Zod
+
+## Structure
+
+```
+src/app/          # Routes (App Router)
+src/components/   # UI components
+src/lib/api/      # API client functions (call gateway)
+```
+
+## Rules
+
+- Follow `ui-design.mdc` for all UI work
+- No product business logic in platform repos
+- Auth via OIDC — no custom token storage in localStorage
+- API calls go through gateway URLs, not direct product backend origins
+- Keep components small; colocate hooks when used once
+- Platform UI lives in `platform-frontend` (dashboard + marketplace routes)
+
+## Simplicity
+
+- Prefer server components where data is read-only
+- Client components only when interactivity is needed
+- No premature abstraction — see `simple-code.mdc`

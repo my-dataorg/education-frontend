@@ -1,0 +1,46 @@
+---
+description: Elegant UI standards for platform and product frontends
+globs: "**/src/**/*.{ts,tsx,css}"
+alwaysApply: false
+---
+
+# Elegant UI
+
+Read `docs/architecture/ui-design-system.md` before building UI.
+
+## Visual style
+
+- Calm, spacious, professional — not flashy
+- Neutral warm-gray base + **one** accent color
+- `rounded-xl` cards, `shadow-sm` default, `shadow-md` on hover
+- Geist Sans (or Inter fallback), 14–15px body
+
+## Platform shell
+
+- Shared top nav: Logo · Dashboard · Marketplace · Avatar
+- Dashboard = subscribed apps only (small grid)
+- Marketplace = search + category chips + **virtualized** grid for large catalogs
+
+## Product cards
+
+- 40px icon, name, 2-line description, single CTA (Launch / Subscribe)
+- Badge for subscribed state
+- Hover: subtle lift `translateY(-1px)` + border tint
+
+## Marketplace (100+ products)
+
+- Never render all products — use `@tanstack/react-virtual` + cursor pagination
+- Debounced search (300ms), filters in URL (`?q=&category=`)
+- Sticky search bar below nav
+- Featured row (max 8) above main grid
+
+## Loading & empty
+
+- Skeleton placeholders — not spinners alone
+- Empty states: one icon, one line, one button
+
+## Do not
+
+- Rainbow cards, heavy gradients, dense layouts
+- Hardcoded product lists in components
+- Different design systems on dashboard vs marketplace
