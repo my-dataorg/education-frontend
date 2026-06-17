@@ -7,6 +7,12 @@ Education product UI — institutes, owner dashboard, invitations, sections.
 ## Run locally
 
 ```bash
+./scripts/run.sh
+```
+
+Or manually:
+
+```bash
 cp .env.example .env.local
 npm install
 npm run dev   # http://localhost:3010
