@@ -4,6 +4,8 @@ import Link from "next/link";
 import { Building2, MapPin, Plus } from "lucide-react";
 import type { Institute } from "@/lib/api";
 import type { InstituteSummary } from "@/lib/api";
+import { buildInstitutePathFromSearch } from "@/lib/embed-href";
+import type { InstituteTabId } from "@/lib/institute-tabs";
 import { ROLE_LABELS } from "@/lib/roles";
 
 type Props = {
@@ -12,7 +14,8 @@ type Props = {
   branches: InstituteSummary["branches"];
   selectedBranchId: string | null;
   canManage: boolean;
-  onAddBranch?: () => void;
+  campusesTabHref?: string;
+  searchParams?: URLSearchParams;
 };
 
 export function InstituteShell({
@@ -21,7 +24,8 @@ export function InstituteShell({
   branches,
   selectedBranchId,
   canManage,
-  onAddBranch,
+  campusesTabHref,
+  searchParams,
   children,
 }: Props & { children: React.ReactNode }) {
   return (
@@ -65,7 +69,11 @@ export function InstituteShell({
               <ul className="space-y-0.5">
                 {branches.map((branch) => {
                   const active = branch.id === selectedBranchId;
-                  const href = `/institutes/${instituteId}?branch=${branch.id}`;
+                  const href = searchParams
+                    ? buildInstitutePathFromSearch(instituteId, searchParams, {
+                        branch: branch.id,
+                      })
+                    : `/institutes/${instituteId}?branch=${branch.id}`;
                   return (
                     <li key={branch.id}>
                       <Link
@@ -92,15 +100,14 @@ export function InstituteShell({
             </>
           )}
 
-          {canManage && onAddBranch && (
-            <button
-              type="button"
-              onClick={onAddBranch}
+          {canManage && campusesTabHref && (
+            <Link
+              href={campusesTabHref}
               className="mt-3 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-muted-foreground transition hover:bg-muted/80 hover:text-foreground"
             >
               <Plus className="h-3.5 w-3.5" />
               Add campus
-            </button>
+            </Link>
           )}
         </div>
       </aside>
@@ -115,27 +122,37 @@ export function BranchPills({
   instituteId,
   branches,
   selectedBranchId,
+  searchParams,
+  activeTab,
 }: {
   instituteId: string;
   branches: InstituteSummary["branches"];
   selectedBranchId: string | null;
+  searchParams: URLSearchParams;
+  activeTab: InstituteTabId;
 }) {
   if (branches.length <= 1) return null;
   return (
     <div className="flex gap-2 overflow-x-auto pb-1 md:hidden">
-      {branches.map((branch) => (
-        <Link
-          key={branch.id}
-          href={`/institutes/${instituteId}?branch=${branch.id}`}
-          className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium transition ${
-            branch.id === selectedBranchId
-              ? "bg-primary text-primary-foreground"
-              : "border border-border bg-card text-muted-foreground"
-          }`}
-        >
-          {branch.name}
-        </Link>
-      ))}
+      {branches.map((branch) => {
+        const href = buildInstitutePathFromSearch(instituteId, searchParams, {
+          branch: branch.id,
+          tab: activeTab,
+        });
+        return (
+          <Link
+            key={branch.id}
+            href={href}
+            className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium transition ${
+              branch.id === selectedBranchId
+                ? "bg-primary text-primary-foreground"
+                : "border border-border bg-card text-muted-foreground"
+            }`}
+          >
+            {branch.name}
+          </Link>
+        );
+      })}
     </div>
   );
 }

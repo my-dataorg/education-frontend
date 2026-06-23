@@ -45,9 +45,9 @@ export default async function InstitutePage({
   if (!institute) redirect("/institutes");
 
   const canManage = MANAGE_ROLES.has(institute.role);
-  const showOwnerDashboard = canManage;
+  const showStaffDashboard = canManage || institute.role === "principal";
 
-  if (showOwnerDashboard) {
+  if (showStaffDashboard) {
     let detail;
     let summary: InstituteSummary | null = null;
     let pageError = "";
