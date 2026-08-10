@@ -3,6 +3,11 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, X } from "lucide-react";
+import {
+  createInstituteAction,
+  deleteInstituteAction,
+  listOwnedInstitutesAction,
+} from "@/lib/institute-actions";
 
 type Institute = { id: string; name: string; role: string; joinCode: string };
 
@@ -50,10 +55,9 @@ export function ManageInstitutesDropdown() {
   const router = useRouter();
   const menuRef = useRef<HTMLDivElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [dialog, setDialog] = useState<"create" | "delete" | "join" | null>(null);
+  const [dialog, setDialog] = useState<"create" | "delete" | null>(null);
 
   const [name, setName] = useState("");
-  const [joinCode, setJoinCode] = useState("");
   const [owned, setOwned] = useState<Institute[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -81,51 +85,31 @@ export function ManageInstitutesDropdown() {
   }
 
   async function loadOwned() {
-    const res = await fetch("/api/institutes");
-    if (!res.ok) return;
-    const list: Institute[] = await res.json();
-    setOwned(list.filter((i) => i.role === "owner"));
+    const result = await listOwnedInstitutesAction();
+    if (!result.ok) {
+      setError(result.error || "Could not load institutes.");
+      setOwned([]);
+      return;
+    }
+    setOwned(result.institutes);
   }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError("");
-    const res = await fetch("/api/institutes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: name.trim() }),
-    });
+    const result = await createInstituteAction(name.trim());
     setLoading(false);
-    if (!res.ok) {
-      setError("Could not create institute.");
+    if (!result.ok) {
+      setError(result.error);
+      if (result.error.toLowerCase().includes("sign in")) {
+        router.push("/login");
+      }
       return;
     }
-    const inst = await res.json();
     setDialog(null);
     setName("");
-    router.push(`/institutes/${inst.id}`);
-    router.refresh();
-  }
-
-  async function handleJoin(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
-    const res = await fetch("/api/institutes/join", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ joinCode: joinCode.trim().toUpperCase() }),
-    });
-    setLoading(false);
-    if (!res.ok) {
-      setError("Invalid join code.");
-      return;
-    }
-    const inst = await res.json();
-    setDialog(null);
-    setJoinCode("");
-    router.push(`/institutes/${inst.id}`);
+    router.push(`/institutes/${result.institute.id}`);
     router.refresh();
   }
 
@@ -133,10 +117,10 @@ export function ManageInstitutesDropdown() {
     if (!confirm(`Delete "${instituteName}"? This cannot be undone.`)) return;
     setDeletingId(id);
     setError("");
-    const res = await fetch(`/api/institutes/${id}`, { method: "DELETE" });
+    const result = await deleteInstituteAction(id);
     setDeletingId(null);
-    if (!res.ok) {
-      setError("Could not delete institute.");
+    if (!result.ok) {
+      setError(result.error);
       return;
     }
     setOwned((prev) => prev.filter((i) => i.id !== id));
@@ -202,7 +186,11 @@ export function ManageInstitutesDropdown() {
           />
           {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
           <div className="mt-6 flex justify-end gap-2">
-            <button type="button" onClick={() => setDialog(null)} className="rounded-lg border px-4 py-2 text-sm hover:bg-muted">
+            <button
+              type="button"
+              onClick={() => setDialog(null)}
+              className="rounded-lg border px-4 py-2 text-sm hover:bg-muted"
+            >
               Cancel
             </button>
             <button
@@ -243,39 +231,6 @@ export function ManageInstitutesDropdown() {
           </ul>
         )}
         {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
-      </Dialog>
-
-      <Dialog open={dialog === "join"} onClose={() => setDialog(null)} title="Join with code">
-        <p className="mb-4 text-sm text-muted-foreground">
-          Enter the code from your institute admin.
-        </p>
-        <form onSubmit={handleJoin}>
-          <label className="text-sm font-medium" htmlFor="join-code">
-            Join code <span className="text-red-500">*</span>
-          </label>
-          <input
-            id="join-code"
-            value={joinCode}
-            onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-            placeholder="e.g. ABC12XYZ"
-            className="mt-2 w-full rounded-lg border border-border px-3 py-2 text-sm uppercase"
-            required
-            autoFocus
-          />
-          {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
-          <div className="mt-6 flex justify-end gap-2">
-            <button type="button" onClick={() => setDialog(null)} className="rounded-lg border px-4 py-2 text-sm hover:bg-muted">
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading || !joinCode.trim()}
-              className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-60"
-            >
-              {loading ? "Joining..." : "Join"}
-            </button>
-          </div>
-        </form>
       </Dialog>
     </div>
   );

@@ -4,9 +4,13 @@ import { fetchPendingJoinRequests } from "@/lib/fetch-join-requests";
 import { fetchPendingInvitations } from "@/lib/fetch-invitations";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { Building2, KeyRound, Plus } from "lucide-react";
 import { EduNavGate } from "@/components/edu-nav-gate";
+import { InstituteActionsBar } from "@/components/institute-actions-bar";
 import { InvitationsList } from "@/components/invitations-list";
+import { ModuleCard } from "@/components/shell/module-card";
 import { isSubscriptionError } from "@/components/subscription-required";
+import { CreateInstituteModule } from "@/components/create-institute-module";
 
 export default async function InstitutesPage() {
   const session = await auth();
@@ -30,7 +34,16 @@ export default async function InstitutesPage() {
   return (
     <>
       <EduNavGate pendingInviteCount={pendingInvites.length} />
-      <main className="mx-auto max-w-5xl px-6 py-8">
+      <main className="mx-auto max-w-6xl bg-background px-4 py-8 sm:px-6">
+        <InstituteActionsBar
+          title={institutes.length === 0 ? "Dashboard" : "Your institutes"}
+          subtitle={
+            institutes.length === 0
+              ? "Overview of Education — create an institute or join with a code."
+              : "Choose an institute, or manage create / join / delete."
+          }
+        />
+
         {pendingJoinRequests.length > 0 && (
           <section className="mb-8 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4">
             <h2 className="text-sm font-semibold text-amber-900">Join requests pending</h2>
@@ -67,7 +80,7 @@ export default async function InstitutesPage() {
         )}
 
         {institutes.length === 0 && !showInviteFirst ? (
-          <EmptyState hasPendingInvites={pendingInvites.length > 0} />
+          <EmptyState />
         ) : institutes.length > 0 ? (
           <MultipleInstitutes institutes={institutes} />
         ) : null}
@@ -76,32 +89,20 @@ export default async function InstitutesPage() {
   );
 }
 
-function EmptyState({ hasPendingInvites }: { hasPendingInvites: boolean }) {
-  if (hasPendingInvites) {
-    return (
-      <p className="text-center text-sm text-muted-foreground">
-        Accept an invitation above to join an institute and open your dashboard.
-      </p>
-    );
-  }
-
+function EmptyState() {
   return (
-    <div className="mx-auto max-w-lg text-center">
-      <h1 className="text-2xl font-semibold">Welcome to Education</h1>
-      <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-        Create an institute, join with a code, or wait for an admin to invite your email.
-        Use <strong>Manage institutes</strong> in the nav to create or join.
-      </p>
-      <Link
-        href="/institutes/join"
-        className="mt-6 inline-block rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90"
-      >
-        Request to join with code
-      </Link>
-      <Link
-        href="/invitations"
-        className="mt-4 block text-sm text-primary hover:underline"
-      >
+    <div>
+      <h2 className="mb-4 font-serif text-xl font-semibold">Quick access</h2>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <CreateInstituteModule />
+        <ModuleCard
+          href="/institutes/join"
+          icon={<KeyRound className="h-6 w-6" />}
+          title="Join with code"
+          description="Enter a join code from your institute admin to request access."
+        />
+      </div>
+      <Link href="/invitations" className="mt-6 inline-block text-sm text-primary hover:underline">
         View invitations
       </Link>
     </div>
@@ -110,23 +111,22 @@ function EmptyState({ hasPendingInvites }: { hasPendingInvites: boolean }) {
 
 function MultipleInstitutes({ institutes }: { institutes: Institute[] }) {
   return (
-    <>
-      <h1 className="text-2xl font-semibold">Select an institute</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        You belong to multiple institutes. Choose one to continue.
-      </p>
-      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {institutes.map((inst) => (
-          <Link
-            key={inst.id}
-            href={`/institutes/${inst.id}`}
-            className="rounded-xl border border-border bg-card p-5 shadow-sm transition hover:border-primary/30 hover:shadow-md"
-          >
-            <h3 className="font-semibold">{inst.name}</h3>
-            <p className="mt-1 text-sm text-muted-foreground">Role: {inst.role}</p>
-          </Link>
-        ))}
-      </div>
-    </>
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {institutes.map((inst) => (
+        <ModuleCard
+          key={inst.id}
+          href={`/institutes/${inst.id}`}
+          icon={<Building2 className="h-6 w-6" />}
+          title={inst.name}
+          description={`Your role: ${inst.role}`}
+        />
+      ))}
+      <ModuleCard
+        href="/institutes/join"
+        icon={<Plus className="h-6 w-6" />}
+        title="Join another"
+        description="Request to join an institute with a code."
+      />
+    </div>
   );
 }

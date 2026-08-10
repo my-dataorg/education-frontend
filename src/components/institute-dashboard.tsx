@@ -9,6 +9,7 @@ import { EnrollmentTab } from "@/components/institute-tabs/enrollment-tab";
 import { MembersTab } from "@/components/institute-tabs/members-tab";
 import { OverviewTab } from "@/components/institute-tabs/overview-tab";
 import { BranchPills, InstituteShell } from "@/components/institute-shell";
+import { ManageInstitutesDropdown } from "@/components/manage-institutes-dropdown";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Institute, InstituteSummary } from "@/lib/api";
 import { buildInstitutePathFromSearch } from "@/lib/embed-href";
@@ -128,11 +129,14 @@ export function InstituteDashboard({
       canManage={canManage}
       campusesTabHref={canManage ? tabHref("campuses") : undefined}
       searchParams={searchParams}
+      sectionTabs={tabs}
+      activeTab={activeTab}
+      tabHref={tabHref}
     >
       <div className="px-4 py-6 sm:px-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">{detail.name}</h1>
+            <h1 className="font-serif text-3xl font-semibold tracking-tight">{detail.name}</h1>
             <p className="mt-1 text-sm text-muted-foreground">
               {selectedBranch?.name ?? "Overview"}
               {selectedBranch?.isPrimary && " · Main campus"}
@@ -140,7 +144,10 @@ export function InstituteDashboard({
               {ROLE_LABELS[detail.role] || detail.role}
             </p>
           </div>
-          {canManage && <JoinCodeChip code={detail.joinCode} />}
+          <div className="flex flex-wrap items-center gap-2">
+            <ManageInstitutesDropdown />
+            {canManage && <JoinCodeChip code={detail.joinCode} />}
+          </div>
         </div>
 
         <div className="mt-4">
@@ -162,7 +169,7 @@ export function InstituteDashboard({
         ) : (
           <Tabs value={activeTab} className="mt-6">
             {tabs.length > 1 && (
-              <TabsList aria-label="Institute sections">
+              <TabsList aria-label="Institute sections" className="mb-2 md:hidden">
                 {tabs.map((tab) => (
                   <TabsTrigger key={tab.id} value={tab.id} asChild>
                     <Link href={tabHref(tab.id)}>{tab.label}</Link>

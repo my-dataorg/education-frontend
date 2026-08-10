@@ -1,9 +1,14 @@
 import type { Metadata } from "next";
 import { cookies, headers } from "next/headers";
-import { Geist } from "next/font/google";
+import { Geist, Source_Serif_4 } from "next/font/google";
 import "./globals.css";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist-sans" });
+const sourceSerif = Source_Serif_4({
+  subsets: ["latin"],
+  variable: "--font-source-serif",
+  weight: ["400", "600", "700"],
+});
 
 export const metadata: Metadata = {
   title: "MyData Education",
@@ -19,7 +24,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html
       lang="en"
-      className={`${geist.variable} antialiased`}
+      className={`${geist.variable} ${sourceSerif.variable} antialiased`}
       data-embed={embedded ? "1" : undefined}
     >
       <body className={embedded ? "embed-mode" : "min-h-full"}>{children}</body>

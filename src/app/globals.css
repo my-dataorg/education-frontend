@@ -1,14 +1,20 @@
 @import "tailwindcss";
 
 :root {
-  --background: 0 0% 99%;
-  --foreground: 240 10% 10%;
-  --muted: 240 5% 96%;
-  --muted-foreground: 240 4% 46%;
-  --border: 240 6% 90%;
+  --background: 210 20% 96%;
+  --foreground: 222 47% 11%;
+  --muted: 210 16% 93%;
+  --muted-foreground: 215 16% 40%;
+  --border: 214 20% 88%;
   --card: 0 0% 100%;
-  --primary: 221 83% 53%;
+  --card-foreground: 222 47% 11%;
+  --shell: 222 47% 14%;
+  --shell-foreground: 210 40% 98%;
+  --primary: 174 72% 32%;
   --primary-foreground: 0 0% 100%;
+  --sidebar-active: 174 60% 36%;
+  --destructive: 0 72% 51%;
+  --ring: 174 72% 32%;
   --radius: 0.75rem;
 }
 
@@ -19,9 +25,15 @@
   --color-muted-foreground: hsl(var(--muted-foreground));
   --color-border: hsl(var(--border));
   --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-shell: hsl(var(--shell));
+  --color-shell-foreground: hsl(var(--shell-foreground));
   --color-primary: hsl(var(--primary));
   --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-sidebar-active: hsl(var(--sidebar-active));
+  --color-ring: hsl(var(--ring));
   --font-sans: var(--font-geist-sans);
+  --font-serif: var(--font-source-serif);
 }
 
 body {
@@ -30,7 +42,10 @@ body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
-/* Embedded in platform shell — scroll naturally; no forced viewport height */
+.font-serif {
+  font-family: var(--font-source-serif), "Source Serif 4", Georgia, serif;
+}
+
 html[data-embed="1"],
 html[data-embed="1"] body.embed-mode {
   height: auto !important;
