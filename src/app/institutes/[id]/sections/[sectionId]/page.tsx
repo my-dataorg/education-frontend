@@ -5,6 +5,7 @@ import Link from "next/link";
 import { EduNavGate } from "@/components/edu-nav-gate";
 import { SectionWorkspace } from "@/components/section-workspace";
 import { isSubscriptionError, SubscriptionRequired } from "@/components/subscription-required";
+import { classSectionLabel } from "@/lib/utils";
 
 export default async function SectionPage({
   params,
@@ -75,10 +76,9 @@ export default async function SectionPage({
         <Link href={`/institutes/${id}`} className="text-sm text-muted-foreground hover:text-foreground">
           ← {institute.name}
         </Link>
-        <h1 className="mt-4 text-2xl font-semibold">{overview.sectionName}</h1>
-        {overview.className && (
-          <p className="mt-1 text-sm text-muted-foreground">{overview.className}</p>
-        )}
+        <h1 className="mt-4 text-2xl font-semibold">
+          {classSectionLabel(overview.className, overview.sectionName) || overview.sectionName}
+        </h1>
         <SectionWorkspace
           instituteId={id}
           sectionId={sectionId}

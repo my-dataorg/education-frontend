@@ -1,11 +1,13 @@
 import { auth } from "@/auth";
-import { eduApi, type InstituteSummary, type Section } from "@/lib/api";
+import { eduApi, type InstituteSummary, type PendingWorkItem, type Section } from "@/lib/api";
 import { MANAGE_ROLES } from "@/lib/roles";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { EduNavGate } from "@/components/edu-nav-gate";
 import { InstituteDashboard } from "@/components/institute-dashboard";
+import { PendingWorkPanel } from "@/components/pending-work-panel";
 import { isSubscriptionError, SubscriptionRequired } from "@/components/subscription-required";
+import { classSectionLabel } from "@/lib/utils";
 import { Suspense } from "react";
 
 export default async function InstitutePage({
@@ -99,10 +101,19 @@ export default async function InstitutePage({
 
   let sections: Section[] = [];
   let sectionsError = "";
+  let pendingItems: PendingWorkItem[] = [];
+  let pendingError = "";
   try {
     sections = await eduApi.listMySections(session.accessToken, id);
   } catch (e) {
     sectionsError = e instanceof Error ? e.message : "Failed to load sections";
+  }
+  if (!sectionsError) {
+    try {
+      pendingItems = (await eduApi.getPendingWork(session.accessToken, id)).items;
+    } catch {
+      pendingError = "Could not load to-do.";
+    }
   }
 
   if (sectionsError && isSubscriptionError(sectionsError)) {
@@ -121,7 +132,13 @@ export default async function InstitutePage({
           </p>
         </main>
       ) : (
-        <MemberInstituteView institute={institute} sections={sections} instituteId={id} />
+        <MemberInstituteView
+          institute={institute}
+          sections={sections}
+          instituteId={id}
+          pendingItems={pendingItems}
+          pendingError={pendingError}
+        />
       )}
     </>
   );
@@ -131,37 +148,50 @@ function MemberInstituteView({
   institute,
   sections,
   instituteId,
+  pendingItems,
+  pendingError,
 }: {
   institute: { id: string; name: string; role: string };
   sections: Section[];
   instituteId: string;
+  pendingItems: PendingWorkItem[];
+  pendingError: string;
 }) {
   return (
     <main className="mx-auto max-w-5xl px-6 py-8">
       <h1 className="text-2xl font-semibold">{institute.name}</h1>
       <p className="mt-1 text-sm text-muted-foreground">Your role: {institute.role}</p>
 
-      <h2 className="mt-10 font-medium">My sections</h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Sections you are assigned to at this institute
-      </p>
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        {sections.map((s) => (
-          <Link
-            key={s.id}
-            href={`/institutes/${instituteId}/sections/${s.id}`}
-            className="rounded-xl border border-border bg-card p-5 hover:border-primary/30"
-          >
-            <h3 className="font-medium">{s.name}</h3>
-            {s.className && <p className="text-sm text-muted-foreground">{s.className}</p>}
-          </Link>
-        ))}
+      <div className="mt-8 grid items-start gap-6 lg:grid-cols-2">
+        <PendingWorkPanel items={pendingItems} error={pendingError} />
+
+        <section>
+          <h2 className="font-medium">My sections</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Sections you are assigned to at this institute
+          </p>
+          {sections.length === 0 ? (
+            <p className="mt-4 rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">
+              You are not enrolled in any sections yet. Ask your admin to assign you.
+            </p>
+          ) : (
+            <div className="mt-4 grid gap-4">
+              {sections.map((s) => (
+                <Link
+                  key={s.id}
+                  href={`/institutes/${instituteId}/sections/${s.id}`}
+                  className="rounded-xl border border-border bg-card p-5 hover:border-primary/30"
+                >
+                  <h3 className="font-medium">{classSectionLabel(s.className, s.name) || s.name}</h3>
+                  {s.subjectNames && s.subjectNames.length > 0 && (
+                    <p className="mt-1 text-xs text-muted-foreground">{s.subjectNames.join(", ")}</p>
+                  )}
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
       </div>
-      {sections.length === 0 && (
-        <p className="mt-6 text-sm text-muted-foreground">
-          You are not enrolled in any sections yet. Ask your admin to assign you.
-        </p>
-      )}
     </main>
   );
 }

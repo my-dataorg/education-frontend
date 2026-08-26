@@ -23,7 +23,7 @@ type Overview = {
     enrolledStudents: number;
   }[];
   students?: Member[];
-  teachers?: Member[];
+  teachers?: (Member & { subjectId?: string; subjectName?: string | null })[];
 };
 
 export function SectionWorkspace({
@@ -38,8 +38,8 @@ export function SectionWorkspace({
   sectionId: string;
   role: string;
   overview: Overview;
-  assignments: { id: string; title: string; description: string }[];
-  notes: { id: string; content: string; noteDate: string }[];
+  assignments: { id: string; title: string; description: string; dueDate?: string | null; subjectName?: string | null }[];
+  notes: { id: string; content: string; noteDate: string; subjectName?: string | null }[];
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("overview");
@@ -56,9 +56,12 @@ export function SectionWorkspace({
   ];
 
   const [title, setTitle] = useState("");
+  const [dueDate, setDueDate] = useState("");
   const [note, setNote] = useState("");
+  const [subjectId, setSubjectId] = useState("");
   const [submission, setSubmission] = useState("");
   const [selectedAssignment, setSelectedAssignment] = useState("");
+  const taughtSubjects = (overview.teachers || []).filter((t) => t.subjectId);
 
   async function refreshOverview() {
     const res = await fetch(`/api/sections/${sectionId}`, { credentials: "include" });
@@ -67,20 +70,23 @@ export function SectionWorkspace({
   }
 
   async function createAssignment() {
+    if (!subjectId || !title.trim() || !dueDate) return;
     await fetch(`/api/institutes/${instituteId}/sections/${sectionId}/assignments`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, description: "" }),
+      body: JSON.stringify({ title, description: "", subjectId, dueDate }),
     });
     setTitle("");
+    setDueDate("");
     refreshOverview();
   }
 
   async function createNote() {
+    if (!subjectId || !note.trim()) return;
     await fetch(`/api/institutes/${instituteId}/sections/${sectionId}/notes`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: note }),
+      body: JSON.stringify({ content: note, subjectId }),
     });
     setNote("");
     router.refresh();
@@ -144,11 +150,34 @@ export function SectionWorkspace({
               {assignments.map((a) => (
                 <li key={a.id} className="rounded-lg border border-border bg-card px-4 py-3 text-sm">
                   {a.title}
+                  {a.subjectName ? ` · ${a.subjectName}` : ""}
+                  {a.dueDate ? (
+                    <p className="mt-1 text-xs text-muted-foreground">Due {a.dueDate}</p>
+                  ) : null}
                 </li>
               ))}
             </ul>
             {isTeacher && (
-              <div className="mt-4 flex gap-2">
+              <div className="mt-4 space-y-2">
+                <select
+                  value={subjectId}
+                  onChange={(e) => setSubjectId(e.target.value)}
+                  className="w-full rounded-lg border border-border px-3 py-2 text-sm"
+                >
+                  <option value="">Subject</option>
+                  {taughtSubjects.map((t) => (
+                    <option key={t.subjectId} value={t.subjectId}>
+                      {t.subjectName || t.subjectId}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className="w-full rounded-lg border border-border px-3 py-2 text-sm"
+                />
+                <div className="flex gap-2">
                 <input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
@@ -158,6 +187,7 @@ export function SectionWorkspace({
                 <button type="button" onClick={createAssignment} className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground">
                   Add
                 </button>
+                </div>
               </div>
             )}
             {isStudent && assignments.length > 0 && (
@@ -192,13 +222,28 @@ export function SectionWorkspace({
             <ul className="space-y-2">
               {notes.map((n) => (
                 <li key={n.id} className="rounded-lg border border-border bg-card px-4 py-3 text-sm">
-                  <p className="text-xs text-muted-foreground">{n.noteDate}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {n.noteDate}
+                    {n.subjectName ? ` · ${n.subjectName}` : ""}
+                  </p>
                   {n.content}
                 </li>
               ))}
             </ul>
             {isTeacher && (
               <div className="mt-4 space-y-2">
+                <select
+                  value={subjectId}
+                  onChange={(e) => setSubjectId(e.target.value)}
+                  className="w-full rounded-lg border border-border px-3 py-2 text-sm"
+                >
+                  <option value="">Subject</option>
+                  {taughtSubjects.map((t) => (
+                    <option key={`note-${t.subjectId}`} value={t.subjectId}>
+                      {t.subjectName || t.subjectId}
+                    </option>
+                  ))}
+                </select>
                 <textarea
                   value={note}
                   onChange={(e) => setNote(e.target.value)}

@@ -12,7 +12,14 @@ async function apiFetch(path: string, token: string, options: RequestInit = {}) 
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `API error ${res.status}`);
+    const detail = err.detail;
+    const message =
+      typeof detail === "string"
+        ? detail
+        : Array.isArray(detail)
+          ? detail.map((item: { msg?: string }) => item?.msg).filter(Boolean).join("; ")
+          : "";
+    throw new Error(message || `API error ${res.status}`);
   }
   if (res.status === 204) return null;
   return res.json();
@@ -79,8 +86,25 @@ export type Section = {
   id: string;
   name: string;
   className: string;
+  gradeBand?: string;
   branchId?: string | null;
   branchName?: string | null;
+  subjectNames?: string[];
+};
+export type Subject = { id: string; name: string };
+export type GradeBand = "primary" | "middle" | "high";
+export type Period = {
+  id: string;
+  sectionId: string;
+  sectionName: string;
+  className: string;
+  subjectId: string;
+  subjectName: string;
+  teacherUserId: string;
+  semester: string;
+  weekday: string;
+  startTime: string;
+  durationMinutes: number;
 };
 export type Member = {
   userId: string;
@@ -90,6 +114,8 @@ export type Member = {
   displayName?: string;
   email?: string;
   username?: string;
+  subjects?: Subject[];
+  gradeBands?: string[];
 };
 export type Branch = {
   id: string;
@@ -99,8 +125,30 @@ export type Branch = {
   isPrimary: boolean;
   sectionCount: number;
 };
-export type Assignment = { id: string; title: string; description: string; dueDate: string | null };
-export type Note = { id: string; content: string; noteDate: string; teacherId: string };
+export type Assignment = {
+  id: string;
+  title: string;
+  description: string;
+  dueDate: string | null;
+  subjectId?: string | null;
+  subjectName?: string | null;
+};
+export type Note = {
+  id: string;
+  content: string;
+  noteDate: string;
+  teacherId: string;
+  subjectId?: string | null;
+  subjectName?: string | null;
+};
+export type PendingWorkItem = {
+  kind: "enroll_in_section" | "submit_assignment" | "review_assignment";
+  title: string;
+  detail: string;
+  href: string | null;
+  dueDate?: string | null;
+};
+export type PendingWork = { items: PendingWorkItem[] };
 
 export const eduApi = {
   listInstitutes: (token: string) => apiFetch("/v1/institutes", token),
@@ -124,12 +172,20 @@ export const eduApi = {
     apiFetch(`/v1/institutes/${instituteId}/sections`, token),
   listMySections: (token: string, instituteId: string) =>
     apiFetch(`/v1/users/me/institutes/${instituteId}/sections`, token),
+  getPendingWork: (token: string, instituteId: string): Promise<PendingWork> =>
+    apiFetch(`/v1/users/me/institutes/${instituteId}/pending-work`, token),
   getSectionOverview: (token: string, sectionId: string) =>
     apiFetch(`/v1/sections/${sectionId}/overview`, token),
-  assignSectionMember: (token: string, sectionId: string, userId: string, memberType: string) =>
+  assignSectionMember: (
+    token: string,
+    sectionId: string,
+    userId: string,
+    memberType: string,
+    subjectId?: string
+  ) =>
     apiFetch(`/v1/sections/${sectionId}/members`, token, {
       method: "POST",
-      body: JSON.stringify({ userId, memberType }),
+      body: JSON.stringify({ userId, memberType, subjectId: subjectId || null }),
     }),
   createSection: (token: string, instituteId: string, name: string, className: string, branchId?: string) =>
     apiFetch(`/v1/institutes/${instituteId}/sections`, token, {

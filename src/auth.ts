@@ -1,8 +1,12 @@
 import NextAuth from "next-auth";
+import Credentials from "next-auth/providers/credentials";
 import Keycloak from "next-auth/providers/keycloak";
 
 const issuer = process.env.KEYCLOAK_ISSUER!;
 const clientId = process.env.KEYCLOAK_CLIENT_ID!;
+const PLATFORM_API = (
+  process.env.PLATFORM_API_URL || "http://127.0.0.1:8002"
+).replace("://localhost", "://127.0.0.1");
 
 async function refreshAccessToken(token: {
   refreshToken?: string;
@@ -47,6 +51,28 @@ async function refreshAccessToken(token: {
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
+    Credentials({
+      id: "credentials",
+      credentials: {
+        accessToken: { label: "Token", type: "text" },
+      },
+      async authorize(credentials) {
+        const accessToken = String(credentials?.accessToken || "");
+        if (!accessToken) return null;
+        const res = await fetch(`${PLATFORM_API}/v1/users/me`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (!res.ok) return null;
+        const user = await res.json();
+        if (!user?.id) return null;
+        return {
+          id: user.id as string,
+          email: user.email as string,
+          name: (user.name as string) || "User",
+          accessToken,
+        };
+      },
+    }),
     Keycloak({
       clientId,
       clientSecret: process.env.KEYCLOAK_CLIENT_SECRET || "",
@@ -54,7 +80,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    async jwt({ token, account }) {
+    async jwt({ token, account, user }) {
+      if (user?.accessToken) {
+        token.accessToken = user.accessToken;
+        token.expiresAt = Math.floor(Date.now() / 1000) + 3600;
+        return token;
+      }
       if (account?.access_token) {
         token.accessToken = account.access_token;
         token.refreshToken = account.refresh_token;
@@ -63,9 +94,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return token;
       }
 
-      // Refresh ~60s before expiry (Keycloak access tokens last 5 minutes locally)
       const expiresAt = token.expiresAt as number | undefined;
       if (expiresAt && Date.now() < expiresAt * 1000 - 60_000) {
+        return token;
+      }
+      if (!token.refreshToken) {
         return token;
       }
 
