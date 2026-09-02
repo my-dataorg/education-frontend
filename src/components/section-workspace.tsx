@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { UserIdentity } from "@/components/user-identity";
+import { formatUserName, UserIdentity } from "@/components/user-identity";
 import type { Member } from "@/lib/api";
+import { shortId } from "@/lib/roles";
 
-type Tab = "overview" | "students" | "assignments" | "notes" | "progress";
+type Tab = "overview" | "students" | "assignments" | "attendance" | "notes" | "progress";
 
 type Overview = {
   sectionName: string;
@@ -33,6 +34,7 @@ export function SectionWorkspace({
   overview: initialOverview,
   assignments,
   notes,
+  initialSubjectId = "",
 }: {
   instituteId: string;
   sectionId: string;
@@ -40,6 +42,7 @@ export function SectionWorkspace({
   overview: Overview;
   assignments: { id: string; title: string; description: string; dueDate?: string | null; subjectName?: string | null }[];
   notes: { id: string; content: string; noteDate: string; subjectName?: string | null }[];
+  initialSubjectId?: string;
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("overview");
@@ -51,6 +54,7 @@ export function SectionWorkspace({
     { id: "overview", label: "Overview", show: true },
     { id: "students", label: "Students", show: isTeacher },
     { id: "assignments", label: "Assignments", show: true },
+    { id: "attendance", label: "Attendance", show: true },
     { id: "notes", label: "Daily notes", show: true },
     { id: "progress", label: "Progress", show: true },
   ];
@@ -58,7 +62,7 @@ export function SectionWorkspace({
   const [title, setTitle] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [note, setNote] = useState("");
-  const [subjectId, setSubjectId] = useState("");
+  const [subjectId, setSubjectId] = useState(initialSubjectId);
   const [submission, setSubmission] = useState("");
   const [selectedAssignment, setSelectedAssignment] = useState("");
   const taughtSubjects = (overview.teachers || []).filter((t) => t.subjectId);
@@ -214,6 +218,46 @@ export function SectionWorkspace({
                 </button>
               </div>
             )}
+          </div>
+        )}
+
+        {tab === "attendance" && (
+          <div className="overflow-x-auto rounded-lg border border-border bg-card">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/40 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  {isTeacher && <th className="px-4 py-2 font-medium">Student ID</th>}
+                  <th className="px-4 py-2 font-medium">Student name</th>
+                  <th className="px-4 py-2 font-medium">Attendance</th>
+                  <th className="px-4 py-2 font-medium">Performance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(overview.students || []).map((s) => (
+                  <tr key={s.userId} className="border-t border-border/80">
+                    {isTeacher && (
+                      <td className="px-4 py-2 font-mono text-xs">{shortId(s.userId)}</td>
+                    )}
+                    <td className="px-4 py-2">
+                      {isTeacher ? (
+                        <UserIdentity user={s} role={s.role || "student"} />
+                      ) : (
+                        formatUserName(s)
+                      )}
+                    </td>
+                    <td className="px-4 py-2 text-muted-foreground">—</td>
+                    <td className="px-4 py-2 text-muted-foreground">—</td>
+                  </tr>
+                ))}
+                {!overview.students?.length && (
+                  <tr>
+                    <td colSpan={isTeacher ? 4 : 3} className="px-4 py-6 text-center text-sm text-muted-foreground">
+                      No students enrolled yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         )}
 

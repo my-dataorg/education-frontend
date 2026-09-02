@@ -1,13 +1,13 @@
 import { auth } from "@/auth";
-import { eduApi, type InstituteSummary, type PendingWorkItem, type Section } from "@/lib/api";
+import { eduApi, type InstituteSummary, type PendingWorkItem, type Section, type TodayClass } from "@/lib/api";
 import { MANAGE_ROLES } from "@/lib/roles";
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { EduNavGate } from "@/components/edu-nav-gate";
 import { InstituteDashboard } from "@/components/institute-dashboard";
+import { MySectionsDropdown } from "@/components/my-sections-dropdown";
 import { PendingWorkPanel } from "@/components/pending-work-panel";
+import { TodayClassesPanel } from "@/components/today-classes-panel";
 import { isSubscriptionError, SubscriptionRequired } from "@/components/subscription-required";
-import { classSectionLabel } from "@/lib/utils";
 import { Suspense } from "react";
 
 export default async function InstitutePage({
@@ -103,6 +103,8 @@ export default async function InstitutePage({
   let sectionsError = "";
   let pendingItems: PendingWorkItem[] = [];
   let pendingError = "";
+  let todayItems: TodayClass[] = [];
+  let todayError = "";
   try {
     sections = await eduApi.listMySections(session.accessToken, id);
   } catch (e) {
@@ -113,6 +115,11 @@ export default async function InstitutePage({
       pendingItems = (await eduApi.getPendingWork(session.accessToken, id)).items;
     } catch {
       pendingError = "Could not load to-do.";
+    }
+    try {
+      todayItems = (await eduApi.getTodayClasses(session.accessToken, id)).items;
+    } catch {
+      todayError = "Could not load today's classes.";
     }
   }
 
@@ -136,6 +143,8 @@ export default async function InstitutePage({
           institute={institute}
           sections={sections}
           instituteId={id}
+          todayItems={todayItems}
+          todayError={todayError}
           pendingItems={pendingItems}
           pendingError={pendingError}
         />
@@ -148,49 +157,37 @@ function MemberInstituteView({
   institute,
   sections,
   instituteId,
+  todayItems,
+  todayError,
   pendingItems,
   pendingError,
 }: {
   institute: { id: string; name: string; role: string };
   sections: Section[];
   instituteId: string;
+  todayItems: TodayClass[];
+  todayError: string;
   pendingItems: PendingWorkItem[];
   pendingError: string;
 }) {
   return (
-    <main className="mx-auto max-w-5xl px-6 py-8">
-      <h1 className="text-2xl font-semibold">{institute.name}</h1>
-      <p className="mt-1 text-sm text-muted-foreground">Your role: {institute.role}</p>
+    <main className="flex min-h-[calc(100vh-3.5rem)] flex-col">
+      <div className="border-b border-border px-6 py-6">
+        <h1 className="text-2xl font-semibold">{institute.name}</h1>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">Your role: {institute.role}</p>
+          <MySectionsDropdown instituteId={instituteId} sections={sections} />
+        </div>
+      </div>
 
-      <div className="mt-8 grid items-start gap-6 lg:grid-cols-2">
-        <PendingWorkPanel items={pendingItems} error={pendingError} />
+      <div className="grid min-h-0 flex-1 grid-cols-2 divide-x divide-border">
+        <div className="min-w-0 px-6 py-8">
+          <TodayClassesPanel items={todayItems} error={todayError} />
+        </div>
 
-        <section>
-          <h2 className="font-medium">My sections</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Sections you are assigned to at this institute
-          </p>
-          {sections.length === 0 ? (
-            <p className="mt-4 rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">
-              You are not enrolled in any sections yet. Ask your admin to assign you.
-            </p>
-          ) : (
-            <div className="mt-4 grid gap-4">
-              {sections.map((s) => (
-                <Link
-                  key={s.id}
-                  href={`/institutes/${instituteId}/sections/${s.id}`}
-                  className="rounded-xl border border-border bg-card p-5 hover:border-primary/30"
-                >
-                  <h3 className="font-medium">{classSectionLabel(s.className, s.name) || s.name}</h3>
-                  {s.subjectNames && s.subjectNames.length > 0 && (
-                    <p className="mt-1 text-xs text-muted-foreground">{s.subjectNames.join(", ")}</p>
-                  )}
-                </Link>
-              ))}
-            </div>
-          )}
-        </section>
+        <div className="min-w-0 px-6 py-8">
+          <PendingWorkPanel items={pendingItems} error={pendingError} />
+        </div>
       </div>
     </main>
   );

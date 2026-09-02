@@ -9,10 +9,13 @@ import { classSectionLabel } from "@/lib/utils";
 
 export default async function SectionPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string; sectionId: string }>;
+  searchParams: Promise<{ subjectId?: string }>;
 }) {
   const { id, sectionId } = await params;
+  const { subjectId } = await searchParams;
   const session = await auth();
   if (!session?.accessToken) redirect("/login");
 
@@ -86,6 +89,7 @@ export default async function SectionPage({
           overview={overview}
           assignments={assignments}
           notes={notes}
+          initialSubjectId={subjectId || ""}
         />
       </main>
     </>

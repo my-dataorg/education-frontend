@@ -10,8 +10,8 @@ export function PendingWorkPanel({
 }) {
   return (
     <section>
-      <h2 className="font-medium">To-do</h2>
-      <p className="mt-1 text-sm text-muted-foreground">Incomplete work by deadline</p>
+          <h2 className="font-medium">Incomplete work</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Assignments by deadline</p>
       <div className="mt-4 rounded-xl border border-border bg-card p-5">
         {error ? (
           <p className="text-sm text-muted-foreground">Could not load to-do.</p>

@@ -106,6 +106,19 @@ export type Period = {
   startTime: string;
   durationMinutes: number;
 };
+export type TodayClass = {
+  periodId: string;
+  sectionId: string;
+  className: string;
+  sectionName: string;
+  subjectId: string;
+  subjectName: string;
+  startTime: string;
+  endTime: string;
+  durationMinutes: number;
+  href: string;
+};
+export type TodayClasses = { weekday: string; items: TodayClass[] };
 export type Member = {
   userId: string;
   role: string;
@@ -174,6 +187,8 @@ export const eduApi = {
     apiFetch(`/v1/users/me/institutes/${instituteId}/sections`, token),
   getPendingWork: (token: string, instituteId: string): Promise<PendingWork> =>
     apiFetch(`/v1/users/me/institutes/${instituteId}/pending-work`, token),
+  getTodayClasses: (token: string, instituteId: string): Promise<TodayClasses> =>
+    apiFetch(`/v1/users/me/institutes/${instituteId}/today-classes`, token),
   getSectionOverview: (token: string, sectionId: string) =>
     apiFetch(`/v1/sections/${sectionId}/overview`, token),
   assignSectionMember: (
