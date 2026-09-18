@@ -1,0 +1,12 @@
+node_modules
+.next
+out
+coverage
+logs
+*.log
+.git
+.gitignore
+.env
+.env.*
+*.pem
+.DS_Store

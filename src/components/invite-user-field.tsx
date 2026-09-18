@@ -27,6 +27,7 @@ export function InviteUserField({
   const [suggestions, setSuggestions] = useState<UserSuggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [searched, setSearched] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
   const fetchSuggestions = useCallback(
@@ -34,6 +35,7 @@ export function InviteUserField({
       if (query.trim().length < 2) {
         setSuggestions([]);
         setOpen(false);
+        setSearched(false);
         return;
       }
       setLoading(true);
@@ -45,11 +47,13 @@ export function InviteUserField({
         if (!res.ok) {
           setSuggestions([]);
           setOpen(false);
+          setSearched(true);
           return;
         }
         const data: UserSuggestion[] = await res.json();
         setSuggestions(data);
         setOpen(data.length > 0);
+        setSearched(true);
       } finally {
         setLoading(false);
       }
@@ -105,6 +109,13 @@ export function InviteUserField({
       {loading && value.trim().length >= 2 && !selectedUserId && (
         <p className="mt-1 text-xs text-muted-foreground">Searching...</p>
       )}
+      {!loading &&
+        searched &&
+        value.trim().length >= 2 &&
+        !selectedUserId &&
+        suggestions.length === 0 && (
+          <p className="mt-1 text-xs text-muted-foreground">No users found.</p>
+        )}
       {open && suggestions.length > 0 && (
         <ul className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-border bg-card py-1 shadow-lg">
           {suggestions.map((user) => (
