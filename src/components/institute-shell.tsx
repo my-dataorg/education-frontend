@@ -65,7 +65,11 @@ export function InstituteShell({
               return (
                 <li key={inst.id}>
                   <Link
-                    href={`/institutes/${inst.id}`}
+                    href={
+                      searchParams
+                        ? buildInstitutePathFromSearch(inst.id, searchParams)
+                        : `/institutes/${inst.id}`
+                    }
                     className={cn(
                       "flex items-start gap-2 rounded-lg px-2.5 py-2 text-sm transition",
                       active

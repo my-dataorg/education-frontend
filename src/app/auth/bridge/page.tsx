@@ -3,25 +3,23 @@
 import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect } from "react";
+import { bridgeDestination, safeBridgePath } from "@/lib/auth-bridge";
 
 function BridgeInner() {
   const params = useSearchParams();
 
   useEffect(() => {
-    const accessToken = params.get("pt")?.trim();
-    const nextPath = params.get("next") || "/institutes";
-    const embed = params.get("embed") === "1";
-    const safeNext = nextPath.startsWith("/") ? nextPath : "/institutes";
-    const dest = embed
-      ? `${safeNext}${safeNext.includes("?") ? "&" : "?"}embed=1`
-      : safeNext;
+    const code = params.get("code")?.trim();
+    const nextPath = safeBridgePath(params.get("next"));
+    const dest = bridgeDestination(nextPath, params.get("embed") === "1");
 
-    if (!accessToken) {
+    // Raw platform JWTs are never accepted in a browser URL.
+    if (!code || params.has("pt")) {
       window.location.replace("/login");
       return;
     }
 
-    void signIn("platform-token", { accessToken, callbackUrl: dest });
+    void signIn("platform-handoff", { code, returnPath: nextPath, callbackUrl: dest });
   }, [params]);
 
   return <p className="p-6 text-sm text-muted-foreground">Opening Education…</p>;

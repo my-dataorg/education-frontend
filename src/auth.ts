@@ -1,12 +1,14 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import Keycloak from "next-auth/providers/keycloak";
+import { safeBridgePath } from "@/lib/auth-bridge";
 
 const issuer = process.env.KEYCLOAK_ISSUER!;
 const clientId = process.env.KEYCLOAK_CLIENT_ID!;
 const PLATFORM_API = (
   process.env.PLATFORM_API_URL || "http://127.0.0.1:8002"
 ).replace("://localhost", "://127.0.0.1");
+const APP_URL = process.env.AUTH_URL || "http://localhost:3010";
 
 async function userFromAccessToken(accessToken: string) {
   const res = await fetch(`${PLATFORM_API}/v1/users/me`, {
@@ -22,6 +24,27 @@ async function userFromAccessToken(accessToken: string) {
     name: (user.name as string) || "User",
     accessToken,
   };
+}
+
+async function exchangeHandoff(code: string, returnPath: string) {
+  let targetOrigin: string;
+  try {
+    targetOrigin = new URL(APP_URL).origin;
+  } catch {
+    return null;
+  }
+
+  const res = await fetch(`${PLATFORM_API}/v1/products/handoff/exchange`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code, targetOrigin, returnPath }),
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+
+  const data = await res.json();
+  if (!data?.accessToken) return null;
+  return userFromAccessToken(data.accessToken as string);
 }
 
 async function refreshAccessToken(token: {
@@ -73,15 +96,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       issuer,
     }),
     Credentials({
-      id: "platform-token",
-      name: "Platform token",
+      id: "platform-handoff",
+      name: "Platform handoff",
       credentials: {
-        accessToken: { label: "Token", type: "text" },
+        code: { label: "Handoff code", type: "text" },
+        returnPath: { label: "Return path", type: "text" },
       },
       async authorize(credentials) {
-        const accessToken = String(credentials?.accessToken || "");
-        if (!accessToken) return null;
-        return userFromAccessToken(accessToken);
+        const code = String(credentials?.code || "").trim();
+        const returnPath = safeBridgePath(String(credentials?.returnPath || ""));
+        if (!code) return null;
+        return exchangeHandoff(code, returnPath);
       },
     }),
   ],

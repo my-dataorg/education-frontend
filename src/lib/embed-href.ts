@@ -1,3 +1,5 @@
+import { addEmbedParam, isEmbedValue } from "@/lib/embed";
+
 type QueryParams = {
   tab?: string;
   branch?: string | null;
@@ -20,13 +22,14 @@ export function buildInstitutePathFromSearch(
   overrides: QueryParams = {}
 ): string {
   const embed =
-    overrides.embed ?? (searchParams.get("embed") === "1" || searchParams.get("embed") === "true");
+    overrides.embed ?? isEmbedValue(searchParams.get("embed"));
   const branch = overrides.branch !== undefined ? overrides.branch : searchParams.get("branch");
   const tab = overrides.tab ?? searchParams.get("tab") ?? undefined;
 
-  return buildInstitutePath(instituteId, {
+  const path = buildInstitutePath(instituteId, {
     tab: tab || undefined,
     branch,
-    embed: embed || undefined,
+    embed: false,
   });
+  return embed ? addEmbedParam(path) : path;
 }

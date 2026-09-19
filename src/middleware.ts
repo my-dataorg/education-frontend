@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { addEmbedParam, isEmbedValue } from "@/lib/embed";
 
 function withEmbedHeader(request: NextRequest): Headers {
   const requestHeaders = new Headers(request.headers);
@@ -8,25 +9,24 @@ function withEmbedHeader(request: NextRequest): Headers {
 }
 
 export function middleware(request: NextRequest) {
-  const embedParam = request.nextUrl.searchParams.get("embed") === "1";
+  const embedParam = isEmbedValue(request.nextUrl.searchParams.get("embed"));
   const embedCookie = request.cookies.get("edu-embed")?.value === "1";
   const isTopLevel = request.headers.get("sec-fetch-dest") === "document";
-  const referer = request.headers.get("referer") || "";
-  const fromPlatform = referer.includes("localhost:3000");
 
   if (embedParam || embedCookie) {
-    if (!embedParam && embedCookie) {
-      const url = request.nextUrl.clone();
-      url.searchParams.set("embed", "1");
-      return NextResponse.redirect(url);
+    if (embedParam) {
+      const response = NextResponse.next({ request: { headers: withEmbedHeader(request) } });
+      response.cookies.set("edu-embed", "1", { path: "/", sameSite: "lax" });
+      return response;
     }
 
-    const response = NextResponse.next({ request: { headers: withEmbedHeader(request) } });
-    response.cookies.set("edu-embed", "1", { path: "/", sameSite: "lax" });
-    return response;
+    if (!isTopLevel) {
+      const path = addEmbedParam(request.nextUrl.pathname + request.nextUrl.search);
+      return NextResponse.redirect(new URL(path, request.url));
+    }
   }
 
-  if (isTopLevel && !fromPlatform) {
+  if (isTopLevel) {
     const response = NextResponse.next();
     response.cookies.delete("edu-embed");
     return response;
