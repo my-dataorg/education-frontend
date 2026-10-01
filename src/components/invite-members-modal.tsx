@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { X } from "lucide-react";
 import { InviteUserField, type UserSuggestion } from "@/components/invite-user-field";
-import { STAFF_ROLE_OPTIONS } from "@/lib/roles";
 
 function Modal({
   open,
@@ -43,46 +42,26 @@ function InviteForm({
   const [inviteKind, setInviteKind] = useState<"staff" | "student">("staff");
   const [query, setQuery] = useState("");
   const [selectedUser, setSelectedUser] = useState<UserSuggestion | null>(null);
-  const [role, setRole] = useState("teacher");
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
 
-  const roleOptions =
-    inviteKind === "staff"
-      ? STAFF_ROLE_OPTIONS
-      : [{ value: "student", label: "Student" }];
-
-  useEffect(() => {
-    setRole(inviteKind === "staff" ? "teacher" : "student");
-  }, [inviteKind]);
-
-  function resolveEmail(): string {
-    if (selectedUser?.email) return selectedUser.email.trim().toLowerCase();
-    const match = query.match(/[\w.+-]+@[\w.-]+\.\w+/);
-    if (match) return match[0].toLowerCase();
-    if (query.includes("@")) return query.trim().toLowerCase();
-    return "";
-  }
+  const role = inviteKind === "staff" ? "teacher" : "student";
 
   async function send(e: React.FormEvent) {
     e.preventDefault();
     setSending(true);
     setError("");
-    const email = resolveEmail();
-    if (!selectedUser && !email) {
-      setError("Select a user or enter a valid email.");
+    if (!selectedUser?.userId) {
+      setError("Select an existing platform user.");
       setSending(false);
       return;
     }
-    const body: { role: string; email?: string; userId?: string } = { role };
-    if (email) body.email = email;
-    if (selectedUser?.userId) body.userId = selectedUser.userId;
 
     const res = await fetch(`/api/institutes/${instituteId}/invitations`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify(body),
+      body: JSON.stringify({ userId: selectedUser.userId, role }),
     });
     setSending(false);
     if (!res.ok) {
@@ -123,22 +102,9 @@ function InviteForm({
         }}
         disabled={sending}
       />
-      {roleOptions.length > 1 && (
-        <select
-          value={role}
-          onChange={(e) => setRole(e.target.value)}
-          className="w-full rounded-lg border border-border px-3 py-2 text-sm"
-        >
-          {roleOptions.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      )}
       <button
         type="submit"
-        disabled={sending || !query.trim()}
+        disabled={sending || !selectedUser}
         className="w-full rounded-lg bg-primary py-2 text-sm text-primary-foreground disabled:opacity-60"
       >
         {sending ? "Sending..." : "Send invitation"}

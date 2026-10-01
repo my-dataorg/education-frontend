@@ -70,7 +70,7 @@ export function IncomingRequestsPanel({
   }, [canManage, instituteId]);
 
   useEffect(() => {
-    load();
+    queueMicrotask(load);
   }, [load, refreshKey]);
 
   async function acceptRequest(id: string) {

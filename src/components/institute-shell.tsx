@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {
+  BookOpen,
   Building2,
   ClipboardList,
   LayoutDashboard,
@@ -21,6 +22,7 @@ const TAB_ICONS: Record<InstituteTabId, React.ComponentType<{ className?: string
   members: Users,
   enrollment: ClipboardList,
   campuses: MapPin,
+  classes: BookOpen,
 };
 
 type Props = {

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { UserIdentity } from "@/components/user-identity";
 import type { Member } from "@/lib/api";
+import type { SectionSubject } from "@/lib/api";
 
 type Tab = "overview" | "students" | "assignments" | "notes" | "progress";
 
@@ -44,8 +45,16 @@ export function SectionWorkspace({
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("overview");
   const [overview, setOverview] = useState(initialOverview);
+  const [subjects, setSubjects] = useState<SectionSubject[]>([]);
   const isTeacher = ["owner", "admin", "principal", "teacher", "lecturer", "professor"].includes(role);
   const isStudent = role === "student";
+
+  useEffect(() => {
+    fetch(`/api/sections/${sectionId}/subjects`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then(setSubjects)
+      .catch(() => setSubjects([]));
+  }, [sectionId]);
 
   const tabs: { id: Tab; label: string; show: boolean }[] = [
     { id: "overview", label: "Overview", show: true },
@@ -118,10 +127,31 @@ export function SectionWorkspace({
 
       <div className="mt-6">
         {tab === "overview" && (
-          <div className="grid gap-3 sm:grid-cols-3">
-            <Stat label="Students" value={overview.studentCount} />
-            <Stat label="Teachers" value={overview.teacherCount} />
-            <Stat label="Avg completion" value={overview.averageCompletionPercent != null ? `${overview.averageCompletionPercent}%` : "—"} />
+          <div className="space-y-5">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Stat label="Students" value={overview.studentCount} />
+              <Stat label="Teachers" value={overview.teacherCount} />
+              <Stat label="Avg completion" value={overview.averageCompletionPercent != null ? `${overview.averageCompletionPercent}%` : "—"} />
+            </div>
+            <section className="rounded-xl border border-border bg-card p-4">
+              <h2 className="font-semibold">Subjects</h2>
+              {subjects.length ? (
+                <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {subjects.map((subject) => (
+                    <li key={subject.id} className="rounded-lg bg-muted/40 px-3 py-2 text-sm">
+                      <span className="font-medium">{subject.name}</span>
+                      <span className="mt-1 block text-xs text-muted-foreground">
+                        {subject.teachers.length
+                          ? `Teacher${subject.teachers.length === 1 ? "" : "s"} assigned: ${subject.teachers.length}`
+                          : "No teacher assigned"}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-2 text-sm text-muted-foreground">No subjects linked yet.</p>
+              )}
+            </section>
           </div>
         )}
 

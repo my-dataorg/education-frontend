@@ -18,12 +18,9 @@ export const ROLE_LABELS: Record<string, string> = {
   student: "Student",
 };
 
-export const STAFF_ROLE_OPTIONS = [
-  { value: "admin", label: "Admin" },
-  { value: "principal", label: "Principal" },
+export const INVITATION_ROLE_OPTIONS = [
   { value: "teacher", label: "Teacher" },
-  { value: "lecturer", label: "Lecturer" },
-  { value: "professor", label: "Professor" },
+  { value: "student", label: "Student" },
 ];
 
 export function shortId(id: string) {

@@ -107,7 +107,7 @@ export function InstitutePeoplePanel({
 
   useEffect(() => {
     if (!expanded) return;
-    loadMembers();
+    queueMicrotask(loadMembers);
   }, [expanded, loadMembers, refreshKey]);
 
   const people = useMemo(

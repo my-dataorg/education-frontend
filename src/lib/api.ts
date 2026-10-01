@@ -82,6 +82,8 @@ export type Section = {
   branchId?: string | null;
   branchName?: string | null;
 };
+export type Subject = { id: string; name: string };
+export type SectionSubject = Subject & { teachers: { userId: string }[] };
 export type Member = {
   userId: string;
   role: string;
@@ -135,6 +137,33 @@ export const eduApi = {
     apiFetch(`/v1/institutes/${instituteId}/sections`, token, {
       method: "POST",
       body: JSON.stringify({ name, className, branchId: branchId || null }),
+    }),
+  listSubjects: (token: string, instituteId: string) =>
+    apiFetch(`/v1/institutes/${instituteId}/subjects`, token),
+  createSubject: (token: string, instituteId: string, name: string) =>
+    apiFetch(`/v1/institutes/${instituteId}/subjects`, token, {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    }),
+  deleteSubject: (token: string, instituteId: string, subjectId: string) =>
+    apiFetch(`/v1/institutes/${instituteId}/subjects/${subjectId}`, token, { method: "DELETE" }),
+  listSectionSubjects: (token: string, sectionId: string) =>
+    apiFetch(`/v1/sections/${sectionId}/subjects`, token),
+  linkSubject: (token: string, sectionId: string, subjectId: string) =>
+    apiFetch(`/v1/sections/${sectionId}/subjects`, token, {
+      method: "POST",
+      body: JSON.stringify({ subjectId }),
+    }),
+  unlinkSubject: (token: string, sectionId: string, subjectId: string) =>
+    apiFetch(`/v1/sections/${sectionId}/subjects/${subjectId}`, token, { method: "DELETE" }),
+  assignSubjectTeacher: (token: string, sectionId: string, subjectId: string, userId: string) =>
+    apiFetch(`/v1/sections/${sectionId}/subjects/${subjectId}/teachers`, token, {
+      method: "POST",
+      body: JSON.stringify({ userId }),
+    }),
+  removeSubjectTeacher: (token: string, sectionId: string, subjectId: string, userId: string) =>
+    apiFetch(`/v1/sections/${sectionId}/subjects/${subjectId}/teachers/${userId}`, token, {
+      method: "DELETE",
     }),
   listMembers: (token: string, instituteId: string, group?: string) =>
     apiFetch(`/v1/institutes/${instituteId}/members${group ? `?group=${group}` : ""}`, token),

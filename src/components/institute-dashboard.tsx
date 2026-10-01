@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { Copy } from "lucide-react";
 import { CampusesTab } from "@/components/institute-tabs/campuses-tab";
+import { ClassesTab } from "@/components/institute-tabs/classes-tab";
 import { EnrollmentTab } from "@/components/institute-tabs/enrollment-tab";
 import { MembersTab } from "@/components/institute-tabs/members-tab";
 import { OverviewTab } from "@/components/institute-tabs/overview-tab";
@@ -87,8 +88,11 @@ export function InstituteDashboard({
 
   useEffect(() => {
     if (initialSummary) return;
-    setLoading(true);
-    refreshSummary();
+    const timer = window.setTimeout(() => {
+      setLoading(true);
+      refreshSummary();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [initialSummary, refreshSummary]);
 
   useEffect(() => {
@@ -196,6 +200,11 @@ export function InstituteDashboard({
 
             {canManage && (
               <>
+                {detail.role === "owner" && (
+                  <TabsContent value="classes">
+                    <ClassesTab instituteId={instituteId} branches={branches} />
+                  </TabsContent>
+                )}
                 <TabsContent value="members">
                   <MembersTab
                     instituteId={instituteId}
