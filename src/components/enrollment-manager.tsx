@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import { ROLE_LABELS } from "@/lib/roles";
 import { formatUserName } from "@/components/user-identity";
 import type { Member, SectionSubject } from "@/lib/api";
@@ -133,43 +134,49 @@ export function EnrollmentManager({
           </div>
         </div>
         <form onSubmit={assign} className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <select
-          value={sectionId}
-          onChange={(e) => setSectionId(e.target.value)}
-          required
-          className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
-        >
-          <option value="">Select section</option>
-          {sections.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
-        <select
-          value={memberType}
-          onChange={(e) => {
-            setMemberType(e.target.value as "teacher" | "student");
-            setUserId("");
-          }}
-          className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
-        >
-          <option value="student">Student</option>
-          <option value="teacher">Teacher</option>
-        </select>
-        <select
-          value={userId}
-          onChange={(e) => setUserId(e.target.value)}
-          required
-          className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
-        >
-          <option value="">Select member</option>
-          {roster.map((m) => (
-            <option key={m.userId} value={m.userId}>
-              {formatUserName(m)} ({ROLE_LABELS[m.role] || m.role})
-            </option>
-          ))}
-        </select>
+        <Field label="Section">
+          <select
+            value={sectionId}
+            onChange={(e) => setSectionId(e.target.value)}
+            required
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+          >
+            <option value="">Select section</option>
+            {sections.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name} · {s.className || "No grade"}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Role">
+          <select
+            value={memberType}
+            onChange={(e) => {
+              setMemberType(e.target.value as "teacher" | "student");
+              setUserId("");
+            }}
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+          >
+            <option value="student">Student</option>
+            <option value="teacher">Teacher</option>
+          </select>
+        </Field>
+        <Field label="Person">
+          <select
+            value={userId}
+            onChange={(e) => setUserId(e.target.value)}
+            required
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+          >
+            <option value="">Select member</option>
+            {roster.map((m) => (
+              <option key={m.userId} value={m.userId}>
+                {formatUserName(m)} ({ROLE_LABELS[m.role] || m.role})
+              </option>
+            ))}
+          </select>
+        </Field>
           <button
           type="submit"
           disabled={loading}
@@ -327,6 +334,15 @@ function CountBadge({ label, count }: { label: string; count: number }) {
   );
 }
 
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="space-y-1">
+      <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</span>
+      {children}
+    </label>
+  );
+}
+
 function MemberList({
   label,
   members,
@@ -337,12 +353,12 @@ function MemberList({
   remove: (id: string) => void;
 }) {
   return (
-    <div>
-      <p className="text-muted-foreground">{label}</p>
+    <div className="rounded-xl border border-border bg-muted/20 p-3">
+      <p className="font-semibold text-foreground">{label}</p>
       {members.length ? members.map((member) => (
-        <div key={member.userId} className="mt-1 flex items-center justify-between">
+        <div key={member.userId} className="mt-2 flex items-center justify-between rounded-lg bg-background px-2.5 py-2">
           <span>{formatUserName(member)}</span>
-          <button type="button" onClick={() => remove(member.userId)} className="text-destructive">
+          <button type="button" onClick={() => remove(member.userId)} className="text-[11px] text-muted-foreground hover:text-destructive">
             Remove
           </button>
         </div>

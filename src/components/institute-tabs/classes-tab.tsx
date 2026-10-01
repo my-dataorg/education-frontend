@@ -85,18 +85,22 @@ export function ClassesTab({ instituteId, branches }: Props) {
             ))}
           </ul>
         </FormCard>
-        <FormCard title="New class">
-          <div className="grid gap-2 sm:grid-cols-2">
-            <input value={sectionName} onChange={(e) => setSectionName(e.target.value)} placeholder="Section name" className="rounded-lg border border-border px-3 py-2 text-sm" />
-            <input value={className} onChange={(e) => setClassName(e.target.value)} placeholder="Class / grade" className="rounded-lg border border-border px-3 py-2 text-sm" />
+        <FormCard title="Classes and sections">
+          <div className="flex gap-2">
+            <input value={sectionName} onChange={(e) => setSectionName(e.target.value)} placeholder="Section name" className="min-w-0 flex-1 rounded-lg border border-border px-3 py-2 text-sm" />
+            <input value={className} onChange={(e) => setClassName(e.target.value)} placeholder="Class / grade" className="min-w-0 flex-1 rounded-lg border border-border px-3 py-2 text-sm" />
           </div>
-          <button onClick={createSection} className="mt-2 rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground">Create class</button>
+          <button onClick={createSection} className="mt-2 rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground">Add</button>
+          <ul className="mt-3 space-y-1 text-sm">
+            {sections.map((section) => (
+              <li key={section.id} className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
+                <span>{section.name}</span>
+                <span className="text-xs text-muted-foreground">{section.className || "No grade"}</span>
+              </li>
+            ))}
+          </ul>
+          {!sections.length && <p className="mt-3 text-xs text-muted-foreground">No classes yet.</p>}
         </FormCard>
-      </div>
-      <div className="space-y-4">
-        <h2 className="text-lg font-semibold">Classes and sections</h2>
-        {sections.map((section) => <SectionCard key={section.id} section={section} />)}
-        {!sections.length && <p className="text-sm text-muted-foreground">No classes yet.</p>}
       </div>
     </div>
   );
@@ -104,17 +108,4 @@ export function ClassesTab({ instituteId, branches }: Props) {
 
 function FormCard({ title, children }: { title: string; children: ReactNode }) {
   return <section className="rounded-xl border border-border bg-card p-4 shadow-sm"><h3 className="mb-3 font-semibold">{title}</h3>{children}</section>;
-}
-
-function SectionCard({ section }: { section: Section }) {
-  return (
-    <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
-      <h3 className="font-semibold">
-        {section.name}
-        {section.className && (
-          <span className="font-normal text-muted-foreground"> · {section.className}</span>
-        )}
-      </h3>
-    </section>
-  );
 }
