@@ -12,6 +12,7 @@ type SectionMapping = {
   students: Member[];
   subjects: SectionSubject[];
 };
+type FilterMode = "section" | "class" | "teacher" | "student";
 
 export function EnrollmentManager({
   instituteId,
@@ -30,6 +31,8 @@ export function EnrollmentManager({
   const [sectionId, setSectionId] = useState("");
   const [userId, setUserId] = useState("");
   const [memberType, setMemberType] = useState<"teacher" | "student">("student");
+  const [filterMode, setFilterMode] = useState<FilterMode>("section");
+  const [filterValue, setFilterValue] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -116,6 +119,15 @@ export function EnrollmentManager({
     memberType === "teacher"
       ? staff.filter((m) => ["teacher", "lecturer", "professor", "principal", "admin"].includes(m.role))
       : students;
+  const filterOptions = getFilterOptions(filterMode, sections, mappings);
+  const matchingSections = sections.filter((section) => {
+    if (!filterValue) return true;
+    const mapping = mappings[section.id];
+    if (filterMode === "section") return section.id === filterValue;
+    if (filterMode === "class") return section.className === filterValue;
+    if (filterMode === "teacher") return mapping?.teachers.some((member) => member.userId === filterValue);
+    return mapping?.students.some((member) => member.userId === filterValue);
+  });
 
   return (
     <section className="mt-6 space-y-6">
@@ -191,10 +203,44 @@ export function EnrollmentManager({
         <div>
           <h3 className="text-lg font-semibold">Section assignments</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Review each section&apos;s people, subjects, and subject teachers.
+            Filter the institute roster to focus on the records you need.
           </p>
         </div>
-        {sections.map((section) => (
+        <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="View by">
+              <select
+                value={filterMode}
+                onChange={(e) => {
+                  setFilterMode(e.target.value as FilterMode);
+                  setFilterValue("");
+                }}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+              >
+                <option value="section">Section</option>
+                <option value="class">Class / grade</option>
+                <option value="teacher">Teacher</option>
+                <option value="student">Student</option>
+              </select>
+            </Field>
+            <Field label={`Select ${filterMode === "class" ? "class / grade" : filterMode}`}>
+              <select
+                value={filterValue}
+                onChange={(e) => setFilterValue(e.target.value)}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+              >
+                <option value="">All {filterMode === "class" ? "classes" : `${filterMode}s`}</option>
+                {filterOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </Field>
+          </div>
+          <p className="mt-3 text-xs text-muted-foreground">
+            Showing {matchingSections.length} of {sections.length} sections
+          </p>
+        </div>
+        {matchingSections.map((section) => (
           <SectionMappingCard
             key={section.id}
             section={section}
@@ -204,6 +250,12 @@ export function EnrollmentManager({
             update={update}
           />
         ))}
+        {!matchingSections.length && (
+          <div className="rounded-2xl border border-dashed border-border p-8 text-center">
+            <p className="font-medium">No matching enrollment records</p>
+            <p className="mt-1 text-sm text-muted-foreground">Try another filter or assign members to a section.</p>
+          </div>
+        )}
       </div>
     </section>
   );
@@ -332,6 +384,36 @@ function CountBadge({ label, count }: { label: string; count: number }) {
       <span className="font-semibold">{count}</span> {label}
     </span>
   );
+}
+
+function getFilterOptions(
+  mode: FilterMode,
+  sections: Section[],
+  mappings: Record<string, SectionMapping>
+) {
+  if (mode === "section") {
+    return sections.map((section) => ({
+      value: section.id,
+      label: `${section.name} · ${section.className || "No grade"}`,
+    }));
+  }
+  if (mode === "class") {
+    return [...new Set(sections.map((section) => section.className).filter((name): name is string => Boolean(name)))].map((name) => ({
+      value: name,
+      label: name,
+    }));
+  }
+
+  const people = new Map<string, Member>();
+  Object.values(mappings).forEach((mapping) => {
+    (mode === "teacher" ? mapping.teachers : mapping.students).forEach((member) => {
+      people.set(member.userId, member);
+    });
+  });
+  return [...people.values()].map((member) => ({
+    value: member.userId,
+    label: formatUserName(member),
+  }));
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
