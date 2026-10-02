@@ -652,7 +652,7 @@ function SlotEditor({
     if (!subjectId || !start || !end) return;
     const isBreak = subjectId === "break";
     const subject = subjects.find((item) => item.id === subjectId);
-    if (!subject?.linked) return;
+    if (!isBreak && !subject?.linked) return;
     const slotId = crypto.randomUUID();
     updateSchedule((current) => ({
       ...current,
@@ -692,7 +692,7 @@ function SlotEditor({
           <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm">
             <option value="">Select subject or break</option>
             {subjects.map((subject) => (
-              <option key={subject.id} value={subject.id} disabled={!subject.linked}>
+              <option key={subject.id} value={subject.id}>
                 {subject.name}{subject.linked ? "" : " (link in Enrollment first)"}
               </option>
             ))}
@@ -701,8 +701,18 @@ function SlotEditor({
         </label>
         <input value={start} onChange={(e) => setStart(e.target.value)} type="time" className="rounded-lg border border-border px-3 py-2 text-sm" />
         <input value={end} onChange={(e) => setEnd(e.target.value)} type="time" className="rounded-lg border border-border px-3 py-2 text-sm" />
-        <button type="button" onClick={addSlot} disabled={!subjectId} className="rounded-lg border border-primary px-3 py-2 text-sm text-primary disabled:opacity-50">Add slot</button>
+        <button
+          type="button"
+          onClick={addSlot}
+          disabled={!subjectId || (subjectId !== "break" && !subjects.some((subject) => subject.id === subjectId && subject.linked))}
+          className="rounded-lg border border-primary px-3 py-2 text-sm text-primary disabled:opacity-50"
+        >
+          Add slot
+        </button>
       </div>
+      <p className="mt-2 text-xs text-muted-foreground">
+        Link a subject to this section in Enrollment before scheduling it.
+      </p>
       <div className="mt-3 space-y-2">
         {schedule.slots.map((slot) => (
           <div key={slot.id} className="grid gap-2 rounded-xl border border-border bg-muted/20 p-2 sm:grid-cols-[1fr_auto_auto_auto_auto]">

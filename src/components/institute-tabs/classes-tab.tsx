@@ -62,6 +62,17 @@ export function ClassesTab({ instituteId, branches }: Props) {
     }
   }
 
+  async function deleteSection(sectionId: string) {
+    if (!window.confirm("Delete this class and section?")) return;
+
+    try {
+      await change(`/api/institutes/${instituteId}/sections/${sectionId}`, { method: "DELETE" });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not delete class");
+    }
+  }
+
   return (
     <div className="space-y-6">
       {error && <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
@@ -94,8 +105,13 @@ export function ClassesTab({ instituteId, branches }: Props) {
           <ul className="mt-3 space-y-1 text-sm">
             {sections.map((section) => (
               <li key={section.id} className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
-                <span>{section.name}</span>
-                <span className="text-xs text-muted-foreground">{section.className || "No grade"}</span>
+                <span>{section.className ? `${section.className}-${section.name}` : section.name}</span>
+                <button
+                  onClick={() => deleteSection(section.id)}
+                  className="text-xs text-destructive"
+                >
+                  Delete
+                </button>
               </li>
             ))}
           </ul>
