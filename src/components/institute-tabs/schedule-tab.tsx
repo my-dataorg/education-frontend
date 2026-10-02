@@ -5,7 +5,7 @@ import type { CSSProperties, ReactNode } from "react";
 import type { Member } from "@/lib/api";
 
 type Section = { id: string; name: string; className: string };
-type Subject = { id: string; name: string; teachers: { userId: string }[] };
+type Subject = { id: string; name: string; teachers: { userId: string }[]; linked?: boolean };
 type Slot = {
   id: string;
   label: string;
@@ -53,6 +53,7 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
   });
   const [sections, setSections] = useState<Section[]>([]);
   const [subjects, setSubjects] = useState<Record<string, Subject[]>>({});
+  const [catalogSubjects, setCatalogSubjects] = useState<{ id: string; name: string }[]>([]);
   const [teachers, setTeachers] = useState<Member[]>([]);
   const [day, setDay] = useState(1);
   const [detailSectionId, setDetailSectionId] = useState("");
@@ -64,10 +65,11 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
-    const [scheduleRes, sectionsRes, teachersRes] = await Promise.all([
+    const [scheduleRes, sectionsRes, teachersRes, catalogRes] = await Promise.all([
       fetch(`/api/institutes/${instituteId}/schedule`),
       fetch(`/api/institutes/${instituteId}/sections`),
       fetch(`/api/institutes/${instituteId}/members?group=staff`),
+      fetch(`/api/institutes/${instituteId}/subjects`),
     ]);
     if (!scheduleRes.ok || !sectionsRes.ok) throw new Error("Could not load schedule");
     const nextSchedule = await scheduleRes.json();
@@ -80,6 +82,7 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
     setSections(nextSections);
     setSubjects(Object.fromEntries(subjectRows));
     if (teachersRes.ok) setTeachers(await teachersRes.json());
+    if (catalogRes.ok) setCatalogSubjects(await catalogRes.json());
     setDay(nextSchedule.settings.weekdays[0] ?? 1);
   }, [instituteId]);
 
@@ -220,9 +223,9 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
               >
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <p className="font-semibold">{section.name}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Class / grade: {section.className || "Not configured"}
+                    <p className="font-semibold">Class / grade: {section.className || "Not configured"}</p>
+                    <p className="mt-1 inline-flex rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
+                      Section: {section.name}
                     </p>
                   </div>
                   <span className="rounded-full bg-primary/10 px-2 py-1 text-[11px] text-primary">{count} periods</span>
@@ -274,12 +277,18 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
           {selectedSection && (
             <div className="mt-4">
               <div className="mb-4 rounded-xl bg-muted/30 px-3 py-2 text-sm">
-                Scheduling <span className="font-semibold">{selectedSection.name}</span> · {selectedSection.className || "No grade"}
+                Class / grade: <span className="font-semibold">{selectedSection.className || "Not configured"}</span>
+                <span className="mx-2 text-muted-foreground">·</span>
+                Section: <span className="font-semibold">{selectedSection.name}</span>
               </div>
               <ScheduleEditor
                 schedule={schedule}
                 section={selectedSection}
-                subjects={subjects[selectedSection.id] ?? []}
+                subjects={catalogSubjects.map((subject) => ({
+                  ...subject,
+                  linked: (subjects[selectedSection.id] ?? []).some((item) => item.id === subject.id),
+                  teachers: subjects[selectedSection.id]?.find((item) => item.id === subject.id)?.teachers ?? [],
+                }))}
                 slots={slots}
                 day={day}
                 setDay={setDay}
@@ -539,7 +548,7 @@ function ScheduleEditor({
             })}
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
-            {subjects.map((subject) => (
+            {subjects.filter((subject) => subject.linked).map((subject) => (
               <span key={subject.id} draggable onDragStart={(e) => e.dataTransfer.setData("subject", JSON.stringify({ sectionId: section.id, subjectId: subject.id }))} className="cursor-grab rounded-full bg-primary/10 px-3 py-1.5 text-xs text-primary">
                 Drag {subject.name}
               </span>
@@ -567,7 +576,7 @@ function SectionScheduleDialog({
   onClose: () => void;
 }) {
   return (
-    <Modal title={`${section.name} · ${section.className || "No grade"}`} onClose={onClose}>
+          <Modal title={`Class / grade: ${section.className || "Not configured"} · Section: ${section.name}`} onClose={onClose}>
       <p className="text-sm text-muted-foreground">
         School hours: {schedule.settings.schoolStart} – {schedule.settings.schoolEnd}
       </p>
@@ -643,6 +652,7 @@ function SlotEditor({
     if (!subjectId || !start || !end) return;
     const isBreak = subjectId === "break";
     const subject = subjects.find((item) => item.id === subjectId);
+    if (!subject?.linked) return;
     const slotId = crypto.randomUUID();
     updateSchedule((current) => ({
       ...current,
@@ -681,7 +691,11 @@ function SlotEditor({
           Subject
           <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm">
             <option value="">Select subject or break</option>
-            {subjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
+            {subjects.map((subject) => (
+              <option key={subject.id} value={subject.id} disabled={!subject.linked}>
+                {subject.name}{subject.linked ? "" : " (link in Enrollment first)"}
+              </option>
+            ))}
             <option value="break">Break</option>
           </select>
         </label>
