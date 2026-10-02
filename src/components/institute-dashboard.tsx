@@ -9,6 +9,7 @@ import { ClassesTab } from "@/components/institute-tabs/classes-tab";
 import { EnrollmentTab } from "@/components/institute-tabs/enrollment-tab";
 import { MembersTab } from "@/components/institute-tabs/members-tab";
 import { OverviewTab } from "@/components/institute-tabs/overview-tab";
+import { ScheduleTab } from "@/components/institute-tabs/schedule-tab";
 import { BranchPills, InstituteShell } from "@/components/institute-shell";
 import { ManageInstitutesDropdown } from "@/components/manage-institutes-dropdown";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -223,6 +224,10 @@ export function InstituteDashboard({
                     inviteRefreshKey={inviteRefreshKey}
                     onChanged={onChanged}
                   />
+                </TabsContent>
+
+                <TabsContent value="schedule">
+                  <ScheduleTab instituteId={instituteId} />
                 </TabsContent>
 
                 <TabsContent value="campuses">

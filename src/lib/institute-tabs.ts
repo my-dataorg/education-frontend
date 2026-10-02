@@ -1,4 +1,4 @@
-export const INSTITUTE_TAB_IDS = ["overview", "members", "classes", "enrollment", "campuses"] as const;
+export const INSTITUTE_TAB_IDS = ["overview", "members", "classes", "enrollment", "schedule", "campuses"] as const;
 
 export type InstituteTabId = (typeof INSTITUTE_TAB_IDS)[number];
 
@@ -12,6 +12,7 @@ const ALL_TABS: InstituteTab[] = [
   { id: "members", label: "Members" },
   { id: "classes", label: "Classes & subjects" },
   { id: "enrollment", label: "Enrollment" },
+  { id: "schedule", label: "Schedule" },
   { id: "campuses", label: "Campuses" },
 ];
 
