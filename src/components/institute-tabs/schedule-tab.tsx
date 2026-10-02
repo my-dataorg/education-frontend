@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
+import type { Member } from "@/lib/api";
 
 type Section = { id: string; name: string; className: string };
 type Subject = { id: string; name: string; teachers: { userId: string }[] };
@@ -44,18 +45,29 @@ const DAYS = [
 ] as const;
 
 export function ScheduleTab({ instituteId }: { instituteId: string }) {
-  const [schedule, setSchedule] = useState<Schedule | null>(null);
+  const [schedule, setSchedule] = useState<Schedule>({
+    revision: 1,
+    settings: { timezone: "Asia/Kolkata", schoolStart: "08:00", schoolEnd: "15:00", weekdays: [1, 2, 3, 4, 5, 6] },
+    slots: [],
+    entries: [],
+  });
   const [sections, setSections] = useState<Section[]>([]);
   const [subjects, setSubjects] = useState<Record<string, Subject[]>>({});
+  const [teachers, setTeachers] = useState<Member[]>([]);
   const [day, setDay] = useState(1);
+  const [detailSectionId, setDetailSectionId] = useState("");
+  const [manageOpen, setManageOpen] = useState(false);
+  const [selectedClassName, setSelectedClassName] = useState("");
+  const [selectedSectionId, setSelectedSectionId] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
-    const [scheduleRes, sectionsRes] = await Promise.all([
+    const [scheduleRes, sectionsRes, teachersRes] = await Promise.all([
       fetch(`/api/institutes/${instituteId}/schedule`),
       fetch(`/api/institutes/${instituteId}/sections`),
+      fetch(`/api/institutes/${instituteId}/members?group=staff`),
     ]);
     if (!scheduleRes.ok || !sectionsRes.ok) throw new Error("Could not load schedule");
     const nextSchedule = await scheduleRes.json();
@@ -67,6 +79,7 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
     setSchedule(nextSchedule);
     setSections(nextSections);
     setSubjects(Object.fromEntries(subjectRows));
+    if (teachersRes.ok) setTeachers(await teachersRes.json());
     setDay(nextSchedule.settings.weekdays[0] ?? 1);
   }, [instituteId]);
 
@@ -80,6 +93,12 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
   const slots = useMemo(
     () => [...(schedule?.slots ?? [])].sort((a, b) => a.position - b.position),
     [schedule]
+  );
+  const detailSection = sections.find((section) => section.id === detailSectionId);
+  const selectedSection = sections.find((section) => section.id === selectedSectionId);
+  const classOptions = [...new Set(sections.map((section) => section.className || "__none__"))];
+  const manageSections = sections.filter(
+    (section) => !selectedClassName || (selectedClassName === "__none__" ? !section.className : section.className === selectedClassName)
   );
 
   function updateSchedule(change: (current: Schedule) => Schedule) {
@@ -128,31 +147,156 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
     if (!schedule) return;
     setSaving(true);
     setError("");
-    const res = await fetch(`/api/institutes/${instituteId}/schedule`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(schedule),
-    });
-    setSaving(false);
-    if (res.status === 409) {
-      setError("This schedule changed elsewhere. Reload it before saving again.");
-      return;
+    try {
+      const res = await fetch(`/api/institutes/${instituteId}/schedule`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(schedule),
+      });
+      if (res.status === 409) {
+        setError("This schedule changed elsewhere. Reload it before saving again.");
+        return;
+      }
+      if (!res.ok) {
+        setError((await res.json()).detail || "Could not save schedule");
+        return;
+      }
+      setSchedule(await res.json());
+      setMessage("Schedule saved");
+    } catch {
+      setError("Could not save schedule. Check your connection and try again.");
+    } finally {
+      setSaving(false);
     }
-    if (!res.ok) {
-      setError((await res.json()).detail || "Could not save schedule");
-      return;
-    }
-    setSchedule(await res.json());
-    setMessage("Schedule saved");
-  }
-
-  if (!schedule) {
-    return <p className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">Loading schedule...</p>;
   }
 
   return (
     <div className="space-y-5">
       {error && <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+      <section className="rounded-2xl border border-border bg-gradient-to-br from-primary/10 via-card to-card p-5 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-primary">Institute schedule</p>
+            <h2 className="mt-1 text-xl font-semibold">Class schedules</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Choose a class to view its periods, or manage an existing timetable.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setManageOpen(true);
+              setSelectedClassName("");
+              setSelectedSectionId("");
+            }}
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+          >
+            Manage schedule
+          </button>
+        </div>
+        <div className="mt-5 flex flex-wrap gap-3">
+          <div className="rounded-xl border border-border bg-background/70 px-4 py-3">
+            <p className="text-lg font-semibold">{schedule.settings.schoolStart}</p>
+            <p className="text-[11px] text-muted-foreground">School starts</p>
+          </div>
+          <div className="rounded-xl border border-border bg-background/70 px-4 py-3">
+            <p className="text-lg font-semibold">{schedule.settings.schoolEnd}</p>
+            <p className="text-[11px] text-muted-foreground">School ends</p>
+          </div>
+          <div className="rounded-xl border border-border bg-background/70 px-4 py-3">
+            <p className="text-lg font-semibold">{sections.length}</p>
+            <p className="text-[11px] text-muted-foreground">Classes / sections</p>
+          </div>
+        </div>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {sections.map((section) => {
+            const count = schedule.entries.filter((entry) => entry.sectionId === section.id).length;
+            return (
+              <button
+                key={section.id}
+                type="button"
+                onClick={() => setDetailSectionId(section.id)}
+                className="rounded-xl border border-border bg-background/80 p-4 text-left transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-sm"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-semibold">{section.name}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Class / grade: {section.className || "Not configured"}
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-primary/10 px-2 py-1 text-[11px] text-primary">{count} periods</span>
+                </div>
+                <p className="mt-4 text-xs text-muted-foreground">
+                  {schedule.settings.schoolStart} – {schedule.settings.schoolEnd}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+        {!sections.length && <p className="mt-5 rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">Create a class and section before setting a schedule.</p>}
+      </section>
+      {detailSection && (
+        <SectionScheduleDialog
+          section={detailSection}
+          schedule={schedule}
+          slots={slots}
+          subjects={subjects[detailSection.id] ?? []}
+          teachers={teachers}
+          onClose={() => setDetailSectionId("")}
+        />
+      )}
+      {manageOpen && (
+        <Modal title="Manage schedule" onClose={() => setManageOpen(false)}>
+          {!selectedSectionId ? (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">Choose the class/grade and section you want to schedule.</p>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Class / grade
+                <select value={selectedClassName} onChange={(e) => { setSelectedClassName(e.target.value); setSelectedSectionId(""); }} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">
+                  <option value="">Select class / grade</option>
+                  {classOptions.map((value) => <option key={value} value={value}>{value === "__none__" ? "No grade" : value}</option>)}
+                </select>
+              </label>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Section
+                <select value={selectedSectionId} onChange={(e) => setSelectedSectionId(e.target.value)} disabled={!selectedClassName} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm disabled:opacity-50">
+                  <option value="">Select section</option>
+                  {manageSections.map((section) => <option key={section.id} value={section.id}>{section.name}</option>)}
+                </select>
+              </label>
+            </div>
+          ) : (
+            <button type="button" onClick={() => setSelectedSectionId("")} className="mb-4 text-xs text-primary hover:underline">
+              ← Change class / section
+            </button>
+          )}
+          {selectedSection && (
+            <div className="mt-4">
+              <div className="mb-4 rounded-xl bg-muted/30 px-3 py-2 text-sm">
+                Scheduling <span className="font-semibold">{selectedSection.name}</span> · {selectedSection.className || "No grade"}
+              </div>
+              <ScheduleEditor
+                schedule={schedule}
+                section={selectedSection}
+                subjects={subjects[selectedSection.id] ?? []}
+                slots={slots}
+                day={day}
+                setDay={setDay}
+                updateSchedule={updateSchedule}
+                dropSubject={dropSubject}
+                moveEntry={moveEntry}
+                removeEntry={removeEntry}
+                save={save}
+                saving={saving}
+                message={message}
+              />
+            </div>
+          )}
+        </Modal>
+      )}
+      {schedule && false && (
+      <>
       <section className="rounded-2xl border border-border bg-gradient-to-br from-primary/10 via-card to-card p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -275,6 +419,199 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
           </div>
         </div>
       </section>
+      </>
+      )}
+    </div>
+  );
+}
+
+function ScheduleEditor({
+  schedule,
+  section,
+  subjects,
+  slots,
+  day,
+  setDay,
+  updateSchedule,
+  dropSubject,
+  moveEntry,
+  removeEntry,
+  save,
+  saving,
+  message,
+}: {
+  schedule: Schedule;
+  section: Section;
+  subjects: Subject[];
+  slots: Slot[];
+  day: number;
+  setDay: (day: number) => void;
+  updateSchedule: (change: (current: Schedule) => Schedule) => void;
+  dropSubject: (sectionId: string, slotId: string, subjectId: string) => void;
+  moveEntry: (entryId: string, slotId: string, sectionId: string) => void;
+  removeEntry: (entryId: string) => void;
+  save: () => void;
+  saving: boolean;
+  message: string;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          School starts
+          <input value={schedule.settings.schoolStart} onChange={(e) => updateSchedule((s) => ({ ...s, settings: { ...s.settings, schoolStart: e.target.value } }))} type="time" className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+        </label>
+        <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          School ends
+          <input value={schedule.settings.schoolEnd} onChange={(e) => updateSchedule((s) => ({ ...s, settings: { ...s.settings, schoolEnd: e.target.value } }))} type="time" className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+        </label>
+        <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Timezone
+          <input value={schedule.settings.timezone} onChange={(e) => updateSchedule((s) => ({ ...s, settings: { ...s.settings, timezone: e.target.value } }))} className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+        </label>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {DAYS.map(([value, label]) => (
+          <label key={value} className="flex items-center gap-1.5 text-xs">
+            <input
+              type="checkbox"
+              checked={schedule.settings.weekdays.includes(Number(value))}
+              onChange={(e) => updateSchedule((s) => ({
+                ...s,
+                settings: {
+                  ...s.settings,
+                  weekdays: e.target.checked
+                    ? [...s.settings.weekdays, Number(value)].sort()
+                    : s.settings.weekdays.filter((item) => item !== Number(value)),
+                },
+              }))}
+            />
+            {label}
+          </label>
+        ))}
+      </div>
+      <SlotEditor schedule={schedule} updateSchedule={updateSchedule} />
+      <div className="flex items-center justify-between gap-3">
+        <select value={day} onChange={(e) => setDay(Number(e.target.value))} className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
+          {DAYS.filter(([value]) => schedule.settings.weekdays.includes(Number(value))).map(([value, label]) => (
+            <option key={value} value={value}>{label}</option>
+          ))}
+        </select>
+        <div className="flex items-center gap-3">
+          {message && <span className="text-xs text-primary">{message}</span>}
+          <button type="button" onClick={save} disabled={saving} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60">
+            {saving ? "Saving..." : "Save schedule"}
+          </button>
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <div className="min-w-[800px]">
+          <div className="grid grid-cols-[150px_repeat(var(--slot-count),minmax(135px,1fr))] gap-2" style={{ "--slot-count": slots.length } as CSSProperties}>
+            <div className="rounded-xl bg-muted/30 p-3 text-xs font-semibold">{section.name}</div>
+            {slots.map((slot) => {
+              const entry = schedule.entries.find((item) => item.dayOfWeek === day && item.slotId === slot.id && item.sectionId === section.id);
+              const subject = subjects.find((item) => item.id === entry?.subjectId);
+              return (
+                <div key={slot.id} onDragOver={(e) => e.preventDefault()} onDrop={(e) => {
+                  const subjectData = e.dataTransfer.getData("subject");
+                  if (subjectData && slot.kind === "instruction") {
+                    const dropped = JSON.parse(subjectData);
+                    dropSubject(section.id, slot.id, dropped.subjectId);
+                  }
+                  const entryId = e.dataTransfer.getData("entry");
+                  if (entryId && slot.kind === "instruction") moveEntry(entryId, slot.id, section.id);
+                }} className={`min-h-24 rounded-xl border p-3 ${slot.kind === "break" ? "border-amber-200 bg-amber-50" : "border-border bg-background"}`}>
+                  <p className="text-[10px] text-muted-foreground">{slot.label} · {slot.start}–{slot.end}</p>
+                  {slot.kind === "break" ? <p className="mt-4 text-center text-xs font-medium text-amber-800">Break</p> : subject && entry ? (
+                    <div draggable onDragStart={(e) => e.dataTransfer.setData("entry", entry.id)} className="mt-3 flex cursor-grab items-center justify-between gap-2 rounded-lg bg-primary px-2 py-2 text-xs text-primary-foreground">
+                      <span>{subject.name}</span>
+                      <button type="button" onClick={() => removeEntry(entry.id)} aria-label={`Remove ${subject.name}`}>×</button>
+                    </div>
+                  ) : <p className="mt-4 text-center text-[11px] text-muted-foreground">Drop subject</p>}
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {subjects.map((subject) => (
+              <span key={subject.id} draggable onDragStart={(e) => e.dataTransfer.setData("subject", JSON.stringify({ sectionId: section.id, subjectId: subject.id }))} className="cursor-grab rounded-full bg-primary/10 px-3 py-1.5 text-xs text-primary">
+                Drag {subject.name}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SectionScheduleDialog({
+  section,
+  schedule,
+  slots,
+  subjects,
+  teachers,
+  onClose,
+}: {
+  section: Section;
+  schedule: Schedule;
+  slots: Slot[];
+  subjects: Subject[];
+  teachers: Member[];
+  onClose: () => void;
+}) {
+  return (
+    <Modal title={`${section.name} · ${section.className || "No grade"}`} onClose={onClose}>
+      <p className="text-sm text-muted-foreground">
+        School hours: {schedule.settings.schoolStart} – {schedule.settings.schoolEnd}
+      </p>
+      <div className="mt-4 space-y-4">
+        {DAYS.filter(([value]) => schedule.settings.weekdays.includes(Number(value))).map(([value, label]) => {
+          const entries = schedule.entries
+            .filter((entry) => entry.sectionId === section.id && entry.dayOfWeek === Number(value))
+            .sort((a, b) => (slots.find((slot) => slot.id === a.slotId)?.position ?? 0) - (slots.find((slot) => slot.id === b.slotId)?.position ?? 0));
+          return (
+            <div key={value}>
+              <h4 className="text-sm font-semibold">{label}</h4>
+              {entries.length ? (
+                <div className="mt-2 space-y-2">
+                  {entries.map((entry) => {
+                    const slot = slots.find((item) => item.id === entry.slotId);
+                    const subject = subjects.find((item) => item.id === entry.subjectId);
+                    return (
+                      <div key={entry.id} className="flex items-center justify-between rounded-xl border border-border bg-muted/20 px-3 py-2">
+                        <span className="text-sm font-medium">{slot?.start} – {slot?.end}</span>
+                        <span className="text-sm">{subject?.name || "Subject"}</span>
+                        <span className="text-xs text-muted-foreground">{teacherName(teachers, entry.teacherId)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : <p className="mt-2 text-xs text-muted-foreground">No periods scheduled.</p>}
+            </div>
+          );
+        })}
+      </div>
+    </Modal>
+  );
+}
+
+function teacherName(teachers: Member[], id: string | null) {
+  if (!id) return "Teacher not assigned";
+  const teacher = teachers.find((member) => member.userId === id);
+  return teacher?.displayName || teacher?.username || teacher?.email || "Teacher";
+}
+
+function Modal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-xl">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-lg font-semibold">{title}</h3>
+          <button type="button" onClick={onClose} className="rounded-lg px-2 py-1 text-xl text-muted-foreground hover:bg-muted" aria-label="Close dialog">×</button>
+        </div>
+        <div className="mt-4">{children}</div>
+      </div>
     </div>
   );
 }
@@ -289,7 +626,17 @@ function SlotEditor({ schedule, updateSchedule }: { schedule: Schedule; updateSc
     if (!label || !start || !end) return;
     updateSchedule((current) => ({
       ...current,
-      slots: [...current.slots, { id: crypto.randomUUID(), label, kind, start, end, position: current.slots.length }],
+      slots: [
+        ...current.slots,
+        {
+          id: crypto.randomUUID(),
+          label,
+          kind,
+          start,
+          end,
+          position: Math.max(-1, ...current.slots.map((slot) => slot.position)) + 1,
+        },
+      ],
     }));
     setLabel("");
   }
