@@ -351,7 +351,13 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
         </div>
       </section>
 
-      <SlotEditor schedule={schedule} updateSchedule={updateSchedule} />
+      <SlotEditor
+        schedule={schedule}
+        subjects={[]}
+        sectionId=""
+        day={day}
+        updateSchedule={updateSchedule}
+      />
 
       <section className="rounded-2xl border border-border bg-card p-4 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -490,7 +496,7 @@ function ScheduleEditor({
           </label>
         ))}
       </div>
-      <SlotEditor schedule={schedule} updateSchedule={updateSchedule} />
+      <SlotEditor schedule={schedule} subjects={[]} sectionId="" day={day} updateSchedule={updateSchedule} />
       <div className="flex items-center justify-between gap-3">
         <select value={day} onChange={(e) => setDay(Number(e.target.value))} className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
           {DAYS.filter(([value]) => schedule.settings.weekdays.includes(Number(value))).map(([value, label]) => (
@@ -616,39 +622,72 @@ function Modal({ title, children, onClose }: { title: string; children: ReactNod
   );
 }
 
-function SlotEditor({ schedule, updateSchedule }: { schedule: Schedule; updateSchedule: (change: (current: Schedule) => Schedule) => void }) {
-  const [label, setLabel] = useState("");
-  const [kind, setKind] = useState<"instruction" | "break">("instruction");
+function SlotEditor({
+  schedule,
+  subjects,
+  sectionId,
+  day,
+  updateSchedule,
+}: {
+  schedule: Schedule;
+  subjects: Subject[];
+  sectionId: string;
+  day: number;
+  updateSchedule: (change: (current: Schedule) => Schedule) => void;
+}) {
+  const [subjectId, setSubjectId] = useState("");
   const [start, setStart] = useState("08:00");
   const [end, setEnd] = useState("08:45");
 
   function addSlot() {
-    if (!label || !start || !end) return;
+    if (!subjectId || !start || !end) return;
+    const isBreak = subjectId === "break";
+    const subject = subjects.find((item) => item.id === subjectId);
+    const slotId = crypto.randomUUID();
     updateSchedule((current) => ({
       ...current,
       slots: [
         ...current.slots,
         {
-          id: crypto.randomUUID(),
-          label,
-          kind,
+          id: slotId,
+          label: isBreak ? "Break" : subject?.name || "Period",
+          kind: isBreak ? "break" : "instruction",
           start,
           end,
           position: Math.max(-1, ...current.slots.map((slot) => slot.position)) + 1,
         },
       ],
+      entries: isBreak
+        ? current.entries
+        : [
+            ...current.entries,
+            {
+              id: crypto.randomUUID(),
+              dayOfWeek: day,
+              slotId,
+              sectionId,
+              subjectId,
+              teacherId: subject?.teachers[0]?.userId ?? null,
+            },
+          ],
     }));
-    setLabel("");
+    setSubjectId("");
   }
 
   return (
     <section className="rounded-2xl border border-border bg-card p-4 shadow-sm">
       <div className="flex flex-wrap items-end gap-2">
-        <label className="flex-1 text-xs font-semibold text-muted-foreground">Period or break<input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Period 1 / Lunch" className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" /></label>
-        <select value={kind} onChange={(e) => setKind(e.target.value as "instruction" | "break")} className="rounded-lg border border-border px-3 py-2 text-sm"><option value="instruction">Period</option><option value="break">Break</option></select>
+        <label className="min-w-52 flex-1 text-xs font-semibold text-muted-foreground">
+          Subject
+          <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm">
+            <option value="">Select subject or break</option>
+            {subjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
+            <option value="break">Break</option>
+          </select>
+        </label>
         <input value={start} onChange={(e) => setStart(e.target.value)} type="time" className="rounded-lg border border-border px-3 py-2 text-sm" />
         <input value={end} onChange={(e) => setEnd(e.target.value)} type="time" className="rounded-lg border border-border px-3 py-2 text-sm" />
-        <button type="button" onClick={addSlot} className="rounded-lg border border-primary px-3 py-2 text-sm text-primary">Add slot</button>
+        <button type="button" onClick={addSlot} disabled={!subjectId} className="rounded-lg border border-primary px-3 py-2 text-sm text-primary disabled:opacity-50">Add slot</button>
       </div>
       <div className="mt-3 space-y-2">
         {schedule.slots.map((slot) => (
