@@ -289,7 +289,7 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
               <ScheduleEditor
                 schedule={schedule}
                 section={selectedSection}
-                subjects={catalogSubjects.map((subject) => ({
+                  subjects={(catalogSubjects.length ? catalogSubjects : subjects[selectedSection.id] ?? []).map((subject) => ({
                   ...subject,
                   linked: (subjects[selectedSection.id] ?? []).some((item) => item.id === subject.id),
                   teachers: subjects[selectedSection.id]?.find((item) => item.id === subject.id)?.teachers ?? [],
