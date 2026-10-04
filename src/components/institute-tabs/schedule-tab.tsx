@@ -53,23 +53,18 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
   });
   const [sections, setSections] = useState<Section[]>([]);
   const [subjects, setSubjects] = useState<Record<string, Subject[]>>({});
-  const [catalogSubjects, setCatalogSubjects] = useState<{ id: string; name: string }[]>([]);
   const [teachers, setTeachers] = useState<Member[]>([]);
   const [day, setDay] = useState(1);
   const [detailSectionId, setDetailSectionId] = useState("");
-  const [manageOpen, setManageOpen] = useState(false);
-  const [selectedClassName, setSelectedClassName] = useState("");
-  const [selectedSectionId, setSelectedSectionId] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
-    const [scheduleRes, sectionsRes, teachersRes, catalogRes] = await Promise.all([
+    const [scheduleRes, sectionsRes, teachersRes] = await Promise.all([
       fetch(`/api/institutes/${instituteId}/schedule`),
       fetch(`/api/institutes/${instituteId}/sections`),
       fetch(`/api/institutes/${instituteId}/members?group=staff`),
-      fetch(`/api/institutes/${instituteId}/subjects`),
     ]);
     if (!scheduleRes.ok || !sectionsRes.ok) throw new Error("Could not load schedule");
     const nextSchedule = await scheduleRes.json();
@@ -78,16 +73,10 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
       const res = await fetch(`/api/sections/${section.id}/subjects`);
       return [section.id, res.ok ? await res.json() : []] as const;
     }));
-    const configuredSubjects: { id: string; name: string }[] = catalogRes.ok ? await catalogRes.json() : [];
-    const linkedSubjects = subjectRows.flatMap(([, rows]) => rows as Subject[]);
-    const subjectCatalog = [...new Map(
-      [...configuredSubjects, ...linkedSubjects].map((subject) => [subject.id, subject])
-    ).values()];
     setSchedule(nextSchedule);
     setSections(nextSections);
     setSubjects(Object.fromEntries(subjectRows));
     if (teachersRes.ok) setTeachers(await teachersRes.json());
-    setCatalogSubjects(subjectCatalog);
     setDay(nextSchedule.settings.weekdays[0] ?? 1);
   }, [instituteId]);
 
@@ -103,11 +92,6 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
     [schedule]
   );
   const detailSection = sections.find((section) => section.id === detailSectionId);
-  const selectedSection = sections.find((section) => section.id === selectedSectionId);
-  const classOptions = [...new Set(sections.map((section) => section.className || "__none__"))];
-  const manageSections = sections.filter(
-    (section) => !selectedClassName || (selectedClassName === "__none__" ? !section.className : section.className === selectedClassName)
-  );
 
   function updateSchedule(change: (current: Schedule) => Schedule) {
     setSchedule((current) => (current ? change(current) : current));
@@ -190,17 +174,37 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
               Choose a class to view its periods, or manage an existing timetable.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              setManageOpen(true);
-              setSelectedClassName("");
-              setSelectedSectionId("");
-            }}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
-          >
-            Manage schedule
-          </button>
+        </div>
+        <div className="mt-5 rounded-xl border border-border bg-background/70 p-4">
+          <p className="text-sm font-semibold">Institute timetable settings</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              School starts
+              <input value={schedule.settings.schoolStart} onChange={(e) => updateSchedule((s) => ({ ...s, settings: { ...s.settings, schoolStart: e.target.value } }))} type="time" className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+            </label>
+            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              School ends
+              <input value={schedule.settings.schoolEnd} onChange={(e) => updateSchedule((s) => ({ ...s, settings: { ...s.settings, schoolEnd: e.target.value } }))} type="time" className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+            </label>
+            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Timezone
+              <input value={schedule.settings.timezone} onChange={(e) => updateSchedule((s) => ({ ...s, settings: { ...s.settings, timezone: e.target.value } }))} className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+            </label>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {DAYS.map(([value, label]) => (
+              <label key={value} className="flex items-center gap-1.5 text-xs">
+                <input type="checkbox" checked={schedule.settings.weekdays.includes(Number(value))} onChange={(e) => updateSchedule((s) => ({ ...s, settings: { ...s.settings, weekdays: e.target.checked ? [...s.settings.weekdays, Number(value)].sort() : s.settings.weekdays.filter((item) => item !== Number(value)) } }))} />
+                {label}
+              </label>
+            ))}
+          </div>
+          <div className="mt-3 flex items-center gap-3">
+            {message && <span className="text-xs text-primary">{message}</span>}
+            <button type="button" onClick={save} disabled={saving} className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60">
+              {saving ? "Saving..." : "Save settings"}
+            </button>
+          </div>
         </div>
         <div className="mt-5 flex flex-wrap gap-3">
           <div className="rounded-xl border border-border bg-background/70 px-4 py-3">
@@ -249,67 +253,16 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
           section={detailSection}
           schedule={schedule}
           slots={slots}
-          subjects={subjects[detailSection.id] ?? []}
+          subjects={(subjects[detailSection.id] ?? []).map((subject) => ({ ...subject, linked: true }))}
           teachers={teachers}
+          day={day}
+          setDay={setDay}
+          updateSchedule={updateSchedule}
+          save={save}
+          saving={saving}
+          message={message}
           onClose={() => setDetailSectionId("")}
         />
-      )}
-      {manageOpen && (
-        <Modal title="Manage schedule" onClose={() => setManageOpen(false)}>
-          {!selectedSectionId ? (
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">Choose the class/grade and section you want to schedule.</p>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Class / grade
-                <select value={selectedClassName} onChange={(e) => { setSelectedClassName(e.target.value); setSelectedSectionId(""); }} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">
-                  <option value="">Select class / grade</option>
-                  {classOptions.map((value) => <option key={value} value={value}>{value === "__none__" ? "No grade" : value}</option>)}
-                </select>
-              </label>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Section
-                <select value={selectedSectionId} onChange={(e) => setSelectedSectionId(e.target.value)} disabled={!selectedClassName} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm disabled:opacity-50">
-                  <option value="">Select section</option>
-                  {manageSections.map((section) => <option key={section.id} value={section.id}>{section.name}</option>)}
-                </select>
-              </label>
-            </div>
-          ) : (
-            <button type="button" onClick={() => setSelectedSectionId("")} className="mb-4 text-xs text-primary hover:underline">
-              ← Change class / section
-            </button>
-          )}
-          {selectedSection && (
-            <div className="mt-4">
-              <div className="mb-4 rounded-xl bg-muted/30 px-3 py-2 text-sm">
-                Class / grade: <span className="font-semibold">{selectedSection.className || "Not configured"}</span>
-                <span className="mx-2 text-muted-foreground">·</span>
-                Section: <span className="font-semibold">{selectedSection.name}</span>
-              </div>
-              <ScheduleEditor
-                schedule={schedule}
-                section={selectedSection}
-                  subjects={[...new Map(
-                    [...catalogSubjects, ...(subjects[selectedSection.id] ?? [])].map((subject) => [subject.id, subject])
-                  ).values()].map((subject) => ({
-                  ...subject,
-                  linked: (subjects[selectedSection.id] ?? []).some((item) => item.id === subject.id),
-                  teachers: subjects[selectedSection.id]?.find((item) => item.id === subject.id)?.teachers ?? [],
-                }))}
-                slots={slots}
-                day={day}
-                setDay={setDay}
-                updateSchedule={updateSchedule}
-                dropSubject={dropSubject}
-                moveEntry={moveEntry}
-                removeEntry={removeEntry}
-                save={save}
-                saving={saving}
-                message={message}
-              />
-            </div>
-          )}
-        </Modal>
       )}
       {schedule && false && (
       <>
@@ -514,11 +467,13 @@ function ScheduleEditor({
       </div>
       <SlotEditor schedule={schedule} subjects={subjects} sectionId={section.id} day={day} updateSchedule={updateSchedule} />
       <div className="flex items-center justify-between gap-3">
-        <select value={day} onChange={(e) => setDay(Number(e.target.value))} className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
+        <div className="flex flex-wrap gap-1 rounded-lg bg-muted/40 p-1">
           {DAYS.filter(([value]) => schedule.settings.weekdays.includes(Number(value))).map(([value, label]) => (
-            <option key={value} value={value}>{label}</option>
+            <button key={value} type="button" onClick={() => setDay(Number(value))} className={`rounded-md px-3 py-1.5 text-xs font-medium ${day === Number(value) ? "bg-background text-primary shadow-sm" : "text-muted-foreground"}`}>
+              {label}
+            </button>
           ))}
-        </select>
+        </div>
         <div className="flex items-center gap-3">
           {message && <span className="text-xs text-primary">{message}</span>}
           <button type="button" onClick={save} disabled={saving} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60">
@@ -573,6 +528,12 @@ function SectionScheduleDialog({
   slots,
   subjects,
   teachers,
+  day,
+  setDay,
+  updateSchedule,
+  save,
+  saving,
+  message,
   onClose,
 }: {
   section: Section;
@@ -580,41 +541,98 @@ function SectionScheduleDialog({
   slots: Slot[];
   subjects: Subject[];
   teachers: Member[];
+  day: number;
+  setDay: (day: number) => void;
+  updateSchedule: (change: (current: Schedule) => Schedule) => void;
+  save: () => void;
+  saving: boolean;
+  message: string;
   onClose: () => void;
 }) {
   return (
-          <Modal title={`Class / grade: ${section.className || "Not configured"} · Section: ${section.name}`} onClose={onClose}>
-      <p className="text-sm text-muted-foreground">
-        School hours: {schedule.settings.schoolStart} – {schedule.settings.schoolEnd}
-      </p>
-      <div className="mt-4 space-y-4">
-        {DAYS.filter(([value]) => schedule.settings.weekdays.includes(Number(value))).map(([value, label]) => {
-          const entries = schedule.entries
-            .filter((entry) => entry.sectionId === section.id && entry.dayOfWeek === Number(value))
-            .sort((a, b) => (slots.find((slot) => slot.id === a.slotId)?.position ?? 0) - (slots.find((slot) => slot.id === b.slotId)?.position ?? 0));
-          return (
-            <div key={value}>
-              <h4 className="text-sm font-semibold">{label}</h4>
-              {entries.length ? (
-                <div className="mt-2 space-y-2">
-                  {entries.map((entry) => {
-                    const slot = slots.find((item) => item.id === entry.slotId);
-                    const subject = subjects.find((item) => item.id === entry.subjectId);
-                    return (
-                      <div key={entry.id} className="flex items-center justify-between rounded-xl border border-border bg-muted/20 px-3 py-2">
-                        <span className="text-sm font-medium">{slot?.start} – {slot?.end}</span>
-                        <span className="text-sm">{subject?.name || "Subject"}</span>
-                        <span className="text-xs text-muted-foreground">{teacherName(teachers, entry.teacherId)}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : <p className="mt-2 text-xs text-muted-foreground">No periods scheduled.</p>}
-            </div>
-          );
-        })}
+    <Modal title={`Class / grade: ${section.className || "Not configured"} · Section: ${section.name}`} onClose={onClose}>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          {schedule.settings.schoolStart} – {schedule.settings.schoolEnd}
+        </p>
+        <select value={day} onChange={(e) => setDay(Number(e.target.value))} className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
+          {DAYS.filter(([value]) => schedule.settings.weekdays.includes(Number(value))).map(([value, label]) => (
+            <option key={value} value={value}>{label}</option>
+          ))}
+        </select>
       </div>
+      <DayScheduleEditor
+        schedule={schedule}
+        section={section}
+        subjects={subjects}
+        teachers={teachers}
+        slots={slots}
+        day={day}
+        updateSchedule={updateSchedule}
+        save={save}
+        saving={saving}
+        message={message}
+      />
     </Modal>
+  );
+}
+
+function DayScheduleEditor({
+  schedule,
+  section,
+  subjects,
+  teachers,
+  slots,
+  day,
+  updateSchedule,
+  save,
+  saving,
+  message,
+}: {
+  schedule: Schedule;
+  section: Section;
+  subjects: Subject[];
+  teachers: Member[];
+  slots: Slot[];
+  day: number;
+  updateSchedule: (change: (current: Schedule) => Schedule) => void;
+  save: () => void;
+  saving: boolean;
+  message: string;
+}) {
+  const entries = schedule.entries
+    .filter((entry) => entry.sectionId === section.id && entry.dayOfWeek === day)
+    .sort((a, b) => (slots.find((slot) => slot.id === a.slotId)?.position ?? 0) - (slots.find((slot) => slot.id === b.slotId)?.position ?? 0));
+
+  return (
+    <div className="space-y-4">
+      <SlotEditor schedule={schedule} subjects={subjects} sectionId={section.id} day={day} updateSchedule={updateSchedule} />
+      <section className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+        <h4 className="font-semibold">Periods for this day</h4>
+        <div className="mt-3 space-y-2">
+          {slots.filter((slot) => slot.kind === "break" || entries.some((entry) => entry.slotId === slot.id)).map((slot) => {
+            const entry = entries.find((item) => item.slotId === slot.id);
+            const subject = subjects.find((item) => item.id === entry?.subjectId);
+            return (
+              <div key={slot.id} className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2 ${slot.kind === "break" ? "border-amber-200 bg-amber-50" : "border-border bg-muted/20"}`}>
+                <span className="text-sm font-medium">{slot.start} – {slot.end}</span>
+                <span className="text-sm">{slot.kind === "break" ? "Break" : subject?.name || "Subject"}</span>
+                <span className="text-xs text-muted-foreground">{entry ? teacherName(teachers, entry.teacherId) : ""}</span>
+              </div>
+            );
+          })}
+          {!entries.length && !slots.some((slot) => slot.kind === "break") && (
+            <p className="text-sm text-muted-foreground">No periods scheduled for this day.</p>
+          )}
+        </div>
+        <div className="mt-4 flex items-center justify-end gap-3">
+          {message && <span className="text-xs text-primary">{message}</span>}
+          <button type="button" onClick={save} disabled={saving} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60">
+            {saving ? "Saving..." : "Save day schedule"}
+          </button>
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -698,9 +716,9 @@ function SlotEditor({
           Subject
           <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm">
             <option value="">Select subject or break</option>
-            {subjects.map((subject) => (
+            {subjects.filter((subject) => subject.linked).map((subject) => (
               <option key={subject.id} value={subject.id}>
-                {subject.name}{subject.linked ? "" : " (link in Enrollment first)"}
+                {subject.name}
               </option>
             ))}
             <option value="break">Break</option>
