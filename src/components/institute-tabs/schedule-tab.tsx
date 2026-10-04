@@ -91,6 +91,10 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
     () => [...(schedule?.slots ?? [])].sort((a, b) => a.position - b.position),
     [schedule]
   );
+  const orderedSections = useMemo(
+    () => [...sections].sort(compareSections),
+    [sections]
+  );
   const detailSection = sections.find((section) => section.id === detailSectionId);
 
   function updateSchedule(change: (current: Schedule) => Schedule) {
@@ -221,7 +225,7 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
           </div>
         </div>
         <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {sections.map((section) => {
+          {orderedSections.map((section) => {
             const count = schedule.entries.filter((entry) => entry.sectionId === section.id).length;
             return (
               <button
@@ -255,8 +259,6 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
           slots={slots}
           subjects={(subjects[detailSection.id] ?? []).map((subject) => ({ ...subject, linked: true }))}
           teachers={teachers}
-          day={day}
-          setDay={setDay}
           updateSchedule={updateSchedule}
           save={save}
           saving={saving}
@@ -528,8 +530,6 @@ function SectionScheduleDialog({
   slots,
   subjects,
   teachers,
-  day,
-  setDay,
   updateSchedule,
   save,
   saving,
@@ -541,8 +541,6 @@ function SectionScheduleDialog({
   slots: Slot[];
   subjects: Subject[];
   teachers: Member[];
-  day: number;
-  setDay: (day: number) => void;
   updateSchedule: (change: (current: Schedule) => Schedule) => void;
   save: () => void;
   saving: boolean;
@@ -555,11 +553,6 @@ function SectionScheduleDialog({
         <p className="text-sm text-muted-foreground">
           {schedule.settings.schoolStart} – {schedule.settings.schoolEnd}
         </p>
-        <select value={day} onChange={(e) => setDay(Number(e.target.value))} className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
-          {DAYS.filter(([value]) => schedule.settings.weekdays.includes(Number(value))).map(([value, label]) => (
-            <option key={value} value={value}>{label}</option>
-          ))}
-        </select>
       </div>
       <DayScheduleEditor
         schedule={schedule}
@@ -567,7 +560,6 @@ function SectionScheduleDialog({
         subjects={subjects}
         teachers={teachers}
         slots={slots}
-        day={day}
         updateSchedule={updateSchedule}
         save={save}
         saving={saving}
@@ -583,7 +575,6 @@ function DayScheduleEditor({
   subjects,
   teachers,
   slots,
-  day,
   updateSchedule,
   save,
   saving,
@@ -594,44 +585,48 @@ function DayScheduleEditor({
   subjects: Subject[];
   teachers: Member[];
   slots: Slot[];
-  day: number;
   updateSchedule: (change: (current: Schedule) => Schedule) => void;
   save: () => void;
   saving: boolean;
   message: string;
 }) {
-  const entries = schedule.entries
-    .filter((entry) => entry.sectionId === section.id && entry.dayOfWeek === day)
-    .sort((a, b) => (slots.find((slot) => slot.id === a.slotId)?.position ?? 0) - (slots.find((slot) => slot.id === b.slotId)?.position ?? 0));
-
   return (
     <div className="space-y-4">
-      <SlotEditor schedule={schedule} subjects={subjects} sectionId={section.id} day={day} updateSchedule={updateSchedule} />
-      <section className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-        <h4 className="font-semibold">Periods for this day</h4>
-        <div className="mt-3 space-y-2">
-          {slots.filter((slot) => slot.kind === "break" || entries.some((entry) => entry.slotId === slot.id)).map((slot) => {
-            const entry = entries.find((item) => item.slotId === slot.id);
-            const subject = subjects.find((item) => item.id === entry?.subjectId);
-            return (
-              <div key={slot.id} className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2 ${slot.kind === "break" ? "border-amber-200 bg-amber-50" : "border-border bg-muted/20"}`}>
-                <span className="text-sm font-medium">{slot.start} – {slot.end}</span>
-                <span className="text-sm">{slot.kind === "break" ? "Break" : subject?.name || "Subject"}</span>
-                <span className="text-xs text-muted-foreground">{entry ? teacherName(teachers, entry.teacherId) : ""}</span>
-              </div>
-            );
-          })}
-          {!entries.length && !slots.some((slot) => slot.kind === "break") && (
-            <p className="text-sm text-muted-foreground">No periods scheduled for this day.</p>
-          )}
-        </div>
-        <div className="mt-4 flex items-center justify-end gap-3">
-          {message && <span className="text-xs text-primary">{message}</span>}
-          <button type="button" onClick={save} disabled={saving} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60">
-            {saving ? "Saving..." : "Save day schedule"}
-          </button>
-        </div>
-      </section>
+      {DAYS.filter(([value]) => schedule.settings.weekdays.includes(Number(value))).map(([value, label]) => {
+        const currentDay = Number(value);
+        const entries = schedule.entries
+          .filter((entry) => entry.sectionId === section.id && entry.dayOfWeek === currentDay)
+          .sort((a, b) => (slots.find((slot) => slot.id === a.slotId)?.position ?? 0) - (slots.find((slot) => slot.id === b.slotId)?.position ?? 0));
+        return (
+          <section key={value} className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+            <h4 className="font-semibold">{label}</h4>
+            <div className="mt-3 space-y-2">
+              {slots.filter((slot) => slot.kind === "break" || entries.some((entry) => entry.slotId === slot.id)).map((slot) => {
+                const entry = entries.find((item) => item.slotId === slot.id);
+                const subject = subjects.find((item) => item.id === entry?.subjectId);
+                return (
+                  <div key={slot.id} className={`grid gap-2 rounded-xl border px-3 py-2 sm:grid-cols-[130px_1fr_1fr_auto] sm:items-center ${slot.kind === "break" ? "border-amber-200 bg-amber-50" : "border-border bg-muted/20"}`}>
+                    <span className="text-sm font-medium">{slot.start} – {slot.end}</span>
+                    <span className="text-sm">{slot.kind === "break" ? "Break" : subject?.name || "Subject"}</span>
+                    <span className="text-xs text-muted-foreground">{entry ? teacherName(teachers, entry.teacherId) : ""}</span>
+                    {entry && <button type="button" onClick={() => updateSchedule((current) => ({ ...current, entries: current.entries.filter((item) => item.id !== entry.id) }))} className="text-xs text-destructive">
+                      Remove
+                    </button>}
+                  </div>
+                );
+              })}
+              {!entries.length && <p className="text-sm text-muted-foreground">No periods scheduled.</p>}
+            </div>
+            <SlotEditor schedule={schedule} subjects={subjects} sectionId={section.id} day={currentDay} updateSchedule={updateSchedule} showSlots={false} />
+          </section>
+        );
+      })}
+      <div className="flex items-center justify-end gap-3">
+        {message && <span className="text-xs text-primary">{message}</span>}
+        <button type="button" onClick={save} disabled={saving} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60">
+          {saving ? "Saving..." : "Save schedule"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -640,6 +635,19 @@ function teacherName(teachers: Member[], id: string | null) {
   if (!id) return "Teacher not assigned";
   const teacher = teachers.find((member) => member.userId === id);
   return teacher?.displayName || teacher?.username || teacher?.email || "Teacher";
+}
+
+function compareSections(a: Section, b: Section) {
+  const gradeA = Number(a.className);
+  const gradeB = Number(b.className);
+  const numericA = Number.isFinite(gradeA) && a.className.trim() !== "";
+  const numericB = Number.isFinite(gradeB) && b.className.trim() !== "";
+  if (numericA && numericB && gradeA !== gradeB) return gradeA - gradeB;
+  if (numericA !== numericB) return numericA ? -1 : 1;
+  return `${a.className}-${a.name}`.localeCompare(`${b.className}-${b.name}`, undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
 }
 
 function Modal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
@@ -662,12 +670,14 @@ function SlotEditor({
   sectionId,
   day,
   updateSchedule,
+  showSlots = true,
 }: {
   schedule: Schedule;
   subjects: Subject[];
   sectionId: string;
   day: number;
   updateSchedule: (change: (current: Schedule) => Schedule) => void;
+  showSlots?: boolean;
 }) {
   const [subjectId, setSubjectId] = useState("");
   const [start, setStart] = useState("08:00");
@@ -738,7 +748,7 @@ function SlotEditor({
       <p className="mt-2 text-xs text-muted-foreground">
         Link a subject to this section in Enrollment before scheduling it.
       </p>
-      <div className="mt-3 space-y-2">
+      {showSlots && <div className="mt-3 space-y-2">
         {schedule.slots.map((slot) => (
           <div key={slot.id} className="grid gap-2 rounded-xl border border-border bg-muted/20 p-2 sm:grid-cols-[1fr_auto_auto_auto_auto]">
             <input
@@ -791,7 +801,7 @@ function SlotEditor({
             </button>
           </div>
         ))}
-      </div>
+      </div>}
     </section>
   );
 }
