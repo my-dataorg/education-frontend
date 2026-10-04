@@ -138,28 +138,30 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
     }));
   }
 
-  async function save() {
-    if (!schedule) return;
+  async function save(nextSchedule = schedule) {
+    if (!nextSchedule) return false;
     setSaving(true);
     setError("");
     try {
       const res = await fetch(`/api/institutes/${instituteId}/schedule`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(schedule),
+        body: JSON.stringify(nextSchedule),
       });
       if (res.status === 409) {
         setError("This schedule changed elsewhere. Reload it before saving again.");
-        return;
+        return false;
       }
       if (!res.ok) {
         setError((await res.json()).detail || "Could not save schedule");
-        return;
+        return false;
       }
       setSchedule(await res.json());
       setMessage("Schedule saved");
+      return true;
     } catch {
       setError("Could not save schedule. Check your connection and try again.");
+      return false;
     } finally {
       setSaving(false);
     }
@@ -204,7 +206,7 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
           </div>
           <div className="mt-3 flex items-center gap-3">
             {message && <span className="text-xs text-primary">{message}</span>}
-            <button type="button" onClick={save} disabled={saving} className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60">
+            <button type="button" onClick={() => void save()} disabled={saving} className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60">
               {saving ? "Saving..." : "Save settings"}
             </button>
           </div>
@@ -283,7 +285,7 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
           </div>
           <button
             type="button"
-            onClick={save}
+            onClick={() => void save()}
             disabled={saving}
             className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
           >
@@ -431,7 +433,7 @@ function ScheduleEditor({
   dropSubject: (sectionId: string, slotId: string, subjectId: string) => void;
   moveEntry: (entryId: string, slotId: string, sectionId: string) => void;
   removeEntry: (entryId: string) => void;
-  save: () => void;
+  save: (nextSchedule?: Schedule) => Promise<boolean>;
   saving: boolean;
   message: string;
 }) {
@@ -482,7 +484,7 @@ function ScheduleEditor({
         </div>
         <div className="flex items-center gap-3">
           {message && <span className="text-xs text-primary">{message}</span>}
-          <button type="button" onClick={save} disabled={saving} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60">
+          <button type="button" onClick={() => void save()} disabled={saving} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60">
             {saving ? "Saving..." : "Save schedule"}
           </button>
         </div>
@@ -544,7 +546,7 @@ function SectionScheduleDialog({
   slots: Slot[];
   subjects: Subject[];
   updateSchedule: (change: (current: Schedule) => Schedule) => void;
-  save: () => void;
+  save: (nextSchedule?: Schedule) => Promise<boolean>;
   saving: boolean;
   message: string;
   onClose: () => void;
@@ -585,7 +587,7 @@ function DayScheduleEditor({
   subjects: Subject[];
   slots: Slot[];
   updateSchedule: (change: (current: Schedule) => Schedule) => void;
-  save: () => void;
+  save: (nextSchedule?: Schedule) => Promise<boolean>;
   saving: boolean;
   message: string;
 }) {
@@ -625,6 +627,7 @@ function DayScheduleEditor({
                 day={currentDay}
                 updateSchedule={updateSchedule}
                 showSlots={false}
+                onSave={save}
                 onCancel={() => setAddingDay(null)}
               />
             ) : (
@@ -637,7 +640,7 @@ function DayScheduleEditor({
       })}
       <div className="flex items-center justify-end gap-3">
         {message && <span className="text-xs text-primary">{message}</span>}
-        <button type="button" onClick={save} disabled={saving} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60">
+        <button type="button" onClick={() => void save()} disabled={saving} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60">
           {saving ? "Saving..." : "Save schedule"}
         </button>
       </div>
@@ -679,6 +682,7 @@ function SlotEditor({
   day,
   updateSchedule,
   showSlots = true,
+  onSave,
   onCancel,
 }: {
   schedule: Schedule;
@@ -687,35 +691,36 @@ function SlotEditor({
   day: number;
   updateSchedule: (change: (current: Schedule) => Schedule) => void;
   showSlots?: boolean;
+  onSave?: (nextSchedule: Schedule) => Promise<boolean>;
   onCancel?: () => void;
 }) {
   const [subjectId, setSubjectId] = useState("");
   const [start, setStart] = useState("08:00");
   const [end, setEnd] = useState("08:45");
 
-  function addSlot() {
+  async function addSlot() {
     if (!subjectId || !start || !end) return;
     const isBreak = subjectId === "break";
     const subject = subjects.find((item) => item.id === subjectId);
     if (!isBreak && !subject) return;
     const slotId = crypto.randomUUID();
-    updateSchedule((current) => ({
-      ...current,
+    const nextSchedule: Schedule = {
+      ...schedule,
       slots: [
-        ...current.slots,
+        ...schedule.slots,
         {
           id: slotId,
           label: isBreak ? "Break" : subject?.name || "Period",
           kind: isBreak ? "break" : "instruction",
           start,
           end,
-          position: Math.max(-1, ...current.slots.map((slot) => slot.position)) + 1,
+          position: Math.max(-1, ...schedule.slots.map((slot) => slot.position)) + 1,
         },
       ],
       entries: isBreak
-        ? current.entries
+        ? schedule.entries
         : [
-            ...current.entries,
+            ...schedule.entries,
             {
               id: crypto.randomUUID(),
               dayOfWeek: day,
@@ -725,7 +730,9 @@ function SlotEditor({
               teacherId: null,
             },
           ],
-    }));
+    };
+    updateSchedule(() => nextSchedule);
+    if (onSave && !(await onSave(nextSchedule))) return;
     setSubjectId("");
     onCancel?.();
   }
