@@ -78,11 +78,16 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
       const res = await fetch(`/api/sections/${section.id}/subjects`);
       return [section.id, res.ok ? await res.json() : []] as const;
     }));
+    const configuredSubjects: { id: string; name: string }[] = catalogRes.ok ? await catalogRes.json() : [];
+    const linkedSubjects = subjectRows.flatMap(([, rows]) => rows as Subject[]);
+    const subjectCatalog = [...new Map(
+      [...configuredSubjects, ...linkedSubjects].map((subject) => [subject.id, subject])
+    ).values()];
     setSchedule(nextSchedule);
     setSections(nextSections);
     setSubjects(Object.fromEntries(subjectRows));
     if (teachersRes.ok) setTeachers(await teachersRes.json());
-    if (catalogRes.ok) setCatalogSubjects(await catalogRes.json());
+    setCatalogSubjects(subjectCatalog);
     setDay(nextSchedule.settings.weekdays[0] ?? 1);
   }, [instituteId]);
 
