@@ -512,7 +512,7 @@ function ScheduleEditor({
           </label>
         ))}
       </div>
-      <SlotEditor schedule={schedule} subjects={[]} sectionId="" day={day} updateSchedule={updateSchedule} />
+      <SlotEditor schedule={schedule} subjects={subjects} sectionId={section.id} day={day} updateSchedule={updateSchedule} />
       <div className="flex items-center justify-between gap-3">
         <select value={day} onChange={(e) => setDay(Number(e.target.value))} className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
           {DAYS.filter(([value]) => schedule.settings.weekdays.includes(Number(value))).map(([value, label]) => (
