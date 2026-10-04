@@ -269,6 +269,7 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
           save={save}
           saving={saving}
           message={message}
+          error={error}
           onClose={() => setDetailSectionId("")}
         />
       )}
@@ -539,6 +540,7 @@ function SectionScheduleDialog({
   save,
   saving,
   message,
+  error,
   onClose,
 }: {
   section: Section;
@@ -549,10 +551,12 @@ function SectionScheduleDialog({
   save: (nextSchedule?: Schedule) => Promise<boolean>;
   saving: boolean;
   message: string;
+  error: string;
   onClose: () => void;
 }) {
   return (
     <Modal title={`Class / grade: ${section.className || "Not configured"} · Section: ${section.name}`} onClose={onClose}>
+      {error && <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
           {schedule.settings.schoolStart} – {schedule.settings.schoolEnd}
@@ -628,6 +632,7 @@ function DayScheduleEditor({
                 updateSchedule={updateSchedule}
                 showSlots={false}
                 onSave={save}
+                saving={saving}
                 onCancel={() => setAddingDay(null)}
               />
             ) : (
@@ -683,6 +688,7 @@ function SlotEditor({
   updateSchedule,
   showSlots = true,
   onSave,
+  saving = false,
   onCancel,
 }: {
   schedule: Schedule;
@@ -692,6 +698,7 @@ function SlotEditor({
   updateSchedule: (change: (current: Schedule) => Schedule) => void;
   showSlots?: boolean;
   onSave?: (nextSchedule: Schedule) => Promise<boolean>;
+  saving?: boolean;
   onCancel?: () => void;
 }) {
   const [subjectId, setSubjectId] = useState("");
@@ -766,7 +773,7 @@ function SlotEditor({
           disabled={!subjectId}
           className="rounded-lg border border-primary px-3 py-2 text-sm text-primary disabled:opacity-50"
         >
-          Save
+          {saving ? "Saving..." : "Save"}
         </button>
         <button type="button" onClick={onCancel} className="rounded-lg border border-border px-3 py-2 text-sm">
           Cancel
