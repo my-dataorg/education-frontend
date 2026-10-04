@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
-import type { Member } from "@/lib/api";
 
 type Section = { id: string; name: string; className: string };
 type Subject = { id: string; name: string; teachers: { userId: string }[]; linked?: boolean };
@@ -54,7 +53,6 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
   const [sections, setSections] = useState<Section[]>([]);
   const [subjects, setSubjects] = useState<Record<string, Subject[]>>({});
   const [catalogSubjects, setCatalogSubjects] = useState<{ id: string; name: string }[]>([]);
-  const [teachers, setTeachers] = useState<Member[]>([]);
   const [day, setDay] = useState(1);
   const [detailSectionId, setDetailSectionId] = useState("");
   const [error, setError] = useState("");
@@ -62,10 +60,9 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
-    const [scheduleRes, sectionsRes, teachersRes, catalogRes] = await Promise.all([
+    const [scheduleRes, sectionsRes, catalogRes] = await Promise.all([
       fetch(`/api/institutes/${instituteId}/schedule`),
       fetch(`/api/institutes/${instituteId}/sections`),
-      fetch(`/api/institutes/${instituteId}/members?group=staff`),
       fetch(`/api/institutes/${instituteId}/subjects`),
     ]);
     if (!scheduleRes.ok || !sectionsRes.ok) throw new Error("Could not load schedule");
@@ -78,7 +75,6 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
     setSchedule(nextSchedule);
     setSections(nextSections);
     setSubjects(Object.fromEntries(subjectRows));
-    if (teachersRes.ok) setTeachers(await teachersRes.json());
     if (catalogRes.ok) setCatalogSubjects(await catalogRes.json());
     setDay(nextSchedule.settings.weekdays[0] ?? 1);
   }, [instituteId]);
@@ -267,7 +263,6 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
             linked: (subjects[detailSection.id] ?? []).some((item) => item.id === subject.id),
             teachers: subjects[detailSection.id]?.find((item) => item.id === subject.id)?.teachers ?? [],
           }))}
-          teachers={teachers}
           updateSchedule={updateSchedule}
           save={save}
           saving={saving}
@@ -538,7 +533,6 @@ function SectionScheduleDialog({
   schedule,
   slots,
   subjects,
-  teachers,
   updateSchedule,
   save,
   saving,
@@ -549,7 +543,6 @@ function SectionScheduleDialog({
   schedule: Schedule;
   slots: Slot[];
   subjects: Subject[];
-  teachers: Member[];
   updateSchedule: (change: (current: Schedule) => Schedule) => void;
   save: () => void;
   saving: boolean;
@@ -567,7 +560,6 @@ function SectionScheduleDialog({
         schedule={schedule}
         section={section}
         subjects={subjects}
-        teachers={teachers}
         slots={slots}
         updateSchedule={updateSchedule}
         save={save}
@@ -582,7 +574,6 @@ function DayScheduleEditor({
   schedule,
   section,
   subjects,
-  teachers,
   slots,
   updateSchedule,
   save,
@@ -592,7 +583,6 @@ function DayScheduleEditor({
   schedule: Schedule;
   section: Section;
   subjects: Subject[];
-  teachers: Member[];
   slots: Slot[];
   updateSchedule: (change: (current: Schedule) => Schedule) => void;
   save: () => void;
@@ -619,7 +609,6 @@ function DayScheduleEditor({
                   <div key={slot.id} className={`grid gap-2 rounded-xl border px-3 py-2 sm:grid-cols-[130px_1fr_1fr_auto] sm:items-center ${slot.kind === "break" ? "border-amber-200 bg-amber-50" : "border-border bg-muted/20"}`}>
                     <span className="text-sm font-medium">{slot.start} – {slot.end}</span>
                     <span className="text-sm">{slot.kind === "break" ? "Break" : subject?.name || "Subject"}</span>
-                    <span className="text-xs text-muted-foreground">{entry ? teacherName(teachers, entry.teacherId) : ""}</span>
                     {entry && <button type="button" onClick={() => updateSchedule((current) => ({ ...current, entries: current.entries.filter((item) => item.id !== entry.id) }))} className="text-xs text-destructive">
                       Remove
                     </button>}
@@ -654,12 +643,6 @@ function DayScheduleEditor({
       </div>
     </div>
   );
-}
-
-function teacherName(teachers: Member[], id: string | null) {
-  if (!id) return "Teacher not assigned";
-  const teacher = teachers.find((member) => member.userId === id);
-  return teacher?.displayName || teacher?.username || teacher?.email || "Teacher";
 }
 
 function compareSections(a: Section, b: Section) {
@@ -714,7 +697,7 @@ function SlotEditor({
     if (!subjectId || !start || !end) return;
     const isBreak = subjectId === "break";
     const subject = subjects.find((item) => item.id === subjectId);
-    if (!isBreak && !subject?.linked) return;
+    if (!isBreak && !subject) return;
     const slotId = crypto.randomUUID();
     updateSchedule((current) => ({
       ...current,
@@ -739,7 +722,7 @@ function SlotEditor({
               slotId,
               sectionId,
               subjectId,
-              teacherId: subject?.teachers[0]?.userId ?? null,
+              teacherId: null,
             },
           ],
     }));
@@ -763,8 +746,8 @@ function SlotEditor({
           <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">
             <option value="">Select subject or break</option>
             {subjects.map((subject) => (
-              <option key={subject.id} value={subject.id} disabled={!subject.linked}>
-                {subject.name}{subject.linked ? "" : " (link in Enrollment first)"}
+              <option key={subject.id} value={subject.id}>
+                {subject.name}
               </option>
             ))}
             <option value="break">Break</option>
@@ -773,7 +756,7 @@ function SlotEditor({
         <button
           type="button"
           onClick={addSlot}
-          disabled={!subjectId || (subjectId !== "break" && !subjects.some((subject) => subject.id === subjectId && subject.linked))}
+          disabled={!subjectId}
           className="rounded-lg border border-primary px-3 py-2 text-sm text-primary disabled:opacity-50"
         >
           Save
@@ -782,9 +765,7 @@ function SlotEditor({
           Cancel
         </button>
       </div>
-      <p className="mt-2 text-xs text-muted-foreground">
-        Link a subject to this section in Enrollment before scheduling it.
-      </p>
+      <p className="mt-2 text-xs text-muted-foreground">Choose an institute subject and set its period time.</p>
       {showSlots && <div className="mt-3 space-y-2">
         {schedule.slots.map((slot) => (
           <div key={slot.id} className="grid gap-2 rounded-xl border border-border bg-muted/20 p-2 sm:grid-cols-[1fr_auto_auto_auto_auto]">
