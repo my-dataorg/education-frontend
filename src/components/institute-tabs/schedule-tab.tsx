@@ -53,6 +53,7 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
   });
   const [sections, setSections] = useState<Section[]>([]);
   const [subjects, setSubjects] = useState<Record<string, Subject[]>>({});
+  const [catalogSubjects, setCatalogSubjects] = useState<{ id: string; name: string }[]>([]);
   const [teachers, setTeachers] = useState<Member[]>([]);
   const [day, setDay] = useState(1);
   const [detailSectionId, setDetailSectionId] = useState("");
@@ -61,10 +62,11 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
-    const [scheduleRes, sectionsRes, teachersRes] = await Promise.all([
+    const [scheduleRes, sectionsRes, teachersRes, catalogRes] = await Promise.all([
       fetch(`/api/institutes/${instituteId}/schedule`),
       fetch(`/api/institutes/${instituteId}/sections`),
       fetch(`/api/institutes/${instituteId}/members?group=staff`),
+      fetch(`/api/institutes/${instituteId}/subjects`),
     ]);
     if (!scheduleRes.ok || !sectionsRes.ok) throw new Error("Could not load schedule");
     const nextSchedule = await scheduleRes.json();
@@ -77,6 +79,7 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
     setSections(nextSections);
     setSubjects(Object.fromEntries(subjectRows));
     if (teachersRes.ok) setTeachers(await teachersRes.json());
+    if (catalogRes.ok) setCatalogSubjects(await catalogRes.json());
     setDay(nextSchedule.settings.weekdays[0] ?? 1);
   }, [instituteId]);
 
@@ -257,7 +260,13 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
           section={detailSection}
           schedule={schedule}
           slots={slots}
-          subjects={(subjects[detailSection.id] ?? []).map((subject) => ({ ...subject, linked: true }))}
+          subjects={[...new Map(
+            [...catalogSubjects, ...(subjects[detailSection.id] ?? [])].map((subject) => [subject.id, subject])
+          ).values()].map((subject) => ({
+            ...subject,
+            linked: (subjects[detailSection.id] ?? []).some((item) => item.id === subject.id),
+            teachers: subjects[detailSection.id]?.find((item) => item.id === subject.id)?.teachers ?? [],
+          }))}
           teachers={teachers}
           updateSchedule={updateSchedule}
           save={save}
@@ -753,9 +762,9 @@ function SlotEditor({
           Subject
           <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">
             <option value="">Select subject or break</option>
-            {subjects.filter((subject) => subject.linked).map((subject) => (
-              <option key={subject.id} value={subject.id}>
-                {subject.name}
+            {subjects.map((subject) => (
+              <option key={subject.id} value={subject.id} disabled={!subject.linked}>
+                {subject.name}{subject.linked ? "" : " (link in Enrollment first)"}
               </option>
             ))}
             <option value="break">Break</option>
