@@ -6,6 +6,9 @@ import type { CSSProperties, ReactNode } from "react";
 type Section = { id: string; name: string; className: string };
 type Subject = { id: string; name: string; teachers: { userId: string }[]; linked?: boolean };
 type Activity = { id: string; name: string };
+type Teacher = { userId: string; displayName?: string; username?: string };
+type TeacherProfile = { userId: string; sections: { sectionId: string; memberType: string | null }[] };
+type Absence = { id: string; teacherId: string; absenceDate: string; substituteTeacherId: string | null; note: string };
 type Slot = {
   id: string;
   label: string;
@@ -57,6 +60,11 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
   const [subjects, setSubjects] = useState<Record<string, Subject[]>>({});
   const [catalogSubjects, setCatalogSubjects] = useState<{ id: string; name: string }[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [teacherSections, setTeacherSections] = useState<Record<string, string[]>>({});
+  const [absences, setAbsences] = useState<Absence[]>([]);
+  const [coverageSectionId, setCoverageSectionId] = useState("");
+  const [, setClock] = useState(0);
   const [day, setDay] = useState(1);
   const [detailSectionId, setDetailSectionId] = useState("");
   const [error, setError] = useState("");
@@ -64,13 +72,16 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
-    const [scheduleRes, sectionsRes, catalogRes, activitiesRes] = await Promise.all([
+    const today = new Date().toISOString().slice(0, 10);
+    const [scheduleRes, sectionsRes, catalogRes, activitiesRes, membersRes, absencesRes] = await Promise.all([
       fetch(`/api/institutes/${instituteId}/schedule`),
       fetch(`/api/institutes/${instituteId}/sections`),
       fetch(`/api/institutes/${instituteId}/subjects`),
       fetch(`/api/institutes/${instituteId}/activities`),
+      fetch(`/api/institutes/${instituteId}/members?group=teacher`),
+      fetch(`/api/institutes/${instituteId}/teacher-absences?absence_date=${today}`),
     ]);
-    if (!scheduleRes.ok || !sectionsRes.ok || !activitiesRes.ok) throw new Error("Could not load schedule");
+    if (!scheduleRes.ok || !sectionsRes.ok || !activitiesRes.ok || !membersRes.ok || !absencesRes.ok) throw new Error("Could not load schedule");
     const nextSchedule = await scheduleRes.json();
     const nextSections = await sectionsRes.json();
     const subjectRows = await Promise.all(nextSections.map(async (section: Section) => {
@@ -82,6 +93,21 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
     setSubjects(Object.fromEntries(subjectRows));
     if (catalogRes.ok) setCatalogSubjects(await catalogRes.json());
     setActivities(await activitiesRes.json());
+    const nextTeachers = await membersRes.json();
+    setTeachers(nextTeachers);
+    setAbsences(await absencesRes.json());
+    const profiles: (TeacherProfile | null)[] = await Promise.all(
+      nextTeachers.map(async (teacher: Teacher) => {
+        const response = await fetch(`/api/institutes/${instituteId}/members/${teacher.userId}/profile`);
+        return response.ok ? await response.json() as TeacherProfile : null;
+      })
+    );
+    setTeacherSections(Object.fromEntries(
+      profiles.filter(Boolean).map((profile) => [
+        profile!.userId,
+        profile!.sections.filter((item) => item.memberType === "teacher").map((item) => item.sectionId),
+      ])
+    ));
     setDay(nextSchedule.settings.weekdays[0] ?? 1);
   }, [instituteId]);
 
@@ -91,6 +117,11 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
     }, 0);
     return () => window.clearTimeout(timer);
   }, [load]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClock(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const slots = useMemo(
     () => [...(schedule?.slots ?? [])].sort((a, b) => a.position - b.position),
@@ -234,6 +265,13 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
         <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {orderedSections.map((section) => {
             const count = schedule.entries.filter((entry) => entry.sectionId === section.id).length;
+            const current = getCurrentPeriod(schedule, section.id, catalogSubjects);
+            const sectionTeacher = teachers.find((teacher) =>
+              teacherSections[teacher.userId]?.includes(section.id)
+            );
+            const currentTeacherId = current?.entry.teacherId || sectionTeacher?.userId || "";
+            const absence = absences.find((item) => item.teacherId === currentTeacherId);
+            const currentTeacher = teachers.find((teacher) => teacher.userId === currentTeacherId);
             return (
               <button
                 key={section.id}
@@ -253,6 +291,28 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
                 <p className="mt-4 text-xs text-muted-foreground">
                   {schedule.settings.schoolStart} – {schedule.settings.schoolEnd}
                 </p>
+                {current ? (
+                  <div className="mt-3 rounded-lg border border-primary/20 bg-primary/5 p-2 text-xs">
+                    <p className="font-medium">Now: {current.subjectName} · {current.slot.start}–{current.slot.end}</p>
+                    <p className="mt-1 text-muted-foreground">
+                      {absence?.substituteTeacherId
+                        ? `Substitute: ${teacherName(teachers, absence.substituteTeacherId)}`
+                        : `Teacher: ${teacherName(teachers, currentTeacherId)}`}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setCoverageSectionId(section.id);
+                      }}
+                      className="mt-2 rounded-md border border-primary/30 px-2 py-1 text-[11px] text-primary"
+                    >
+                      Manage coverage
+                    </button>
+                  </div>
+                ) : (
+                  <p className="mt-3 text-xs text-muted-foreground">No active period right now</p>
+                )}
               </button>
             );
           })}
@@ -278,6 +338,20 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
           message={message}
           error={error}
           onClose={() => setDetailSectionId("")}
+        />
+      )}
+      {coverageSectionId && (
+        <CoverageDialog
+          instituteId={instituteId}
+          section={sections.find((item) => item.id === coverageSectionId)!}
+          teachers={teachers}
+          teacherSections={teacherSections}
+          absences={absences}
+          onClose={() => setCoverageSectionId("")}
+          onSaved={() => {
+            setCoverageSectionId("");
+            void load();
+          }}
         />
       )}
       {schedule && false && (
@@ -784,6 +858,109 @@ function createId() {
     return crypto.randomUUID();
   }
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function teacherName(teachers: Teacher[], userId: string) {
+  const teacher = teachers.find((item) => item.userId === userId);
+  return teacher?.displayName || teacher?.username || "Not assigned";
+}
+
+function getCurrentPeriod(schedule: Schedule, sectionId: string, subjects: { id: string; name: string }[]) {
+  const now = new Date();
+  const weekday = new Intl.DateTimeFormat("en-US", {
+    timeZone: schedule.settings.timezone,
+    weekday: "long",
+  }).format(now);
+  const day = DAYS.find(([, label]) => label === weekday)?.[0];
+  const currentTime = new Intl.DateTimeFormat("en-GB", {
+    timeZone: schedule.settings.timezone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(now);
+  if (!day) return null;
+  const entry = schedule.entries.find((item) => {
+    const slot = schedule.slots.find((candidate) => candidate.id === item.slotId);
+    return item.sectionId === sectionId && item.dayOfWeek === Number(day) &&
+      slot && slot.start <= currentTime && currentTime < slot.end;
+  });
+  if (!entry) return null;
+  const slot = schedule.slots.find((item) => item.id === entry.slotId);
+  if (!slot) return null;
+  return {
+    entry,
+    slot,
+    subjectName: subjects.find((item) => item.id === entry.subjectId)?.name || "Current subject",
+  };
+}
+
+function CoverageDialog({
+  instituteId,
+  section,
+  teachers,
+  teacherSections,
+  absences,
+  onClose,
+  onSaved,
+}: {
+  instituteId: string;
+  section: Section;
+  teachers: Teacher[];
+  teacherSections: Record<string, string[]>;
+  absences: Absence[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const today = new Date().toISOString().slice(0, 10);
+  const sectionTeachers = teachers.filter((teacher) => teacherSections[teacher.userId]?.includes(section.id));
+  const existing = absences.find((item) => sectionTeachers.some((teacher) => teacher.userId === item.teacherId));
+  const [teacherId, setTeacherId] = useState(existing?.teacherId || sectionTeachers[0]?.userId || "");
+  const [substituteTeacherId, setSubstituteTeacherId] = useState(existing?.substituteTeacherId || "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function save() {
+    setSaving(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/institutes/${instituteId}/teacher-absences`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ teacherId, absenceDate: today, substituteTeacherId: substituteTeacherId || null }),
+      });
+      if (!res.ok) throw new Error((await res.json()).detail || "Could not save coverage");
+      onSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save coverage");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal title={`Teacher coverage · Class ${section.className}-${section.name}`} onClose={onClose}>
+      {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+      <div className="space-y-3">
+        <label className="block text-sm">
+          Absent teacher
+          <select value={teacherId} onChange={(event) => setTeacherId(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2">
+            {sectionTeachers.map((teacher) => <option key={teacher.userId} value={teacher.userId}>{teacherName(teachers, teacher.userId)}</option>)}
+          </select>
+        </label>
+        <label className="block text-sm">
+          Substitute teacher
+          <select value={substituteTeacherId} onChange={(event) => setSubstituteTeacherId(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2">
+            <option value="">No substitute assigned</option>
+            {teachers.filter((teacher) => teacher.userId !== teacherId).map((teacher) => <option key={teacher.userId} value={teacher.userId}>{teacherName(teachers, teacher.userId)}</option>)}
+          </select>
+        </label>
+        <div className="flex justify-end gap-2">
+          <button type="button" onClick={onClose} className="rounded-lg border border-border px-3 py-2 text-sm">Cancel</button>
+          <button type="button" onClick={() => void save()} disabled={!teacherId || saving} className="rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground disabled:opacity-50">{saving ? "Saving..." : "Save coverage"}</button>
+        </div>
+      </div>
+    </Modal>
+  );
 }
 
 function Modal({ title, children, footer, onClose }: { title: string; children: ReactNode; footer?: ReactNode; onClose: () => void }) {
