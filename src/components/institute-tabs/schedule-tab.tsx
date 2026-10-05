@@ -5,14 +5,16 @@ import type { CSSProperties, ReactNode } from "react";
 
 type Section = { id: string; name: string; className: string };
 type Subject = { id: string; name: string; teachers: { userId: string }[]; linked?: boolean };
+type Activity = { id: string; name: string };
 type Slot = {
   id: string;
   label: string;
-  kind: "instruction" | "break";
+  kind: "instruction" | "activity" | "break";
   start: string;
   end: string;
   position: number;
   dayOfWeek: number | null;
+  activityId: string | null;
 };
 type Entry = {
   id: string;
@@ -54,6 +56,7 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
   const [sections, setSections] = useState<Section[]>([]);
   const [subjects, setSubjects] = useState<Record<string, Subject[]>>({});
   const [catalogSubjects, setCatalogSubjects] = useState<{ id: string; name: string }[]>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
   const [day, setDay] = useState(1);
   const [detailSectionId, setDetailSectionId] = useState("");
   const [error, setError] = useState("");
@@ -61,12 +64,13 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
-    const [scheduleRes, sectionsRes, catalogRes] = await Promise.all([
+    const [scheduleRes, sectionsRes, catalogRes, activitiesRes] = await Promise.all([
       fetch(`/api/institutes/${instituteId}/schedule`),
       fetch(`/api/institutes/${instituteId}/sections`),
       fetch(`/api/institutes/${instituteId}/subjects`),
+      fetch(`/api/institutes/${instituteId}/activities`),
     ]);
-    if (!scheduleRes.ok || !sectionsRes.ok) throw new Error("Could not load schedule");
+    if (!scheduleRes.ok || !sectionsRes.ok || !activitiesRes.ok) throw new Error("Could not load schedule");
     const nextSchedule = await scheduleRes.json();
     const nextSections = await sectionsRes.json();
     const subjectRows = await Promise.all(nextSections.map(async (section: Section) => {
@@ -77,6 +81,7 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
     setSections(nextSections);
     setSubjects(Object.fromEntries(subjectRows));
     if (catalogRes.ok) setCatalogSubjects(await catalogRes.json());
+    setActivities(await activitiesRes.json());
     setDay(nextSchedule.settings.weekdays[0] ?? 1);
   }, [instituteId]);
 
@@ -266,6 +271,7 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
             linked: (subjects[detailSection.id] ?? []).some((item) => item.id === subject.id),
             teachers: subjects[detailSection.id]?.find((item) => item.id === subject.id)?.teachers ?? [],
           }))}
+          activities={activities}
           updateSchedule={updateSchedule}
           save={save}
           saving={saving}
@@ -333,6 +339,7 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
       <SlotEditor
         schedule={schedule}
         subjects={[]}
+        activities={activities}
         sectionId=""
         day={day}
         updateSchedule={updateSchedule}
@@ -475,7 +482,7 @@ function ScheduleEditor({
           </label>
         ))}
       </div>
-      <SlotEditor schedule={schedule} subjects={subjects} sectionId={section.id} day={day} updateSchedule={updateSchedule} />
+      <SlotEditor schedule={schedule} subjects={subjects} activities={[]} sectionId={section.id} day={day} updateSchedule={updateSchedule} />
       <div className="flex items-center justify-between gap-3">
         <div className="flex flex-wrap gap-1 rounded-lg bg-muted/40 p-1">
           {DAYS.filter(([value]) => schedule.settings.weekdays.includes(Number(value))).map(([value, label]) => (
@@ -537,6 +544,7 @@ function SectionScheduleDialog({
   schedule,
   slots,
   subjects,
+  activities,
   updateSchedule,
   save,
   saving,
@@ -548,6 +556,7 @@ function SectionScheduleDialog({
   schedule: Schedule;
   slots: Slot[];
   subjects: Subject[];
+  activities: Activity[];
   updateSchedule: (change: (current: Schedule) => Schedule) => void;
   save: (nextSchedule?: Schedule) => Promise<boolean>;
   saving: boolean;
@@ -578,6 +587,7 @@ function SectionScheduleDialog({
         schedule={schedule}
         section={section}
         subjects={subjects}
+        activities={activities}
         slots={slots}
         updateSchedule={updateSchedule}
         save={save}
@@ -591,6 +601,7 @@ function DayScheduleEditor({
   schedule,
   section,
   subjects,
+  activities,
   slots,
   updateSchedule,
   save,
@@ -599,6 +610,7 @@ function DayScheduleEditor({
   schedule: Schedule;
   section: Section;
   subjects: Subject[];
+  activities: Activity[];
   slots: Slot[];
   updateSchedule: (change: (current: Schedule) => Schedule) => void;
   save: (nextSchedule?: Schedule) => Promise<boolean>;
@@ -606,6 +618,9 @@ function DayScheduleEditor({
 }) {
   const [addingDay, setAddingDay] = useState<number | null>(null);
   const [copySources, setCopySources] = useState<Record<number, number>>({});
+  const [expandedDays, setExpandedDays] = useState<Record<number, boolean>>(
+    Object.fromEntries(DAYS.map(([value]) => [Number(value), Number(value) === 1]))
+  );
 
   function copyDay(sourceDay: number, targetDay: number) {
     if (sourceDay === targetDay) return;
@@ -613,10 +628,12 @@ function DayScheduleEditor({
     const sourceEntries = schedule.entries.filter(
       (entry) => entry.sectionId === section.id && entry.dayOfWeek === sourceDay
     );
-    const sourceBreaks = schedule.slots.filter(
-      (slot) => slot.kind === "break" && (slot.dayOfWeek === null || slot.dayOfWeek === sourceDay)
+    const sourceActivities = schedule.slots.filter(
+      (slot) =>
+        ["break", "activity"].includes(slot.kind) &&
+        (slot.dayOfWeek === null || slot.dayOfWeek === sourceDay)
     );
-    const nextBreaks = sourceBreaks.map((slot, index) => ({
+    const nextActivities = sourceActivities.map((slot, index) => ({
       ...slot,
       id: createId(),
       dayOfWeek: targetDay,
@@ -626,9 +643,13 @@ function DayScheduleEditor({
       ...current,
       slots: [
         ...current.slots.filter(
-          (slot) => !(slot.kind === "break" && slot.dayOfWeek === targetDay)
+          (slot) =>
+            !(
+              ["break", "activity"].includes(slot.kind) &&
+              slot.dayOfWeek === targetDay
+            )
         ),
-        ...nextBreaks,
+        ...nextActivities,
       ],
       entries: [
         ...current.entries.filter(
@@ -645,34 +666,61 @@ function DayScheduleEditor({
 
   return (
     <div className="space-y-4">
-      {DAYS.filter(([value]) => schedule.settings.weekdays.includes(Number(value))).map(([value, label]) => {
+      {DAYS.map(([value, label]) => {
         const currentDay = Number(value);
+        const expanded = expandedDays[currentDay] ?? false;
         const entries = schedule.entries
           .filter((entry) => entry.sectionId === section.id && entry.dayOfWeek === currentDay)
           .sort((a, b) => (slots.find((slot) => slot.id === a.slotId)?.position ?? 0) - (slots.find((slot) => slot.id === b.slotId)?.position ?? 0));
         return (
           <section key={value} className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-            <h4 className="font-semibold">{label}</h4>
+            <button
+              type="button"
+              aria-expanded={expanded}
+              onClick={() => setExpandedDays((current) => ({ ...current, [currentDay]: !expanded }))}
+              className="flex w-full items-center justify-between text-left"
+            >
+              <span className="font-semibold">{label}</span>
+              <span className="text-xs text-muted-foreground">{expanded ? "Collapse" : "Expand"}</span>
+            </button>
+            {expanded && (
+            <div className="mt-3">
             <div className="mt-3 space-y-2">
-              {slots.filter((slot) => (slot.kind === "break" && (slot.dayOfWeek === null || slot.dayOfWeek === currentDay)) || entries.some((entry) => entry.slotId === slot.id)).map((slot) => {
+              {slots.filter((slot) => (
+                (["break", "activity"].includes(slot.kind) &&
+                  (slot.dayOfWeek === null || slot.dayOfWeek === currentDay)) ||
+                entries.some((entry) => entry.slotId === slot.id)
+              )).map((slot) => {
                 const entry = entries.find((item) => item.slotId === slot.id);
                 const subject = subjects.find((item) => item.id === entry?.subjectId);
                 return (
-                  <div key={slot.id} className={`grid gap-2 rounded-xl border px-3 py-2 sm:grid-cols-[130px_1fr_1fr_auto] sm:items-center ${slot.kind === "break" ? "border-amber-200 bg-amber-50" : "border-border bg-muted/20"}`}>
+                  <div key={slot.id} className={`grid gap-2 rounded-xl border px-3 py-2 sm:grid-cols-[130px_1fr_1fr_auto] sm:items-center ${slot.kind !== "instruction" ? "border-amber-200 bg-amber-50" : "border-border bg-muted/20"}`}>
                     <span className="text-sm font-medium">{slot.start} – {slot.end}</span>
-                    <span className="text-sm">{slot.kind === "break" ? "Break" : subject?.name || "Subject"}</span>
+                    <span className="text-sm">
+                      {slot.kind === "break"
+                        ? "Break"
+                        : slot.kind === "activity"
+                          ? activities.find((item) => item.id === slot.activityId)?.name || slot.label
+                          : subject?.name || "Subject"}
+                    </span>
                     {entry && <button type="button" onClick={() => updateSchedule((current) => ({ ...current, entries: current.entries.filter((item) => item.id !== entry.id) }))} className="text-xs text-destructive">
                       Remove
                     </button>}
                   </div>
                 );
               })}
-              {!entries.length && <p className="text-sm text-muted-foreground">No periods scheduled.</p>}
+              {!entries.length &&
+                !slots.some(
+                  (slot) =>
+                    ["break", "activity"].includes(slot.kind) &&
+                    (slot.dayOfWeek === null || slot.dayOfWeek === currentDay)
+                ) && <p className="text-sm text-muted-foreground">No periods scheduled.</p>}
             </div>
             {addingDay === currentDay ? (
               <SlotEditor
                 schedule={schedule}
                 subjects={subjects}
+                activities={activities}
                 sectionId={section.id}
                 day={currentDay}
                 updateSchedule={updateSchedule}
@@ -692,7 +740,7 @@ function DayScheduleEditor({
                   className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
                 >
                   <option value="">Copy from...</option>
-                  {DAYS.filter(([source]) => Number(source) !== currentDay && schedule.settings.weekdays.includes(Number(source))).map(([source, sourceLabel]) => (
+                  {DAYS.filter(([source]) => Number(source) !== currentDay).map(([source, sourceLabel]) => (
                     <option key={source} value={source}>{sourceLabel}</option>
                   ))}
                 </select>
@@ -708,6 +756,8 @@ function DayScheduleEditor({
                   Copy
                 </button>
               </div>
+            )}
+            </div>
             )}
           </section>
         );
@@ -754,6 +804,7 @@ function Modal({ title, children, footer, onClose }: { title: string; children: 
 function SlotEditor({
   schedule,
   subjects,
+  activities,
   sectionId,
   day,
   updateSchedule,
@@ -764,6 +815,7 @@ function SlotEditor({
 }: {
   schedule: Schedule;
   subjects: Subject[];
+  activities: Activity[];
   sectionId: string;
   day: number;
   updateSchedule: (change: (current: Schedule) => Schedule) => void;
@@ -783,13 +835,16 @@ function SlotEditor({
       setValidationError("End time must be after start time.");
       return;
     }
-    const isBreak = subjectId === "break";
+    const activity = activities.find((item) => item.id === subjectId);
     const subject = subjects.find((item) => item.id === subjectId);
-    if (!isBreak && !subject) return;
+    if (!activity && !subject) return;
     const overlaps = schedule.slots.some((slot) => {
       if (slot.start >= end || start >= slot.end) return false;
-      if (slot.kind === "break" && (slot.dayOfWeek === null || slot.dayOfWeek === day)) return true;
-      if (slot.kind === "break") return false;
+      if (
+        ["break", "activity"].includes(slot.kind) &&
+        (slot.dayOfWeek === null || slot.dayOfWeek === day)
+      ) return true;
+      if (["break", "activity"].includes(slot.kind)) return false;
       return schedule.entries.some(
         (entry) =>
           entry.sectionId === sectionId &&
@@ -808,15 +863,16 @@ function SlotEditor({
         ...schedule.slots,
         {
           id: slotId,
-          label: isBreak ? "Break" : subject?.name || "Period",
-          kind: isBreak ? "break" : "instruction",
+          label: activity?.name || subject?.name || "Period",
+          kind: activity ? "activity" : "instruction",
           start,
           end,
           position: Math.max(-1, ...schedule.slots.map((slot) => slot.position)) + 1,
-          dayOfWeek: isBreak ? day : null,
+          dayOfWeek: activity ? day : null,
+          activityId: activity?.id ?? null,
         },
       ],
-      entries: isBreak
+      entries: activity
         ? schedule.entries
         : [
             ...schedule.entries,
@@ -851,13 +907,17 @@ function SlotEditor({
         <label className="text-xs font-semibold text-muted-foreground">
           Subject
           <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">
-            <option value="">Select subject or break</option>
+            <option value="">Select subject or activity</option>
             {subjects.map((subject) => (
               <option key={subject.id} value={subject.id}>
                 {subject.name}
               </option>
             ))}
-            <option value="break">Break</option>
+            {activities.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
           </select>
         </label>
         <button
