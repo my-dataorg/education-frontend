@@ -12,6 +12,7 @@ type Slot = {
   start: string;
   end: string;
   position: number;
+  dayOfWeek: number | null;
 };
 type Entry = {
   id: string;
@@ -612,8 +613,23 @@ function DayScheduleEditor({
     const sourceEntries = schedule.entries.filter(
       (entry) => entry.sectionId === section.id && entry.dayOfWeek === sourceDay
     );
+    const sourceBreaks = schedule.slots.filter(
+      (slot) => slot.kind === "break" && (slot.dayOfWeek === null || slot.dayOfWeek === sourceDay)
+    );
+    const nextBreaks = sourceBreaks.map((slot, index) => ({
+      ...slot,
+      id: createId(),
+      dayOfWeek: targetDay,
+      position: Math.max(-1, ...schedule.slots.map((item) => item.position)) + index + 1,
+    }));
     updateSchedule((current) => ({
       ...current,
+      slots: [
+        ...current.slots.filter(
+          (slot) => !(slot.kind === "break" && slot.dayOfWeek === targetDay)
+        ),
+        ...nextBreaks,
+      ],
       entries: [
         ...current.entries.filter(
           (entry) => !(entry.sectionId === section.id && entry.dayOfWeek === targetDay)
@@ -638,7 +654,7 @@ function DayScheduleEditor({
           <section key={value} className="rounded-2xl border border-border bg-card p-4 shadow-sm">
             <h4 className="font-semibold">{label}</h4>
             <div className="mt-3 space-y-2">
-              {slots.filter((slot) => slot.kind === "break" || entries.some((entry) => entry.slotId === slot.id)).map((slot) => {
+              {slots.filter((slot) => (slot.kind === "break" && (slot.dayOfWeek === null || slot.dayOfWeek === currentDay)) || entries.some((entry) => entry.slotId === slot.id)).map((slot) => {
                 const entry = entries.find((item) => item.slotId === slot.id);
                 const subject = subjects.find((item) => item.id === entry?.subjectId);
                 return (
@@ -772,7 +788,8 @@ function SlotEditor({
     if (!isBreak && !subject) return;
     const overlaps = schedule.slots.some((slot) => {
       if (slot.start >= end || start >= slot.end) return false;
-      if (slot.kind === "break") return true;
+      if (slot.kind === "break" && (slot.dayOfWeek === null || slot.dayOfWeek === day)) return true;
+      if (slot.kind === "break") return false;
       return schedule.entries.some(
         (entry) =>
           entry.sectionId === sectionId &&
@@ -796,6 +813,7 @@ function SlotEditor({
           start,
           end,
           position: Math.max(-1, ...schedule.slots.map((slot) => slot.position)) + 1,
+          dayOfWeek: isBreak ? day : null,
         },
       ],
       entries: isBreak
