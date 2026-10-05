@@ -36,16 +36,22 @@ export function EnrollmentManager({
   const [filterValue, setFilterValue] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
-  const [module, setModule] = useState<EnrollmentModule>("subjects");
+  const [module, setModule] = useState<EnrollmentModule>("teachers");
   const [selectedSectionId, setSelectedSectionId] = useState("");
+  const [canManage, setCanManage] = useState(false);
 
   const load = useCallback(async () => {
-    const [sectionRes, staffRes, studentRes, subjectRes] = await Promise.all([
+    const [instituteRes, sectionRes, staffRes, studentRes, subjectRes] = await Promise.all([
+      fetch(`/api/institutes/${instituteId}`, { credentials: "include" }),
       fetch(`/api/institutes/${instituteId}/sections`, { credentials: "include" }),
       fetch(`/api/institutes/${instituteId}/members?group=staff`, { credentials: "include" }),
       fetch(`/api/institutes/${instituteId}/members?group=students`, { credentials: "include" }),
       fetch(`/api/institutes/${instituteId}/subjects`, { credentials: "include" }),
     ]);
+    if (instituteRes.ok) {
+      const institute = await instituteRes.json();
+      setCanManage(["owner", "admin"].includes(institute.role));
+    }
     const nextSections = sectionRes.ok ? await sectionRes.json() : [];
     setSections(nextSections);
     setSelectedSectionId((current) => current || nextSections[0]?.id || "");
@@ -139,13 +145,13 @@ export function EnrollmentManager({
         sections={sections}
         staff={staff}
         students={students}
-        subjects={subjects}
         mappings={mappings}
         selectedSectionId={selectedSectionId}
         setSelectedSectionId={setSelectedSectionId}
         module={module}
         setModule={setModule}
         update={update}
+        canManage={canManage}
       />
       <div className="hidden">
       <div className="rounded-2xl border border-border bg-gradient-to-br from-primary/10 via-card to-card p-5 shadow-sm">
@@ -400,142 +406,97 @@ function SectionFirstWorkspace({
   sections,
   staff,
   students,
-  subjects,
   mappings,
   selectedSectionId,
   setSelectedSectionId,
   module,
   setModule,
   update,
+  canManage,
 }: {
   sections: Section[];
   staff: Member[];
   students: Member[];
-  subjects: { id: string; name: string }[];
   mappings: Record<string, SectionMapping>;
   selectedSectionId: string;
   setSelectedSectionId: (id: string) => void;
   module: EnrollmentModule;
   setModule: (module: EnrollmentModule) => void;
   update: (path: string, body?: object) => void;
+  canManage: boolean;
 }) {
   const section = sections.find((item) => item.id === selectedSectionId);
   const mapping = section ? mappings[section.id] ?? { teachers: [], students: [], subjects: [] } : null;
+  const people = module === "students"
+    ? students
+    : staff.filter((person) =>
+      ["teacher", "lecturer", "professor", "principal"].includes(person.role)
+    );
+  const assigned = module === "students" ? mapping?.students ?? [] : mapping?.teachers ?? [];
+
+  function assign(userId: string) {
+    if (!canManage || !section || assigned.some((person) => person.userId === userId)) return;
+    update(`/api/sections/${section.id}`, { userId, memberType: module === "students" ? "student" : "teacher" });
+  }
 
   return (
-    <section className="rounded-2xl border border-border bg-gradient-to-br from-primary/10 via-card to-card p-5 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-primary">Enrollment</p>
-          <h2 className="mt-1 text-xl font-semibold">Configure one class at a time</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Choose a section, add its subjects, then assign teachers and students to each subject.
-          </p>
-        </div>
-        <label className="min-w-56 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Class / section
-          <select value={selectedSectionId} onChange={(event) => setSelectedSectionId(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">
-            <option value="">Select section</option>
-            {sections.map((item) => <option key={item.id} value={item.id}>{item.className || "Class"} · {item.name}</option>)}
-          </select>
-        </label>
-      </div>
-      {section && mapping ? (
-        <>
-          <div className="mt-5 flex flex-wrap gap-2 border-b border-border pb-3">
-            {([
-              ["subjects", "1. Subjects"],
-              ["teachers", "2. Teachers"],
-              ["students", "3. Students"],
-            ] as const).map(([value, label]) => (
-              <button key={value} type="button" onClick={() => setModule(value)} className={`rounded-lg px-3 py-2 text-sm font-medium ${module === value ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:text-foreground"}`}>
-                {label}
-              </button>
-            ))}
-          </div>
-          {module === "subjects" && (
-            <SubjectModule section={section} mapping={mapping} subjects={subjects} update={update} />
-          )}
-          {module === "teachers" && (
-            <TeacherModule section={section} mapping={mapping} staff={staff} update={update} />
-          )}
-          {module === "students" && (
-            <StudentModule section={section} mapping={mapping} students={students} update={update} />
-          )}
-        </>
-      ) : (
-        <p className="mt-5 rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">Create a class and section to begin enrollment.</p>
-      )}
-    </section>
-  );
-}
-
-function SubjectModule({ section, mapping, subjects, update }: { section: Section; mapping: SectionMapping; subjects: { id: string; name: string }[]; update: (path: string, body?: object) => void }) {
-  return (
-    <div className="mt-4 grid gap-4 md:grid-cols-[1fr_1fr]">
-      <div>
-        <h3 className="font-semibold">Subjects available in the institute</h3>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          {subjects.map((subject) => {
-            const assigned = mapping.subjects.some((item) => item.id === subject.id);
+    <section className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+      <div className="grid gap-4 lg:grid-cols-[180px_minmax(280px,1fr)_280px]">
+        <div className="space-y-2">
+          <h2 className="px-2 text-sm font-semibold">Classes</h2>
+          {sections.map((item) => {
+            const itemMapping = mappings[item.id] ?? { teachers: [], students: [], subjects: [] };
             return (
-              <button key={subject.id} type="button" onClick={() => update(`/api/sections/${section.id}/subjects${assigned ? `/${subject.id}` : ""}`, assigned ? undefined : { subjectId: subject.id })} className={`flex items-center justify-between rounded-xl border px-3 py-3 text-left text-sm ${assigned ? "border-primary bg-primary/5 text-primary" : "border-border bg-background"}`}>
-                <span>{subject.name}</span>
-                <span className="text-xs">{assigned ? "Assigned" : "Add"}</span>
+              <button key={item.id} type="button" onClick={() => setSelectedSectionId(item.id)} className={`w-full rounded-xl border p-3 text-left ${item.id === selectedSectionId ? "border-primary bg-primary/10" : "border-border bg-background"}`}>
+                <p className="font-semibold">{item.className || "Class"} · {item.name}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{itemMapping.teachers.length} teachers · {itemMapping.students.length} students</p>
               </button>
             );
           })}
         </div>
-      </div>
-      <div className="rounded-xl border border-border bg-background/70 p-4">
-        <h3 className="font-semibold">Subjects for {section.className || "class"} · {section.name}</h3>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {mapping.subjects.map((subject) => <span key={subject.id} className="rounded-full bg-primary/10 px-3 py-1.5 text-sm text-primary">{subject.name}</span>)}
-          {!mapping.subjects.length && <p className="text-sm text-muted-foreground">No subjects assigned yet.</p>}
+        <div
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={(event) => {
+            const userId = event.dataTransfer.getData("userId");
+            if (canManage && userId) assign(userId);
+          }}
+          className="min-h-96 rounded-xl border-2 border-dashed border-border bg-muted/10 p-4"
+        >
+          {section && mapping ? (
+            <>
+              <h2 className="text-xl font-semibold">{section.className || "Class"} · {section.name}</h2>
+              {canManage && <p className="mt-1 text-sm text-muted-foreground">Drag a person here to assign them.</p>}
+              <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                <AssignedGroup label="Teachers" members={mapping.teachers} onRemove={canManage ? (id) => update(`/api/sections/${section.id}/members/${id}`) : undefined} />
+                <AssignedGroup label="Students" members={mapping.students} onRemove={canManage ? (id) => update(`/api/sections/${section.id}/members/${id}`) : undefined} />
+              </div>
+            </>
+          ) : <p className="text-sm text-muted-foreground">Select a class to begin.</p>}
         </div>
-      </div>
-    </div>
-  );
-}
-
-function TeacherModule({ section, mapping, staff, update }: { section: Section; mapping: SectionMapping; staff: Member[]; update: (path: string, body?: object) => void }) {
-  return <AssignmentModule section={section} mapping={mapping} people={staff} type="teacher" update={update} />;
-}
-
-function StudentModule({ section, mapping, students, update }: { section: Section; mapping: SectionMapping; students: Member[]; update: (path: string, body?: object) => void }) {
-  return <AssignmentModule section={section} mapping={mapping} people={students} type="student" update={update} />;
-}
-
-function AssignmentModule({ section, mapping, people, type, update }: { section: Section; mapping: SectionMapping; people: Member[]; type: "teacher" | "student"; update: (path: string, body?: object) => void }) {
-  return (
-    <div className="mt-4 space-y-3">
-      <p className="text-sm text-muted-foreground">Assign {type === "teacher" ? "section teachers" : "section students"} to each enrolled subject.</p>
-      {!mapping.subjects.length && <p className="rounded-xl border border-dashed border-border p-5 text-sm text-muted-foreground">Assign subjects first.</p>}
-      {mapping.subjects.map((subject) => {
-        const assignedIds = new Set(type === "teacher" ? subject.teachers.map((item) => item.userId) : (subject.students ?? []).map((item) => item.userId));
-        const eligible = people.filter((person) => (type === "teacher" ? mapping.teachers : mapping.students).some((item) => item.userId === person.userId));
-        return (
-          <div key={subject.id} className="rounded-xl border border-border bg-background/70 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="font-semibold">{subject.name}</h3>
-              <select defaultValue="" onChange={(event) => { if (event.target.value) { update(`/api/sections/${section.id}/subjects/${subject.id}/${type === "teacher" ? "teachers" : "students"}`, { userId: event.target.value }); event.target.value = ""; } }} className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
-                <option value="">Add {type}</option>
-                {eligible.filter((person) => !assignedIds.has(person.userId)).map((person) => <option key={person.userId} value={person.userId}>{formatUserName(person)}</option>)}
-              </select>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {(type === "teacher" ? subject.teachers : subject.students ?? []).map((person) => (
-                <span key={person.userId} className="rounded-full border border-border px-3 py-1.5 text-sm">
-                  {personName(people, person.userId)}
-                  <button type="button" onClick={() => update(`/api/sections/${section.id}/subjects/${subject.id}/${type === "teacher" ? "teachers" : "students"}/${person.userId}`)} className="ml-2 text-destructive">×</button>
-                </span>
-              ))}
-              {!assignedIds.size && <span className="text-sm text-muted-foreground">None assigned</span>}
-            </div>
+        {canManage && <div>
+          <div className="grid grid-cols-2 gap-2">
+            {(["teachers", "students"] as const).map((value) => (
+              <button key={value} type="button" onClick={() => setModule(value)} className={`rounded-xl border p-3 text-left ${module === value ? "border-primary bg-primary/10" : "border-border bg-background"}`}>
+                <p className="font-semibold capitalize">{value}</p>
+                <p className="text-xs text-muted-foreground">{value === "teachers" ? staff.length : students.length} available</p>
+              </button>
+            ))}
           </div>
-        );
-      })}
-    </div>
+          <div className="mt-3 space-y-2">
+            {people.map((person) => {
+              const isAssigned = assigned.some((item) => item.userId === person.userId);
+              return (
+                <div key={person.userId} draggable={!isAssigned} onDragStart={(event) => event.dataTransfer.setData("userId", person.userId)} className={`flex items-center justify-between rounded-xl border bg-background p-3 ${isAssigned ? "opacity-50" : "cursor-grab"}`}>
+                  <span className="min-w-0 truncate text-sm">{formatUserName(person)}</span>
+                  <button type="button" onClick={() => assign(person.userId)} disabled={isAssigned} className="ml-2 rounded-lg border border-border px-3 py-1 text-lg leading-none disabled:opacity-40" aria-label={`Assign ${formatUserName(person)}`}>+</button>
+                </div>
+              );
+            })}
+            {!people.length && <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">No {module} available.</p>}
+          </div>
+        </div>}
+      </div>
+    </section>
   );
 }
 
@@ -544,6 +505,26 @@ function CountBadge({ label, count }: { label: string; count: number }) {
     <span className="rounded-full border border-border bg-background px-2.5 py-1">
       <span className="font-semibold">{count}</span> {label}
     </span>
+  );
+}
+
+function AssignedGroup({ label, members, onRemove }: { label: string; members: Member[]; onRemove?: (id: string) => void }) {
+  return (
+    <div className="rounded-xl border border-border bg-background p-3">
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold">{label}</h3>
+        <span className="text-xs text-muted-foreground">{members.length}</span>
+      </div>
+      <div className="mt-3 space-y-2">
+        {members.map((member) => (
+          <div key={member.userId} className="flex items-center justify-between rounded-lg bg-muted/30 px-3 py-2 text-sm">
+            <span className="truncate">{formatUserName(member)}</span>
+            {onRemove && <button type="button" onClick={() => onRemove(member.userId)} className="ml-2 text-lg text-destructive" aria-label={`Remove ${formatUserName(member)}`}>×</button>}
+          </div>
+        ))}
+        {!members.length && <p className="text-sm text-muted-foreground">None assigned</p>}
+      </div>
+    </div>
   );
 }
 
