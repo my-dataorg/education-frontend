@@ -555,7 +555,18 @@ function SectionScheduleDialog({
   onClose: () => void;
 }) {
   return (
-    <Modal title={`Class / grade: ${section.className || "Not configured"} · Section: ${section.name}`} onClose={onClose}>
+    <Modal
+      title={`Class / grade: ${section.className || "Not configured"} · Section: ${section.name}`}
+      onClose={onClose}
+      footer={
+        <div className="flex items-center justify-end gap-3">
+          {message && <span className="text-xs text-primary">{message}</span>}
+          <button type="button" onClick={() => void save()} disabled={saving} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60">
+            {saving ? "Saving..." : "Save schedule"}
+          </button>
+        </div>
+      }
+    >
       {error && <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
@@ -570,7 +581,6 @@ function SectionScheduleDialog({
         updateSchedule={updateSchedule}
         save={save}
         saving={saving}
-        message={message}
       />
     </Modal>
   );
@@ -584,7 +594,6 @@ function DayScheduleEditor({
   updateSchedule,
   save,
   saving,
-  message,
 }: {
   schedule: Schedule;
   section: Section;
@@ -593,7 +602,6 @@ function DayScheduleEditor({
   updateSchedule: (change: (current: Schedule) => Schedule) => void;
   save: (nextSchedule?: Schedule) => Promise<boolean>;
   saving: boolean;
-  message: string;
 }) {
   const [addingDay, setAddingDay] = useState<number | null>(null);
   const [copySources, setCopySources] = useState<Record<number, number>>({});
@@ -688,12 +696,6 @@ function DayScheduleEditor({
           </section>
         );
       })}
-      <div className="flex items-center justify-end gap-3">
-        {message && <span className="text-xs text-primary">{message}</span>}
-        <button type="button" onClick={() => void save()} disabled={saving} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60">
-          {saving ? "Saving..." : "Save schedule"}
-        </button>
-      </div>
     </div>
   );
 }
@@ -718,15 +720,16 @@ function createId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function Modal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
+function Modal({ title, children, footer, onClose }: { title: string; children: ReactNode; footer?: ReactNode; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-xl">
-        <div className="flex items-center justify-between gap-3">
+      <div className="flex max-h-[90vh] w-full max-w-6xl flex-col rounded-2xl border border-border bg-card p-5 shadow-xl">
+        <div className="flex flex-none items-center justify-between gap-3">
           <h3 className="text-lg font-semibold">{title}</h3>
           <button type="button" onClick={onClose} className="rounded-lg px-2 py-1 text-xl text-muted-foreground hover:bg-muted" aria-label="Close dialog">×</button>
         </div>
-        <div className="mt-4">{children}</div>
+        <div className="mt-4 min-h-0 flex-1 overflow-y-auto">{children}</div>
+        {footer && <div className="mt-4 flex-none border-t border-border pt-4">{footer}</div>}
       </div>
     </div>
   );
