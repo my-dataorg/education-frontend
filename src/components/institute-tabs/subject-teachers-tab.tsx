@@ -63,16 +63,19 @@ export function SubjectTeachersTab({ instituteId }: { instituteId: string }) {
 
   const selected = sections.find(({ section }) => section.id === selectedSectionId);
   const teachers = useMemo(
-    () => selected?.teachers.map((teacher) => findMember(staff, teacher.userId) ?? teacher) ?? [],
+    () => staff.filter((teacher) =>
+      ["teacher", "lecturer", "professor", "principal"].includes(teacher.role)
+    ),
     [selected, staff]
   );
+  const eligibleTeacherIds = new Set(selected?.teachers.map((teacher) => teacher.userId) ?? []);
 
   const activeSubjectId = selected?.subjects.some((subject) => subject.id === selectedSubjectId)
     ? selectedSubjectId
     : selected?.subjects[0]?.id || "";
 
   async function assign(subjectId: string, teacherId: string) {
-    if (!selected || saving) return;
+    if (!selected || saving || !eligibleTeacherIds.has(teacherId)) return;
     const subject = selected.subjects.find((item) => item.id === subjectId);
     if (!subject || subject.teachers.some((teacher) => teacher.userId === teacherId)) return;
 
@@ -152,7 +155,7 @@ export function SubjectTeachersTab({ instituteId }: { instituteId: string }) {
           {selected ? (
             <>
               <h2 className="text-xl font-semibold">{selected.section.className || "Class"} · {selected.section.name}</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Drop a teacher on a subject to assign them.</p>
+              <p className="mt-1 text-sm text-muted-foreground">Drop a teacher into a subject slot.</p>
               <div className="mt-5 space-y-3">
                 {selected.subjects.map((subject) => (
                   <SubjectCard
@@ -173,28 +176,37 @@ export function SubjectTeachersTab({ instituteId }: { instituteId: string }) {
         </div>
 
         <div className="space-y-2">
-          <h2 className="px-2 text-sm font-semibold">Section teachers</h2>
+          <h2 className="px-2 text-sm font-semibold">Teachers</h2>
+          <p className="px-2 text-xs text-muted-foreground">Teachers enrolled in this institute</p>
           {teachers.map((teacher) => (
             <div
               key={teacher.userId}
-              draggable={!saving}
+              draggable={eligibleTeacherIds.has(teacher.userId) && !saving}
               onDragStart={(event) => event.dataTransfer.setData("teacherId", teacher.userId)}
-              className="flex cursor-grab items-center justify-between rounded-xl border border-border bg-background p-3 text-sm"
+              className={`flex items-center justify-between rounded-xl border bg-background p-3 text-sm ${
+                eligibleTeacherIds.has(teacher.userId) ? "cursor-grab border-border" : "border-border/60 opacity-60"
+              }`}
             >
               <span className="truncate">{formatUserName(teacher)}</span>
-              <span className="ml-2 text-xs text-muted-foreground">Drag</span>
-              <button
-                type="button"
-                disabled={!activeSubjectId || Boolean(saving)}
-                onClick={() => void assign(activeSubjectId, teacher.userId)}
-                className="rounded-lg border border-border px-2 py-1 text-base leading-none disabled:opacity-40"
-                aria-label={`Assign ${formatUserName(teacher)} to selected subject`}
-              >
-                +
-              </button>
+              {eligibleTeacherIds.has(teacher.userId) ? (
+                <>
+                  <span className="ml-2 text-xs text-muted-foreground">Drag</span>
+                  <button
+                    type="button"
+                    disabled={!activeSubjectId || Boolean(saving)}
+                    onClick={() => void assign(activeSubjectId, teacher.userId)}
+                    className="rounded-lg border border-border px-2 py-1 text-base leading-none disabled:opacity-40"
+                    aria-label={`Assign ${formatUserName(teacher)} to selected subject`}
+                  >
+                    +
+                  </button>
+                </>
+              ) : (
+                <span className="ml-2 text-[11px] text-muted-foreground">Assign to class first</span>
+              )}
             </div>
           ))}
-          {!teachers.length && <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">Assign teachers to this section first.</p>}
+          {!teachers.length && <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">No teachers configured.</p>}
         </div>
       </div>
     </section>
@@ -220,34 +232,40 @@ function SubjectCard({
 }) {
   return (
     <div
-      onDragOver={(event) => event.preventDefault()}
-      onDrop={(event) => {
-        const teacherId = event.dataTransfer.getData("teacherId");
-        if (teacherId) onDrop(teacherId);
-      }}
       onClick={onSelect}
       className={`rounded-xl border bg-background p-4 ${selected ? "border-primary ring-1 ring-primary/30" : "border-border"}`}
     >
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold">{subject.name}</h3>
-        <span className="text-xs text-muted-foreground">{subject.teachers.length} assigned</span>
-      </div>
-      <div className="mt-3 flex flex-wrap gap-2">
-        {subject.teachers.map((teacher) => (
-          <span key={teacher.userId} className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-sm">
-            {formatUserName(findMember(staff, teacher.userId) ?? teacher)}
-            <button
-              type="button"
-              disabled={Boolean(saving)}
-              onClick={() => onRemove(teacher.userId)}
-              className="text-destructive disabled:opacity-50"
-              aria-label={`Remove ${formatUserName(findMember(staff, teacher.userId) ?? teacher)}`}
-            >
-              ×
-            </button>
-          </span>
-        ))}
-        {!subject.teachers.length && <p className="text-sm text-muted-foreground">Drop a teacher here.</p>}
+      <div className="grid gap-3 sm:grid-cols-[minmax(120px,0.7fr)_minmax(180px,1.3fr)] sm:items-center">
+        <div>
+          <h3 className="font-semibold">{subject.name}</h3>
+          <span className="text-xs text-muted-foreground">{subject.teachers.length} assigned</span>
+        </div>
+        <div
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={(event) => {
+            const teacherId = event.dataTransfer.getData("teacherId");
+            if (teacherId) onDrop(teacherId);
+          }}
+          className="min-h-12 rounded-lg border-2 border-dashed border-primary/30 bg-primary/5 p-2"
+        >
+          <p className="mb-1 text-[11px] font-medium text-primary">Drop teacher here</p>
+          <div className="flex flex-wrap gap-2">
+            {subject.teachers.map((teacher) => (
+              <span key={teacher.userId} className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-sm">
+                {formatUserName(findMember(staff, teacher.userId) ?? teacher)}
+                <button
+                  type="button"
+                  disabled={Boolean(saving)}
+                  onClick={() => onRemove(teacher.userId)}
+                  className="text-destructive disabled:opacity-50"
+                  aria-label={`Remove ${formatUserName(findMember(staff, teacher.userId) ?? teacher)}`}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
