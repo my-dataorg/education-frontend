@@ -22,6 +22,7 @@ const TAB_ICONS: Record<InstituteTabId, React.ComponentType<{ className?: string
   overview: LayoutDashboard,
   members: Users,
   enrollment: ClipboardList,
+  "subject-teachers": Users,
   campuses: MapPin,
   classes: BookOpen,
   schedule: CalendarDays,
@@ -129,7 +130,7 @@ export function InstituteShell({
             </>
           )}
 
-          {branches.length > 0 && (
+          {branches.length > 1 && (
             <>
               <p className="mb-2 mt-6 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Campuses

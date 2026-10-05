@@ -7,6 +7,7 @@ import { Copy } from "lucide-react";
 import { CampusesTab } from "@/components/institute-tabs/campuses-tab";
 import { ClassesTab } from "@/components/institute-tabs/classes-tab";
 import { EnrollmentTab } from "@/components/institute-tabs/enrollment-tab";
+import { SubjectTeachersTab } from "@/components/institute-tabs/subject-teachers-tab";
 import { MembersTab } from "@/components/institute-tabs/members-tab";
 import { OverviewTab } from "@/components/institute-tabs/overview-tab";
 import { ScheduleTab } from "@/components/institute-tabs/schedule-tab";
@@ -224,6 +225,10 @@ export function InstituteDashboard({
                     inviteRefreshKey={inviteRefreshKey}
                     onChanged={onChanged}
                   />
+                </TabsContent>
+
+                <TabsContent value="subject-teachers">
+                  <SubjectTeachersTab instituteId={instituteId} />
                 </TabsContent>
 
                 <TabsContent value="schedule">

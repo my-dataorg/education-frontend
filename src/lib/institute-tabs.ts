@@ -1,4 +1,12 @@
-export const INSTITUTE_TAB_IDS = ["overview", "members", "classes", "enrollment", "schedule", "campuses"] as const;
+export const INSTITUTE_TAB_IDS = [
+  "overview",
+  "members",
+  "classes",
+  "enrollment",
+  "subject-teachers",
+  "schedule",
+  "campuses",
+] as const;
 
 export type InstituteTabId = (typeof INSTITUTE_TAB_IDS)[number];
 
@@ -12,6 +20,7 @@ const ALL_TABS: InstituteTab[] = [
   { id: "members", label: "Members" },
   { id: "classes", label: "Classes & subjects" },
   { id: "enrollment", label: "Enrollment" },
+  { id: "subject-teachers", label: "Subject teachers" },
   { id: "schedule", label: "Schedule" },
   { id: "campuses", label: "Campuses" },
 ];
@@ -19,7 +28,9 @@ const ALL_TABS: InstituteTab[] = [
 export function getInstituteTabs(role: string): InstituteTab[] {
   if (role === "owner") return ALL_TABS;
   if (role === "admin") {
-    return ALL_TABS.filter((tab) => tab.id !== "classes" && tab.id !== "enrollment");
+    return ALL_TABS.filter(
+      (tab) => !["classes", "enrollment", "subject-teachers"].includes(tab.id)
+    );
   }
   if (role === "principal") return [ALL_TABS[0]];
   return [];
