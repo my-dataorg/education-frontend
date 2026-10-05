@@ -596,6 +596,28 @@ function DayScheduleEditor({
   message: string;
 }) {
   const [addingDay, setAddingDay] = useState<number | null>(null);
+  const [copySources, setCopySources] = useState<Record<number, number>>({});
+
+  function copyDay(sourceDay: number, targetDay: number) {
+    if (sourceDay === targetDay) return;
+    if (!window.confirm("Replace this day's periods with the copied schedule?")) return;
+    const sourceEntries = schedule.entries.filter(
+      (entry) => entry.sectionId === section.id && entry.dayOfWeek === sourceDay
+    );
+    updateSchedule((current) => ({
+      ...current,
+      entries: [
+        ...current.entries.filter(
+          (entry) => !(entry.sectionId === section.id && entry.dayOfWeek === targetDay)
+        ),
+        ...sourceEntries.map((entry) => ({
+          ...entry,
+          id: createId(),
+          dayOfWeek: targetDay,
+        })),
+      ],
+    }));
+  }
 
   return (
     <div className="space-y-4">
@@ -636,9 +658,32 @@ function DayScheduleEditor({
                 onCancel={() => setAddingDay(null)}
               />
             ) : (
-              <button type="button" onClick={() => setAddingDay(currentDay)} className="mt-3 rounded-lg border border-border px-4 py-2 text-sm font-medium hover:border-primary hover:text-primary">
-                + Add period
-              </button>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <button type="button" onClick={() => setAddingDay(currentDay)} className="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:border-primary hover:text-primary">
+                  + Add period
+                </button>
+                <select
+                  value={copySources[currentDay] ?? ""}
+                  onChange={(e) => setCopySources((current) => ({ ...current, [currentDay]: Number(e.target.value) }))}
+                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">Copy from...</option>
+                  {DAYS.filter(([source]) => Number(source) !== currentDay && schedule.settings.weekdays.includes(Number(source))).map(([source, sourceLabel]) => (
+                    <option key={source} value={source}>{sourceLabel}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  disabled={!copySources[currentDay]}
+                  onClick={() => {
+                    const sourceDay = copySources[currentDay];
+                    if (sourceDay) copyDay(sourceDay, currentDay);
+                  }}
+                  className="rounded-lg border border-border px-3 py-2 text-sm disabled:opacity-50"
+                >
+                  Copy
+                </button>
+              </div>
             )}
           </section>
         );
@@ -711,12 +756,31 @@ function SlotEditor({
   const [subjectId, setSubjectId] = useState("");
   const [start, setStart] = useState("08:00");
   const [end, setEnd] = useState("08:45");
+  const [validationError, setValidationError] = useState("");
 
   async function addSlot() {
     if (!subjectId || !start || !end) return;
+    if (start >= end) {
+      setValidationError("End time must be after start time.");
+      return;
+    }
     const isBreak = subjectId === "break";
     const subject = subjects.find((item) => item.id === subjectId);
     if (!isBreak && !subject) return;
+    const overlaps = schedule.slots.some((slot) => {
+      if (slot.start >= end || start >= slot.end) return false;
+      if (slot.kind === "break") return true;
+      return schedule.entries.some(
+        (entry) =>
+          entry.sectionId === sectionId &&
+          entry.dayOfWeek === day &&
+          entry.slotId === slot.id
+      );
+    });
+    if (overlaps) {
+      setValidationError("This time overlaps an existing period or break.");
+      return;
+    }
     const slotId = createId();
     const nextSchedule: Schedule = {
       ...schedule,
@@ -747,6 +811,7 @@ function SlotEditor({
     };
     updateSchedule(() => nextSchedule);
     if (onSave && !(await onSave(nextSchedule))) return;
+    setValidationError("");
     setSubjectId("");
     onCancel?.();
   }
@@ -787,6 +852,7 @@ function SlotEditor({
         </button>
       </div>
       <p className="mt-2 text-xs text-muted-foreground">Choose an institute subject and set its period time.</p>
+      {validationError && <p className="mt-2 text-xs text-destructive">{validationError}</p>}
       {showSlots && <div className="mt-3 space-y-2">
         {schedule.slots.map((slot) => (
           <div key={slot.id} className="grid gap-2 rounded-xl border border-border bg-muted/20 p-2 sm:grid-cols-[1fr_auto_auto_auto_auto]">
