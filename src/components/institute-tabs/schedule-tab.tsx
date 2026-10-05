@@ -110,7 +110,7 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
         ...current.entries.filter(
           (entry) => !(entry.dayOfWeek === day && entry.slotId === slotId && entry.sectionId === sectionId)
         ),
-        { id: crypto.randomUUID(), dayOfWeek: day, slotId, sectionId, subjectId, teacherId },
+        { id: createId(), dayOfWeek: day, slotId, sectionId, subjectId, teacherId },
       ],
     }));
   }
@@ -666,6 +666,13 @@ function compareSections(a: Section, b: Section) {
   });
 }
 
+function createId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 function Modal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -710,7 +717,7 @@ function SlotEditor({
     const isBreak = subjectId === "break";
     const subject = subjects.find((item) => item.id === subjectId);
     if (!isBreak && !subject) return;
-    const slotId = crypto.randomUUID();
+    const slotId = createId();
     const nextSchedule: Schedule = {
       ...schedule,
       slots: [
@@ -729,7 +736,7 @@ function SlotEditor({
         : [
             ...schedule.entries,
             {
-              id: crypto.randomUUID(),
+              id: createId(),
               dayOfWeek: day,
               slotId,
               sectionId,
