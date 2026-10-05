@@ -83,7 +83,10 @@ export type Section = {
   branchName?: string | null;
 };
 export type Subject = { id: string; name: string };
-export type SectionSubject = Subject & { teachers: { userId: string }[] };
+export type SectionSubject = Subject & {
+  teachers: { userId: string }[];
+  students?: { userId: string }[];
+};
 export type Member = {
   userId: string;
   role: string;

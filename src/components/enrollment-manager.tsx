@@ -10,9 +10,10 @@ type Section = { id: string; name: string; className?: string };
 type SectionMapping = {
   teachers: Member[];
   students: Member[];
-  subjects: SectionSubject[];
+  subjects: (SectionSubject & { students?: { userId: string }[] })[];
 };
 type FilterMode = "section" | "class" | "teacher" | "student";
+type EnrollmentModule = "subjects" | "teachers" | "students";
 
 export function EnrollmentManager({
   instituteId,
@@ -35,6 +36,8 @@ export function EnrollmentManager({
   const [filterValue, setFilterValue] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [module, setModule] = useState<EnrollmentModule>("subjects");
+  const [selectedSectionId, setSelectedSectionId] = useState("");
 
   const load = useCallback(async () => {
     const [sectionRes, staffRes, studentRes, subjectRes] = await Promise.all([
@@ -45,6 +48,7 @@ export function EnrollmentManager({
     ]);
     const nextSections = sectionRes.ok ? await sectionRes.json() : [];
     setSections(nextSections);
+    setSelectedSectionId((current) => current || nextSections[0]?.id || "");
     if (staffRes.ok) setStaff(await staffRes.json());
     if (studentRes.ok) setStudents(await studentRes.json());
     if (subjectRes.ok) setSubjects(await subjectRes.json());
@@ -131,6 +135,19 @@ export function EnrollmentManager({
 
   return (
     <section className="mt-6 space-y-6">
+      <SectionFirstWorkspace
+        sections={sections}
+        staff={staff}
+        students={students}
+        subjects={subjects}
+        mappings={mappings}
+        selectedSectionId={selectedSectionId}
+        setSelectedSectionId={setSelectedSectionId}
+        module={module}
+        setModule={setModule}
+        update={update}
+      />
+      <div className="hidden">
       <div className="rounded-2xl border border-border bg-gradient-to-br from-primary/10 via-card to-card p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -257,6 +274,7 @@ export function EnrollmentManager({
           </div>
         )}
       </div>
+      </div>
     </section>
   );
 }
@@ -375,6 +393,149 @@ function SectionMappingCard({
         </div>
       </div>
     </section>
+  );
+}
+
+function SectionFirstWorkspace({
+  sections,
+  staff,
+  students,
+  subjects,
+  mappings,
+  selectedSectionId,
+  setSelectedSectionId,
+  module,
+  setModule,
+  update,
+}: {
+  sections: Section[];
+  staff: Member[];
+  students: Member[];
+  subjects: { id: string; name: string }[];
+  mappings: Record<string, SectionMapping>;
+  selectedSectionId: string;
+  setSelectedSectionId: (id: string) => void;
+  module: EnrollmentModule;
+  setModule: (module: EnrollmentModule) => void;
+  update: (path: string, body?: object) => void;
+}) {
+  const section = sections.find((item) => item.id === selectedSectionId);
+  const mapping = section ? mappings[section.id] ?? { teachers: [], students: [], subjects: [] } : null;
+
+  return (
+    <section className="rounded-2xl border border-border bg-gradient-to-br from-primary/10 via-card to-card p-5 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-primary">Enrollment</p>
+          <h2 className="mt-1 text-xl font-semibold">Configure one class at a time</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Choose a section, add its subjects, then assign teachers and students to each subject.
+          </p>
+        </div>
+        <label className="min-w-56 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Class / section
+          <select value={selectedSectionId} onChange={(event) => setSelectedSectionId(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">
+            <option value="">Select section</option>
+            {sections.map((item) => <option key={item.id} value={item.id}>{item.className || "Class"} · {item.name}</option>)}
+          </select>
+        </label>
+      </div>
+      {section && mapping ? (
+        <>
+          <div className="mt-5 flex flex-wrap gap-2 border-b border-border pb-3">
+            {([
+              ["subjects", "1. Subjects"],
+              ["teachers", "2. Teachers"],
+              ["students", "3. Students"],
+            ] as const).map(([value, label]) => (
+              <button key={value} type="button" onClick={() => setModule(value)} className={`rounded-lg px-3 py-2 text-sm font-medium ${module === value ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:text-foreground"}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {module === "subjects" && (
+            <SubjectModule section={section} mapping={mapping} subjects={subjects} update={update} />
+          )}
+          {module === "teachers" && (
+            <TeacherModule section={section} mapping={mapping} staff={staff} update={update} />
+          )}
+          {module === "students" && (
+            <StudentModule section={section} mapping={mapping} students={students} update={update} />
+          )}
+        </>
+      ) : (
+        <p className="mt-5 rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">Create a class and section to begin enrollment.</p>
+      )}
+    </section>
+  );
+}
+
+function SubjectModule({ section, mapping, subjects, update }: { section: Section; mapping: SectionMapping; subjects: { id: string; name: string }[]; update: (path: string, body?: object) => void }) {
+  return (
+    <div className="mt-4 grid gap-4 md:grid-cols-[1fr_1fr]">
+      <div>
+        <h3 className="font-semibold">Subjects available in the institute</h3>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {subjects.map((subject) => {
+            const assigned = mapping.subjects.some((item) => item.id === subject.id);
+            return (
+              <button key={subject.id} type="button" onClick={() => update(`/api/sections/${section.id}/subjects${assigned ? `/${subject.id}` : ""}`, assigned ? undefined : { subjectId: subject.id })} className={`flex items-center justify-between rounded-xl border px-3 py-3 text-left text-sm ${assigned ? "border-primary bg-primary/5 text-primary" : "border-border bg-background"}`}>
+                <span>{subject.name}</span>
+                <span className="text-xs">{assigned ? "Assigned" : "Add"}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div className="rounded-xl border border-border bg-background/70 p-4">
+        <h3 className="font-semibold">Subjects for {section.className || "class"} · {section.name}</h3>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {mapping.subjects.map((subject) => <span key={subject.id} className="rounded-full bg-primary/10 px-3 py-1.5 text-sm text-primary">{subject.name}</span>)}
+          {!mapping.subjects.length && <p className="text-sm text-muted-foreground">No subjects assigned yet.</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TeacherModule({ section, mapping, staff, update }: { section: Section; mapping: SectionMapping; staff: Member[]; update: (path: string, body?: object) => void }) {
+  return <AssignmentModule section={section} mapping={mapping} people={staff} type="teacher" update={update} />;
+}
+
+function StudentModule({ section, mapping, students, update }: { section: Section; mapping: SectionMapping; students: Member[]; update: (path: string, body?: object) => void }) {
+  return <AssignmentModule section={section} mapping={mapping} people={students} type="student" update={update} />;
+}
+
+function AssignmentModule({ section, mapping, people, type, update }: { section: Section; mapping: SectionMapping; people: Member[]; type: "teacher" | "student"; update: (path: string, body?: object) => void }) {
+  return (
+    <div className="mt-4 space-y-3">
+      <p className="text-sm text-muted-foreground">Assign {type === "teacher" ? "section teachers" : "section students"} to each enrolled subject.</p>
+      {!mapping.subjects.length && <p className="rounded-xl border border-dashed border-border p-5 text-sm text-muted-foreground">Assign subjects first.</p>}
+      {mapping.subjects.map((subject) => {
+        const assignedIds = new Set(type === "teacher" ? subject.teachers.map((item) => item.userId) : (subject.students ?? []).map((item) => item.userId));
+        const eligible = people.filter((person) => (type === "teacher" ? mapping.teachers : mapping.students).some((item) => item.userId === person.userId));
+        return (
+          <div key={subject.id} className="rounded-xl border border-border bg-background/70 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="font-semibold">{subject.name}</h3>
+              <select defaultValue="" onChange={(event) => { if (event.target.value) { update(`/api/sections/${section.id}/subjects/${subject.id}/${type === "teacher" ? "teachers" : "students"}`, { userId: event.target.value }); event.target.value = ""; } }} className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
+                <option value="">Add {type}</option>
+                {eligible.filter((person) => !assignedIds.has(person.userId)).map((person) => <option key={person.userId} value={person.userId}>{formatUserName(person)}</option>)}
+              </select>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {(type === "teacher" ? subject.teachers : subject.students ?? []).map((person) => (
+                <span key={person.userId} className="rounded-full border border-border px-3 py-1.5 text-sm">
+                  {personName(people, person.userId)}
+                  <button type="button" onClick={() => update(`/api/sections/${section.id}/subjects/${subject.id}/${type === "teacher" ? "teachers" : "students"}/${person.userId}`)} className="ml-2 text-destructive">×</button>
+                </span>
+              ))}
+              {!assignedIds.size && <span className="text-sm text-muted-foreground">None assigned</span>}
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 

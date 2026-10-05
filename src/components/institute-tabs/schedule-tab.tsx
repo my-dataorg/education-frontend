@@ -58,7 +58,6 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
   });
   const [sections, setSections] = useState<Section[]>([]);
   const [subjects, setSubjects] = useState<Record<string, Subject[]>>({});
-  const [catalogSubjects, setCatalogSubjects] = useState<{ id: string; name: string }[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [teacherSections, setTeacherSections] = useState<Record<string, string[]>>({});
@@ -73,10 +72,9 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
 
   const load = useCallback(async () => {
     const today = new Date().toISOString().slice(0, 10);
-    const [scheduleRes, sectionsRes, catalogRes, activitiesRes, membersRes, absencesRes] = await Promise.all([
+    const [scheduleRes, sectionsRes, activitiesRes, membersRes, absencesRes] = await Promise.all([
       fetch(`/api/institutes/${instituteId}/schedule`),
       fetch(`/api/institutes/${instituteId}/sections`),
-      fetch(`/api/institutes/${instituteId}/subjects`),
       fetch(`/api/institutes/${instituteId}/activities`),
       fetch(`/api/institutes/${instituteId}/members?group=teacher`),
       fetch(`/api/institutes/${instituteId}/teacher-absences?absence_date=${today}`),
@@ -91,7 +89,6 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
     setSchedule(nextSchedule);
     setSections(nextSections);
     setSubjects(Object.fromEntries(subjectRows));
-    if (catalogRes.ok) setCatalogSubjects(await catalogRes.json());
     setActivities(await activitiesRes.json());
     const nextTeachers = await membersRes.json();
     setTeachers(nextTeachers);
@@ -265,13 +262,12 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
         <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {orderedSections.map((section) => {
             const count = schedule.entries.filter((entry) => entry.sectionId === section.id).length;
-            const current = getCurrentPeriod(schedule, section.id, catalogSubjects);
+            const current = getCurrentPeriod(schedule, section.id, subjects[section.id] ?? []);
             const sectionTeacher = teachers.find((teacher) =>
               teacherSections[teacher.userId]?.includes(section.id)
             );
             const currentTeacherId = current?.entry.teacherId || sectionTeacher?.userId || "";
             const absence = absences.find((item) => item.teacherId === currentTeacherId);
-            const currentTeacher = teachers.find((teacher) => teacher.userId === currentTeacherId);
             return (
               <button
                 key={section.id}
@@ -324,12 +320,9 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
           section={detailSection}
           schedule={schedule}
           slots={slots}
-          subjects={[...new Map(
-            [...catalogSubjects, ...(subjects[detailSection.id] ?? [])].map((subject) => [subject.id, subject])
-          ).values()].map((subject) => ({
+          subjects={(subjects[detailSection.id] ?? []).map((subject) => ({
             ...subject,
-            linked: (subjects[detailSection.id] ?? []).some((item) => item.id === subject.id),
-            teachers: subjects[detailSection.id]?.find((item) => item.id === subject.id)?.teachers ?? [],
+            linked: true,
           }))}
           activities={activities}
           updateSchedule={updateSchedule}
