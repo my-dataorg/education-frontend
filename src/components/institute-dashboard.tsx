@@ -173,7 +173,7 @@ export function InstituteDashboard({
             {error}
           </p>
         ) : (
-          <Tabs value={activeTab} className="mt-6">
+          <Tabs value={activeTab} className="mt-6 w-full min-w-0">
             {tabs.length > 1 && (
               <TabsList aria-label="Institute sections" className="mb-2 md:hidden">
                 {tabs.map((tab) => (
@@ -184,7 +184,7 @@ export function InstituteDashboard({
               </TabsList>
             )}
 
-            <TabsContent value="overview">
+            <TabsContent value="overview" className="w-full">
               <OverviewTab
                 instituteId={instituteId}
                 branches={branches}
@@ -203,11 +203,11 @@ export function InstituteDashboard({
             {canManage && (
               <>
                 {detail.role === "owner" && (
-                  <TabsContent value="classes">
+                  <TabsContent value="classes" className="w-full">
                     <ClassesTab instituteId={instituteId} branches={branches} />
                   </TabsContent>
                 )}
-                <TabsContent value="members">
+                <TabsContent value="members" className="w-full">
                   <MembersTab
                     instituteId={instituteId}
                     joinCode={detail.joinCode}
@@ -219,7 +219,7 @@ export function InstituteDashboard({
                   />
                 </TabsContent>
 
-                <TabsContent value="enrollment">
+                <TabsContent value="enrollment" className="w-full">
                   <EnrollmentTab
                     instituteId={instituteId}
                     inviteRefreshKey={inviteRefreshKey}
@@ -227,15 +227,15 @@ export function InstituteDashboard({
                   />
                 </TabsContent>
 
-                <TabsContent value="subject-teachers">
+                <TabsContent value="subject-teachers" className="w-full">
                   <SubjectTeachersTab instituteId={instituteId} />
                 </TabsContent>
 
-                <TabsContent value="schedule">
+                <TabsContent value="schedule" className="w-full">
                   <ScheduleTab instituteId={instituteId} />
                 </TabsContent>
 
-                <TabsContent value="campuses">
+                <TabsContent value="campuses" className="w-full">
                   <CampusesTab
                     instituteId={instituteId}
                     branches={branches}

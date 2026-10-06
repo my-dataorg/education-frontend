@@ -64,39 +64,10 @@ export function OverviewTab({
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <MetricCard
-          icon={<GraduationCap className="h-4 w-4" />}
-          label="Students"
-          value={selectedBranch?.studentCount ?? 0}
-          hint="at this campus"
-        />
-        <MetricCard
-          icon={<Users className="h-4 w-4" />}
-          label="Staff"
-          value={selectedBranch?.teacherCount ?? 0}
-          hint="teaching here"
-        />
-        <MetricCard
-          icon={<TrendingUp className="h-4 w-4" />}
-          label="Avg completion"
-          value={
-            insights?.averageCompletionPercent != null
-              ? `${insights.averageCompletionPercent}%`
-              : "—"
-          }
-          hint="assignment submissions"
-        />
-        <MetricCard
-          icon={<ClipboardList className="h-4 w-4" />}
-          label="Open tasks"
-          value={insights?.openAssignments ?? 0}
-          hint="due or ongoing"
-        />
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-5">
-        <section className="rounded-xl border border-border bg-card p-4 shadow-sm lg:col-span-3">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_220px]">
+        <div className="space-y-6">
+          <div className="grid gap-4 lg:grid-cols-5">
+            <section className="rounded-xl border border-border bg-card p-4 shadow-sm lg:col-span-3">
           <h2 className="flex items-center gap-2 text-sm font-semibold">
             <Calendar className="h-4 w-4 text-primary" />
             Upcoming events
@@ -126,9 +97,9 @@ export function OverviewTab({
               ))}
             </ul>
           )}
-        </section>
+            </section>
 
-        <section className="rounded-xl border border-border bg-card p-4 shadow-sm lg:col-span-2">
+            <section className="rounded-xl border border-border bg-card p-4 shadow-sm lg:col-span-2">
           <h2 className="text-sm font-semibold">Recent results</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">Submission rates by assignment</p>
           {!insights?.recentResults?.length ? (
@@ -161,14 +132,47 @@ export function OverviewTab({
               ))}
             </ul>
           )}
-        </section>
-      </div>
+            </section>
+          </div>
 
-      {pendingInvitations > 0 && canManage && (
-        <p className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-foreground">
-          {pendingInvitations} invitation{pendingInvitations === 1 ? "" : "s"} awaiting response.
-        </p>
-      )}
+          {pendingInvitations > 0 && canManage && (
+            <p className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-foreground">
+              {pendingInvitations} invitation{pendingInvitations === 1 ? "" : "s"} awaiting response.
+            </p>
+          )}
+        </div>
+
+        <aside className="space-y-3">
+          <MetricCard
+            icon={<GraduationCap className="h-4 w-4" />}
+            label="Students"
+            value={selectedBranch?.studentCount ?? 0}
+            hint="at this campus"
+          />
+          <MetricCard
+            icon={<Users className="h-4 w-4" />}
+            label="Staff"
+            value={selectedBranch?.teacherCount ?? 0}
+            hint="teaching here"
+          />
+          <MetricCard
+            icon={<TrendingUp className="h-4 w-4" />}
+            label="Avg completion"
+            value={
+              insights?.averageCompletionPercent != null
+                ? `${insights.averageCompletionPercent}%`
+                : "—"
+            }
+            hint="assignment submissions"
+          />
+          <MetricCard
+            icon={<ClipboardList className="h-4 w-4" />}
+            label="Open tasks"
+            value={insights?.openAssignments ?? 0}
+            hint="due or ongoing"
+          />
+        </aside>
+      </div>
 
       {showRosterOnOverview && selectedBranchId && (
         <InstitutePeoplePanel

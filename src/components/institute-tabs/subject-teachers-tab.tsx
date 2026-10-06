@@ -8,6 +8,7 @@ type SectionData = {
   section: Section;
   teachers: Member[];
   subjects: SectionSubject[];
+  linkedSubjectIds: Set<string>;
 };
 
 export function SubjectTeachersTab({ instituteId }: { instituteId: string }) {
@@ -23,23 +24,16 @@ export function SubjectTeachersTab({ instituteId }: { instituteId: string }) {
     setLoading(true);
     setError("");
     try {
-      const [sectionsRes, staffRes] = await Promise.all([
+      const [sectionsRes, staffRes, catalogRes] = await Promise.all([
         fetch(`/api/institutes/${instituteId}/sections`, { credentials: "include" }),
         fetch(`/api/institutes/${instituteId}/members?group=staff`, { credentials: "include" }),
+        fetch(`/api/institutes/${instituteId}/subjects`, { credentials: "include" }),
       ]);
-      const scheduleRes = await fetch(`/api/institutes/${instituteId}/schedule`, { credentials: "include" });
-      if (!sectionsRes.ok || !staffRes.ok || !scheduleRes.ok) throw new Error("Could not load subject teachers.");
+      if (!sectionsRes.ok || !staffRes.ok || !catalogRes.ok) throw new Error("Could not load subject teachers.");
 
       const nextSections = (await sectionsRes.json()) as Section[];
       const nextStaff = (await staffRes.json()) as Member[];
-      const schedule = await scheduleRes.json() as { entries?: { sectionId: string; subjectId: string }[] };
-      const scheduledSubjects = new Map<string, Set<string>>();
-      for (const entry of schedule.entries ?? []) {
-        if (!entry.subjectId) continue;
-        const subjectIds = scheduledSubjects.get(entry.sectionId) ?? new Set<string>();
-        subjectIds.add(entry.subjectId);
-        scheduledSubjects.set(entry.sectionId, subjectIds);
-      }
+      const catalog = await catalogRes.json() as { id: string; name: string }[];
       const data = await Promise.all(nextSections.map(async (section) => {
         const [overviewRes, subjectsRes] = await Promise.all([
           fetch(`/api/sections/${section.id}`, { credentials: "include" }),
@@ -48,11 +42,15 @@ export function SubjectTeachersTab({ instituteId }: { instituteId: string }) {
         if (!overviewRes.ok || !subjectsRes.ok) throw new Error("Could not load subject mappings.");
         const overview = await overviewRes.json();
         const linkedSubjects = await subjectsRes.json() as SectionSubject[];
-        const subjectIds = scheduledSubjects.get(section.id) ?? new Set<string>();
+        const linkedById = new Map(linkedSubjects.map((subject) => [subject.id, subject]));
         return {
           section,
           teachers: overview.teachers ?? [],
-          subjects: linkedSubjects.filter((subject) => subjectIds.has(subject.id)),
+          linkedSubjectIds: new Set(linkedSubjects.map((subject) => subject.id)),
+          subjects: catalog.map((subject) => ({
+            ...subject,
+            teachers: linkedById.get(subject.id)?.teachers ?? [],
+          })),
         };
       }));
 
@@ -93,6 +91,18 @@ export function SubjectTeachersTab({ instituteId }: { instituteId: string }) {
     setSaving(`${subjectId}:${teacherId}`);
     setError("");
     try {
+      if (!selected.linkedSubjectIds.has(subjectId)) {
+        const linkResponse = await fetch(`/api/sections/${selected.section.id}/subjects`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ subjectId }),
+        });
+        if (!linkResponse.ok) {
+          const body = await linkResponse.json().catch(() => ({}));
+          throw new Error(body.detail || "Could not link subject to class.");
+        }
+      }
       const response = await fetch(
         `/api/sections/${selected.section.id}/subjects/${subjectId}/teachers`,
         {
@@ -166,7 +176,7 @@ export function SubjectTeachersTab({ instituteId }: { instituteId: string }) {
           {selected ? (
             <>
               <h2 className="text-xl font-semibold">{selected.section.className || "Class"} · {selected.section.name}</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Subjects scheduled for this class. Drop a teacher into a subject slot.</p>
+              <p className="mt-1 text-sm text-muted-foreground">All institute subjects are shown. Drop a teacher into a subject slot.</p>
               <div className="mt-5 space-y-3">
                 {selected.subjects.map((subject) => (
                   <SubjectCard
@@ -180,7 +190,7 @@ export function SubjectTeachersTab({ instituteId }: { instituteId: string }) {
                     onSelect={() => setSelectedSubjectId(subject.id)}
                   />
                 ))}
-                {!selected.subjects.length && <p className="rounded-xl border border-dashed border-border p-6 text-sm text-muted-foreground">No subjects are scheduled for this class yet.</p>}
+                {!selected.subjects.length && <p className="rounded-xl border border-dashed border-border p-6 text-sm text-muted-foreground">No institute subjects configured yet.</p>}
               </div>
             </>
           ) : <p className="text-sm text-muted-foreground">Select a class to begin.</p>}

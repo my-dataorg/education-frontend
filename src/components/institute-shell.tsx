@@ -55,7 +55,7 @@ export function InstituteShell({
   children,
 }: Props & { children: React.ReactNode }) {
   return (
-    <div className="institute-shell mx-auto flex min-h-[calc(100vh-3.5rem)] w-full max-w-7xl bg-background">
+    <div className="institute-shell flex min-h-[calc(100vh-3.5rem)] w-full bg-background">
       <aside className="hidden w-64 shrink-0 border-r border-border bg-card md:block">
         <div className="sticky top-0 p-4">
           <p className="mb-1 font-serif text-base font-semibold">Education</p>
