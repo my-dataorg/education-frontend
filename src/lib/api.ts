@@ -104,8 +104,20 @@ export type Branch = {
   isPrimary: boolean;
   sectionCount: number;
 };
-export type Assignment = { id: string; title: string; description: string; dueDate: string | null };
+export type Assignment = {
+  id: string;
+  title: string;
+  description: string;
+  assignmentType: "assignment" | "test";
+  dueDate: string | null;
+};
 export type Note = { id: string; content: string; noteDate: string; teacherId: string };
+export type Attendance = {
+  studentId: string;
+  attendanceDate: string;
+  status: "present" | "absent" | "late" | "excused";
+  markedBy: string;
+};
 
 export const eduApi = {
   listInstitutes: (token: string) => apiFetch("/v1/institutes", token),

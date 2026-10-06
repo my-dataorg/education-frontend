@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { UserIdentity } from "@/components/user-identity";
-import type { Member } from "@/lib/api";
+import type { Attendance, Member } from "@/lib/api";
 import type { SectionSubject } from "@/lib/api";
 
 type Tab = "overview" | "students" | "assignments" | "notes" | "progress";
@@ -19,6 +19,7 @@ type Overview = {
     id: string;
     title: string;
     description: string;
+    assignmentType: "assignment" | "test";
     completionPercent: number;
     submittedCount: number;
     enrolledStudents: number;
@@ -39,32 +40,55 @@ export function SectionWorkspace({
   sectionId: string;
   role: string;
   overview: Overview;
-  assignments: { id: string; title: string; description: string }[];
+  assignments: {
+    id: string;
+    title: string;
+    description: string;
+    assignmentType: "assignment" | "test";
+    dueDate: string | null;
+  }[];
   notes: { id: string; content: string; noteDate: string }[];
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("overview");
   const [overview, setOverview] = useState(initialOverview);
   const [subjects, setSubjects] = useState<SectionSubject[]>([]);
+  const [sectionAssignments, setSectionAssignments] = useState(assignments);
+  const [sectionNotes, setSectionNotes] = useState(notes);
+  const [attendance, setAttendance] = useState<Record<string, Attendance["status"]>>({});
+  const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().slice(0, 10));
   const isTeacher = ["owner", "admin", "principal", "teacher", "lecturer", "professor"].includes(role);
   const isStudent = role === "student";
 
   useEffect(() => {
-    fetch(`/api/sections/${sectionId}/subjects`)
-      .then((res) => (res.ok ? res.json() : []))
-      .then(setSubjects)
-      .catch(() => setSubjects([]));
-  }, [sectionId]);
+    Promise.all([
+      fetch(`/api/sections/${sectionId}/subjects`),
+      fetch(`/api/institutes/${instituteId}/sections/${sectionId}/assignments`),
+      fetch(`/api/institutes/${instituteId}/sections/${sectionId}/notes`),
+      fetch(`/api/institutes/${instituteId}/sections/${sectionId}/attendance?attendanceDate=${attendanceDate}`),
+    ])
+      .then(async ([subjectsRes, assignmentsRes, notesRes, attendanceRes]) => {
+        if (subjectsRes.ok) setSubjects(await subjectsRes.json());
+        if (assignmentsRes.ok) setSectionAssignments(await assignmentsRes.json());
+        if (notesRes.ok) setSectionNotes(await notesRes.json());
+        if (attendanceRes.ok) {
+          const rows: Attendance[] = await attendanceRes.json();
+          setAttendance(Object.fromEntries(rows.map((row) => [row.studentId, row.status])));
+        }
+      })
+      .catch(() => undefined);
+  }, [attendanceDate, instituteId, sectionId]);
 
   const tabs: { id: Tab; label: string; show: boolean }[] = [
     { id: "overview", label: "Overview", show: true },
-    { id: "students", label: "Students", show: isTeacher },
+    { id: "students", label: isTeacher ? "Students & attendance" : "Students", show: isTeacher },
     { id: "assignments", label: "Assignments", show: true },
     { id: "notes", label: "Daily notes", show: true },
     { id: "progress", label: "Progress", show: true },
   ];
 
   const [title, setTitle] = useState("");
+  const [assignmentType, setAssignmentType] = useState<"assignment" | "test">("assignment");
   const [note, setNote] = useState("");
   const [submission, setSubmission] = useState("");
   const [selectedAssignment, setSelectedAssignment] = useState("");
@@ -76,21 +100,41 @@ export function SectionWorkspace({
   }
 
   async function createAssignment() {
-    await fetch(`/api/institutes/${instituteId}/sections/${sectionId}/assignments`, {
+    const response = await fetch(`/api/institutes/${instituteId}/sections/${sectionId}/assignments`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, description: "" }),
+      body: JSON.stringify({ title, description: "", assignmentType }),
     });
+    if (response.ok) {
+      const created = await response.json();
+      setSectionAssignments((current) => [...current, created]);
+    }
     setTitle("");
+    setAssignmentType("assignment");
     refreshOverview();
   }
 
+  async function saveAttendance() {
+    await fetch(`/api/institutes/${instituteId}/sections/${sectionId}/attendance`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        attendanceDate,
+        records: Object.entries(attendance).map(([studentId, status]) => ({ studentId, status })),
+      }),
+    });
+  }
+
   async function createNote() {
-    await fetch(`/api/institutes/${instituteId}/sections/${sectionId}/notes`, {
+    const response = await fetch(`/api/institutes/${instituteId}/sections/${sectionId}/notes`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ content: note }),
     });
+    if (response.ok) {
+      const created = await response.json();
+      setSectionNotes((current) => [created, ...current]);
+    }
     setNote("");
     router.refresh();
   }
@@ -158,33 +202,55 @@ export function SectionWorkspace({
         {tab === "students" && isTeacher && (
           <ul className="space-y-2">
             {(overview.students || []).map((s) => (
-              <li key={s.userId} className="rounded-lg border border-border bg-card px-4 py-2 text-sm">
+              <li key={s.userId} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-2 text-sm">
                 <UserIdentity user={s} role={s.role || "student"} />
+                {isTeacher && (
+                  <select
+                    value={attendance[s.userId] || "present"}
+                    onChange={(event) => setAttendance((current) => ({ ...current, [s.userId]: event.target.value as Attendance["status"] }))}
+                    className="rounded-md border border-border bg-background px-2 py-1 text-xs"
+                  >
+                    <option value="present">Present</option>
+                    <option value="absent">Absent</option>
+                    <option value="late">Late</option>
+                    <option value="excused">Excused</option>
+                  </select>
+                )}
               </li>
             ))}
             {!overview.students?.length && (
               <p className="text-sm text-muted-foreground">No students enrolled yet.</p>
             )}
+            {isTeacher && overview.students?.length ? (
+              <div className="mt-3 flex items-center gap-2">
+                <input type="date" value={attendanceDate} onChange={(event) => setAttendanceDate(event.target.value)} className="rounded-md border border-border px-2 py-1 text-xs" />
+                <button type="button" onClick={saveAttendance} className="rounded-md bg-primary px-3 py-1.5 text-xs text-primary-foreground">
+                  Save attendance
+                </button>
+              </div>
+            ) : null}
           </ul>
         )}
 
         {tab === "assignments" && (
           <div>
             <ul className="space-y-2">
-              {assignments.map((a) => (
+              {sectionAssignments.map((a) => (
                 <li key={a.id} className="rounded-lg border border-border bg-card px-4 py-3 text-sm">
-                  {a.title}
+                  <span className="font-medium">{a.title}</span>
+                  <span className="ml-2 text-xs text-muted-foreground">
+                    {a.assignmentType === "test" ? "Test" : "Assignment"}
+                  </span>
                 </li>
               ))}
             </ul>
             {isTeacher && (
               <div className="mt-4 flex gap-2">
-                <input
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="New assignment title"
-                  className="flex-1 rounded-lg border border-border px-3 py-2 text-sm"
-                />
+                <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="New assignment title" className="flex-1 rounded-lg border border-border px-3 py-2 text-sm" />
+                <select value={assignmentType} onChange={(e) => setAssignmentType(e.target.value as "assignment" | "test")} className="rounded-lg border border-border px-3 py-2 text-sm">
+                  <option value="assignment">Assignment</option>
+                  <option value="test">Test</option>
+                </select>
                 <button type="button" onClick={createAssignment} className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground">
                   Add
                 </button>
@@ -198,7 +264,7 @@ export function SectionWorkspace({
                   className="w-full rounded-lg border border-border px-3 py-2 text-sm"
                 >
                   <option value="">Select assignment</option>
-                  {assignments.map((a) => (
+                  {sectionAssignments.map((a) => (
                     <option key={a.id} value={a.id}>{a.title}</option>
                   ))}
                 </select>
@@ -220,7 +286,7 @@ export function SectionWorkspace({
         {tab === "notes" && (
           <div>
             <ul className="space-y-2">
-              {notes.map((n) => (
+              {sectionNotes.map((n) => (
                 <li key={n.id} className="rounded-lg border border-border bg-card px-4 py-3 text-sm">
                   <p className="text-xs text-muted-foreground">{n.noteDate}</p>
                   {n.content}

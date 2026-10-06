@@ -7,6 +7,7 @@ import { EduNavGate } from "@/components/edu-nav-gate";
 import { InstituteDashboard } from "@/components/institute-dashboard";
 import { isSubscriptionError, SubscriptionRequired } from "@/components/subscription-required";
 import { Suspense } from "react";
+import { TeacherWorkspace } from "@/components/teacher-workspace";
 
 export default async function InstitutePage({
   params,
@@ -108,6 +109,27 @@ export default async function InstitutePage({
   if (sectionsError && isSubscriptionError(sectionsError)) {
     return (
       <SubscriptionRequired description="Subscribe to Education to view your sections." />
+    );
+  }
+
+  if (["teacher", "lecturer", "professor"].includes(institute.role)) {
+    return (
+      <>
+        <EduNavGate />
+        {sectionsError ? (
+          <main className="px-6 py-8">
+            <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {sectionsError}
+            </p>
+          </main>
+        ) : (
+          <TeacherWorkspace
+            instituteId={id}
+            instituteName={institute.name}
+            sections={sections}
+          />
+        )}
+      </>
     );
   }
 
