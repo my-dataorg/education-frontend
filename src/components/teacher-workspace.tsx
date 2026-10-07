@@ -106,16 +106,6 @@ export function TeacherWorkspace({
   return (
     <TeacherShell instituteName={instituteName} activeTab={tab} onTabChange={setTab}>
       <EducationContextReporter instituteName={instituteName} />
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-primary">Teacher workspace</p>
-          <h1 className="mt-1 font-serif text-3xl font-semibold">{instituteName}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Your classes, schedule, and student progress</p>
-        </div>
-        <div className="text-right text-sm text-muted-foreground">
-          {new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}
-        </div>
-      </header>
 
       {error && <p className="mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
 
