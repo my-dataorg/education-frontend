@@ -27,6 +27,22 @@ type Entry = {
   subjectId: string;
   teacherId: string | null;
 };
+type SpecialActivity = {
+  id: string;
+  activityId: string;
+  start: string;
+  end: string;
+  position: number;
+  sectionIds: string[];
+  teacherIds: string[];
+};
+type SpecialDay = {
+  id: string;
+  date: string;
+  label: string;
+  replaceRegular: boolean;
+  activities: SpecialActivity[];
+};
 type Schedule = {
   revision: number;
   settings: {
@@ -37,6 +53,7 @@ type Schedule = {
   };
   slots: Slot[];
   entries: Entry[];
+  specialDays: SpecialDay[];
 };
 
 const DAYS = [
@@ -55,6 +72,7 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
     settings: { timezone: "Asia/Kolkata", schoolStart: "08:00", schoolEnd: "15:00", weekdays: [1, 2, 3, 4, 5, 6] },
     slots: [],
     entries: [],
+    specialDays: [],
   });
   const [sections, setSections] = useState<Section[]>([]);
   const [subjects, setSubjects] = useState<Record<string, Subject[]>>({});
@@ -69,6 +87,14 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  const [specialDate, setSpecialDate] = useState("");
+  const [specialLabel, setSpecialLabel] = useState("");
+  const [specialActivityId, setSpecialActivityId] = useState("");
+  const [specialStart, setSpecialStart] = useState("10:30");
+  const [specialEnd, setSpecialEnd] = useState("11:15");
+  const [specialSectionIds, setSpecialSectionIds] = useState<string[]>([]);
+  const [specialTeacherIds, setSpecialTeacherIds] = useState<string[]>([]);
+  const [specialReplaceRegular, setSpecialReplaceRegular] = useState(true);
 
   const load = useCallback(async () => {
     const today = new Date().toISOString().slice(0, 10);
@@ -86,7 +112,7 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
       const res = await fetch(`/api/sections/${section.id}/subjects`);
       return [section.id, res.ok ? await res.json() : []] as const;
     }));
-    setSchedule(nextSchedule);
+    setSchedule({ ...nextSchedule, specialDays: nextSchedule.specialDays ?? [] });
     setSections(nextSections);
     setSubjects(Object.fromEntries(subjectRows));
     setActivities(await activitiesRes.json());
@@ -201,6 +227,61 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
     }
   }
 
+  function addSpecialActivity() {
+    const existingDay = schedule.specialDays.find((item) => item.date === specialDate);
+    if (
+      !specialDate ||
+      (!specialLabel.trim() && !existingDay) ||
+      !specialActivityId ||
+      !specialSectionIds.length ||
+      !specialTeacherIds.length ||
+      specialStart >= specialEnd
+    ) {
+      setError("Choose a date, activity, sections, teachers, and a valid time.");
+      return;
+    }
+    const activity: SpecialActivity = {
+      id: createId(),
+      activityId: specialActivityId,
+      start: specialStart,
+      end: specialEnd,
+      position: 0,
+      sectionIds: specialSectionIds,
+      teacherIds: specialTeacherIds,
+    };
+    const nextSpecialDays = existingDay
+      ? schedule.specialDays.map((item) =>
+          item.id === existingDay.id
+            ? { ...item, activities: [...item.activities, { ...activity, position: item.activities.length }] }
+            : item
+        )
+      : [
+          ...schedule.specialDays,
+          {
+            id: createId(),
+            date: specialDate,
+            label: specialLabel.trim(),
+            replaceRegular: specialReplaceRegular,
+            activities: [activity],
+          },
+        ];
+    updateSchedule((current) => ({ ...current, specialDays: nextSpecialDays }));
+    setSpecialDate("");
+    setSpecialLabel("");
+    setSpecialActivityId("");
+    setSpecialSectionIds([]);
+    setSpecialTeacherIds([]);
+    setSpecialReplaceRegular(true);
+    setMessage("Special activity added");
+  }
+
+  function removeSpecialDay(dayId: string) {
+    updateSchedule((current) => ({
+      ...current,
+      specialDays: current.specialDays.filter((item) => item.id !== dayId),
+    }));
+  }
+
   return (
     <div className="space-y-5">
       {error && <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
@@ -259,14 +340,98 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
             <p className="text-[11px] text-muted-foreground">Classes / sections</p>
           </div>
         </div>
+        <div className="mt-5 rounded-xl border border-border bg-background/70 p-4">
+          <div>
+            <p className="text-sm font-semibold">Special activity days</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Replace regular periods with an activity for one section or a combined group.
+            </p>
+          </div>
+          <div className="mt-3 grid gap-3 lg:grid-cols-5">
+            <label className="text-xs font-semibold text-muted-foreground">
+              Date
+              <input value={specialDate} onChange={(event) => setSpecialDate(event.target.value)} type="date" className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+            </label>
+            <label className="text-xs font-semibold text-muted-foreground">
+              Day label
+              <input value={specialLabel} onChange={(event) => setSpecialLabel(event.target.value)} placeholder="Sports day" className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+            </label>
+            <label className="text-xs font-semibold text-muted-foreground">
+              Activity
+              <select value={specialActivityId} onChange={(event) => setSpecialActivityId(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">
+                <option value="">Choose activity</option>
+                {activities.map((activity) => <option key={activity.id} value={activity.id}>{activity.name}</option>)}
+              </select>
+            </label>
+            <label className="text-xs font-semibold text-muted-foreground">
+              Start
+              <input value={specialStart} onChange={(event) => setSpecialStart(event.target.value)} type="time" className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+            </label>
+            <label className="text-xs font-semibold text-muted-foreground">
+              End
+              <input value={specialEnd} onChange={(event) => setSpecialEnd(event.target.value)} type="time" className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+            </label>
+          </div>
+          <label className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+            <input type="checkbox" checked={specialReplaceRegular} onChange={(event) => setSpecialReplaceRegular(event.target.checked)} />
+            Replace the regular schedule for this date
+          </label>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <label className="text-xs font-semibold text-muted-foreground">
+              Sections (select multiple for a combined activity)
+              <select multiple value={specialSectionIds} onChange={(event) => setSpecialSectionIds(Array.from(event.currentTarget.selectedOptions, (option) => option.value))} className="mt-1 min-h-24 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">
+                {orderedSections.map((section) => <option key={section.id} value={section.id}>{section.className} · {section.name}</option>)}
+              </select>
+            </label>
+            <label className="text-xs font-semibold text-muted-foreground">
+              Assigned teachers (select multiple)
+              <select multiple value={specialTeacherIds} onChange={(event) => setSpecialTeacherIds(Array.from(event.currentTarget.selectedOptions, (option) => option.value))} className="mt-1 min-h-24 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">
+                {teachers.map((teacher) => <option key={teacher.userId} value={teacher.userId}>{teacherName(teachers, teacher.userId)}</option>)}
+              </select>
+            </label>
+          </div>
+          <button type="button" onClick={addSpecialActivity} className="mt-3 rounded-lg border border-primary px-3 py-2 text-sm font-medium text-primary">
+            Add special activity
+          </button>
+          {schedule.specialDays.length > 0 && (
+            <div className="mt-4 space-y-2">
+              {schedule.specialDays.map((specialDay) => (
+                <div key={specialDay.id} className="rounded-lg border border-border bg-card p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold">{specialDay.label}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {specialDay.date} · {specialDay.replaceRegular ? "regular schedule replaced" : "regular schedule retained"}
+                      </p>
+                    </div>
+                    <button type="button" onClick={() => removeSpecialDay(specialDay.id)} className="text-xs text-destructive">Remove day</button>
+                  </div>
+                  <div className="mt-2 space-y-1">
+                    {specialDay.activities.map((activity) => (
+                      <p key={activity.id} className="text-xs">
+                        {activity.start}–{activity.end} · {activities.find((item) => item.id === activity.activityId)?.name || "Activity"} · {activity.sectionIds.map((id) => sections.find((section) => section.id === id)?.name).join(" + ")} · {activity.teacherIds.map((id) => teacherName(teachers, id)).join(", ")}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
         <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {orderedSections.map((section) => {
             const count = schedule.entries.filter((entry) => entry.sectionId === section.id).length;
-            const current = getCurrentPeriod(schedule, section.id, subjects[section.id] ?? []);
+            const current = getCurrentPeriod(
+              schedule,
+              section.id,
+              subjects[section.id] ?? [],
+              activities
+            );
             const sectionTeacher = teachers.find((teacher) =>
               teacherSections[teacher.userId]?.includes(section.id)
             );
-            const currentTeacherId = current?.entry.teacherId || sectionTeacher?.userId || "";
+            const currentTeacherId =
+              current?.entry?.teacherId || current?.teacherIds?.[0] || sectionTeacher?.userId || "";
             const absence = absences.find((item) => item.teacherId === currentTeacherId);
             return (
               <button
@@ -858,7 +1023,12 @@ function teacherName(teachers: Teacher[], userId: string) {
   return teacher?.displayName || teacher?.username || "Not assigned";
 }
 
-function getCurrentPeriod(schedule: Schedule, sectionId: string, subjects: { id: string; name: string }[]) {
+function getCurrentPeriod(
+  schedule: Schedule,
+  sectionId: string,
+  subjects: { id: string; name: string }[],
+  activities: Activity[]
+) {
   const now = new Date();
   const weekday = new Intl.DateTimeFormat("en-US", {
     timeZone: schedule.settings.timezone,
@@ -872,6 +1042,29 @@ function getCurrentPeriod(schedule: Schedule, sectionId: string, subjects: { id:
     hour12: false,
   }).format(now);
   if (!day) return null;
+  const currentDate = new Intl.DateTimeFormat("en-CA", {
+    timeZone: schedule.settings.timezone,
+  }).format(now);
+  const specialDay = schedule.specialDays.find((item) => item.date === currentDate);
+  const specialActivity = specialDay?.activities.find(
+    (item) =>
+      item.sectionIds.includes(sectionId) &&
+      item.start <= currentTime &&
+      currentTime < item.end
+  );
+  if (specialActivity) {
+    return {
+      entry: null,
+      teacherIds: specialActivity.teacherIds,
+      slot: {
+        start: specialActivity.start,
+        end: specialActivity.end,
+      },
+      subjectName:
+        activities.find((item) => item.id === specialActivity.activityId)?.name || "Activity",
+    };
+  }
+  if (specialDay?.replaceRegular) return null;
   const entry = schedule.entries.find((item) => {
     const slot = schedule.slots.find((candidate) => candidate.id === item.slotId);
     return item.sectionId === sectionId && item.dayOfWeek === Number(day) &&
@@ -882,6 +1075,7 @@ function getCurrentPeriod(schedule: Schedule, sectionId: string, subjects: { id:
   if (!slot) return null;
   return {
     entry,
+    teacherIds: [],
     slot,
     subjectName: subjects.find((item) => item.id === entry.subjectId)?.name || "Current subject",
   };
