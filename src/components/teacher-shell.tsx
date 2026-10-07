@@ -28,10 +28,7 @@ export function TeacherShell({
         <div className="sticky top-0 p-4">
           <p className="font-serif text-base font-semibold">Education</p>
           <p className="mt-1 truncate text-[11px] text-muted-foreground">{instituteName}</p>
-          <p className="mb-2 mt-6 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Teacher workspace
-          </p>
-          <nav className="space-y-1">
+          <nav className="mt-6 space-y-1">
             {items.map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
