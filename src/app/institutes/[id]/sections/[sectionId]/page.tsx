@@ -5,6 +5,7 @@ import Link from "next/link";
 import { EduNavGate } from "@/components/edu-nav-gate";
 import { SectionWorkspace } from "@/components/section-workspace";
 import { isSubscriptionError, SubscriptionRequired } from "@/components/subscription-required";
+import { EducationContextReporter } from "@/components/education-context-reporter";
 
 export default async function SectionPage({
   params,
@@ -71,6 +72,7 @@ export default async function SectionPage({
   return (
     <>
       <EduNavGate />
+      <EducationContextReporter instituteName={institute.name} />
       <main className="mx-auto max-w-5xl px-6 py-8">
         <Link href={`/institutes/${id}`} className="text-sm text-muted-foreground hover:text-foreground">
           ← {institute.name}

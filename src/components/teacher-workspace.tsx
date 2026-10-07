@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { SectionWorkspace } from "@/components/section-workspace";
 import { TeacherShell, type TeacherTab } from "@/components/teacher-shell";
-import type { Assignment, Member, Note, Section } from "@/lib/api";
+import { EducationContextReporter } from "@/components/education-context-reporter";
+import type { Assignment, InstitutePost, Member, Note, Section } from "@/lib/api";
 
 type SectionOverview = {
   sectionId: string;
@@ -46,15 +47,18 @@ export function TeacherWorkspace({
   instituteId,
   instituteName,
   sections,
+  currentUserId,
 }: {
   instituteId: string;
   instituteName: string;
   sections: Section[];
+  currentUserId: string;
 }) {
   const [tab, setTab] = useState<TeacherTab>("overview");
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [allSections, setAllSections] = useState<Section[]>(sections);
   const [staff, setStaff] = useState<Member[]>([]);
+  const [posts, setPosts] = useState<InstitutePost[]>([]);
   const [subjects, setSubjects] = useState<{ id: string; name: string }[]>([]);
   const [overviews, setOverviews] = useState<Record<string, SectionOverview>>({});
   const [selectedSectionId, setSelectedSectionId] = useState(sections[0]?.id || "");
@@ -66,13 +70,15 @@ export function TeacherWorkspace({
       loadJson<Section[]>(`/api/institutes/${instituteId}/sections`),
       loadJson<Member[]>(`/api/institutes/${instituteId}/members?group=staff`),
       loadJson<{ id: string; name: string }[]>(`/api/institutes/${instituteId}/subjects`),
+      loadJson<InstitutePost[]>(`/api/institutes/${instituteId}/posts`),
       ...sections.map((section) => loadJson<SectionOverview>(`/api/sections/${section.id}`)),
     ])
-      .then(([nextSchedule, nextSections, nextStaff, nextSubjects, ...nextOverviews]) => {
+      .then(([nextSchedule, nextSections, nextStaff, nextSubjects, nextPosts, ...nextOverviews]) => {
         setSchedule(nextSchedule);
         setAllSections(nextSections);
         setStaff(nextStaff);
         setSubjects(nextSubjects);
+        setPosts(nextPosts);
         setOverviews(
           Object.fromEntries(
             sections.map((section, index) => [section.id, nextOverviews[index] as SectionOverview])
@@ -99,6 +105,7 @@ export function TeacherWorkspace({
 
   return (
     <TeacherShell instituteName={instituteName} activeTab={tab} onTabChange={setTab}>
+      <EducationContextReporter instituteName={instituteName} />
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-medium uppercase tracking-wider text-primary">Teacher workspace</p>
@@ -120,8 +127,21 @@ export function TeacherWorkspace({
             <Stat label="Average performance" value={averageCompletion == null ? "—" : `${averageCompletion}%`} />
           </div>
           <div className="grid gap-4 lg:grid-cols-2">
-            <WorkList title="Upcoming tests and assignments" items={upcomingWork} />
-            <ScheduleCard schedule={schedule} sections={allSections} subjects={subjects} staff={staff} />
+            <div className="space-y-4">
+              <PostList posts={posts} />
+              <BirthdayList sections={sections} overviews={overviews} staff={staff} />
+              <WorkList title="Upcoming tests and assignments" items={upcomingWork} />
+            </div>
+            <ScheduleCard
+              schedule={schedule}
+              sections={allSections}
+              subjects={subjects}
+              currentUserId={currentUserId}
+              onSelectSection={(sectionId) => {
+                setSelectedSectionId(sectionId);
+                setTab("classes");
+              }}
+            />
           </div>
         </div>
       )}
@@ -130,7 +150,17 @@ export function TeacherWorkspace({
         <div className="mt-6">
           <h2 className="text-xl font-semibold">School schedule</h2>
           <p className="mt-1 text-sm text-muted-foreground">Read-only timetable for the whole institute.</p>
-          <ScheduleCard schedule={schedule} sections={allSections} subjects={subjects} staff={staff} expanded />
+          <ScheduleCard
+            schedule={schedule}
+            sections={allSections}
+            subjects={subjects}
+            currentUserId={currentUserId}
+            expanded
+            onSelectSection={(sectionId) => {
+              setSelectedSectionId(sectionId);
+              setTab("classes");
+            }}
+          />
         </div>
       )}
 
@@ -205,24 +235,89 @@ function WorkList({ title, items }: { title: string; items: Array<Assignment & {
   );
 }
 
+function PostList({ posts }: { posts: InstitutePost[] }) {
+  return (
+    <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
+      <h2 className="font-semibold">Institute posts</h2>
+      <div className="mt-3 space-y-3">
+        {posts.slice(0, 4).map((post) => (
+          <article key={post.id} className="rounded-lg bg-muted/40 px-3 py-2">
+            <h3 className="text-sm font-medium">{post.title}</h3>
+            <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">{post.body}</p>
+          </article>
+        ))}
+        {!posts.length && <p className="text-sm text-muted-foreground">No institute posts yet.</p>}
+      </div>
+    </section>
+  );
+}
+
+function BirthdayList({
+  sections,
+  overviews,
+  staff,
+}: {
+  sections: Section[];
+  overviews: Record<string, SectionOverview>;
+  staff: Member[];
+}) {
+  const today = new Date();
+  const people = [
+    ...staff.map((person) => ({ ...person, group: "Staff", sectionName: "" })),
+    ...sections.flatMap((section) =>
+      (overviews[section.id]?.students || []).map((person) => ({
+        ...person,
+        group: "Student",
+        sectionName: `${section.className}-${section.name}`,
+      }))
+    ),
+  ].filter((person) => person.dateOfBirth);
+  const upcoming = people
+    .map((person) => {
+      const birthday = new Date(person.dateOfBirth!);
+      const next = new Date(today.getFullYear(), birthday.getMonth(), birthday.getDate());
+      if (next < today) next.setFullYear(today.getFullYear() + 1);
+      return { person, next };
+    })
+    .filter(({ next }) => next.getTime() - today.getTime() <= 31 * 86400000)
+    .sort((a, b) => a.next.getTime() - b.next.getTime())
+    .slice(0, 5);
+
+  return (
+    <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
+      <h2 className="font-semibold">Birthdays</h2>
+      <ul className="mt-3 space-y-2">
+        {upcoming.map(({ person, next }) => (
+          <li key={`${person.userId}-${person.group}`} className="flex justify-between rounded-lg bg-muted/40 px-3 py-2 text-sm">
+            <span>{person.displayName || person.username || "Member"} <span className="text-xs text-muted-foreground">({person.group}{person.sectionName ? ` · ${person.sectionName}` : ""})</span></span>
+            <span className="text-xs text-primary">{next.toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
+          </li>
+        ))}
+        {!upcoming.length && <li className="text-sm text-muted-foreground">No upcoming birthdays.</li>}
+      </ul>
+    </section>
+  );
+}
+
 function ScheduleCard({
   schedule,
   sections,
   subjects,
-  staff,
+  currentUserId,
+  onSelectSection,
   expanded = false,
 }: {
   schedule: Schedule | null;
   sections: Section[];
   subjects: { id: string; name: string }[];
-  staff: Member[];
+  currentUserId: string;
+  onSelectSection: (sectionId: string) => void;
   expanded?: boolean;
 }) {
   const today = new Date().getDay() || 7;
   const days = expanded ? schedule?.settings.weekdays ?? [] : [today];
   const sectionNames = useMemo(() => new Map(sections.map((section) => [section.id, `${section.className}-${section.name}`])), [sections]);
   const subjectNames = useMemo(() => new Map(subjects.map((subject) => [subject.id, subject.name])), [subjects]);
-  const staffNames = useMemo(() => new Map(staff.map((person) => [person.userId, person.displayName || person.username || "Teacher"])), [staff]);
   if (!schedule) return <section className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">Loading schedule…</section>;
 
   return (
@@ -234,18 +329,34 @@ function ScheduleCard({
             {expanded && <h3 className="mb-2 text-sm font-medium">{DAYS[day]}</h3>}
             <div className="space-y-1">
               {schedule.slots.map((slot) => {
-                const entries = schedule.entries.filter((entry) => entry.dayOfWeek === day && entry.slotId === slot.id);
-                if (!entries.length && slot.kind === "instruction") return null;
-                return (
-                  <div key={`${day}-${slot.id}`} className="flex gap-3 rounded-lg bg-muted/40 px-3 py-2 text-xs">
-                    <span className="w-24 shrink-0 font-medium">{slot.start}–{slot.end}</span>
-                    <span className="text-muted-foreground">
-                      {slot.kind !== "instruction"
-                        ? slot.label
-                        : entries.map((entry) => `${sectionNames.get(entry.sectionId) || "Class"} · ${subjectNames.get(entry.subjectId) || "Subject"} · ${staffNames.get(entry.teacherId || "") || "Teacher"}`).join(" | ")}
-                    </span>
-                  </div>
+                const entries = schedule.entries.filter(
+                  (entry) =>
+                    entry.dayOfWeek === day &&
+                    entry.slotId === slot.id &&
+                    (slot.kind !== "instruction" || entry.teacherId === currentUserId)
                 );
+                if (!entries.length && slot.kind === "instruction") return null;
+                if (slot.kind !== "instruction") {
+                  return (
+                    <div key={`${day}-${slot.id}`} className="flex gap-3 rounded-lg bg-muted/40 px-3 py-2 text-xs">
+                      <span className="w-24 shrink-0 font-medium">{formatTime(slot.start)}–{formatTime(slot.end)}</span>
+                      <span className="text-muted-foreground">{slot.label}</span>
+                    </div>
+                  );
+                }
+                return entries.map((entry) => (
+                  <button
+                    key={`${day}-${slot.id}-${entry.sectionId}`}
+                    type="button"
+                    onClick={() => onSelectSection(entry.sectionId)}
+                    className="flex w-full gap-3 rounded-lg bg-muted/40 px-3 py-2 text-left text-xs transition hover:bg-primary/10"
+                  >
+                    <span className="w-24 shrink-0 font-medium">{formatTime(slot.start)}–{formatTime(slot.end)}</span>
+                    <span className="text-muted-foreground">
+                      {sectionNames.get(entry.sectionId) || "Class"} · {subjectNames.get(entry.subjectId) || "Subject"}
+                    </span>
+                  </button>
+                ));
               })}
             </div>
           </div>
@@ -255,3 +366,9 @@ function ScheduleCard({
   );
 }
 
+function formatTime(value: string) {
+  const [hours, minutes] = value.split(":").map(Number);
+  const suffix = hours >= 12 ? "PM" : "AM";
+  const hour = hours % 12 || 12;
+  return `${hour}:${String(minutes).padStart(2, "0")} ${suffix}`;
+}

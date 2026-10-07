@@ -18,6 +18,7 @@ import type { Institute, InstituteSummary } from "@/lib/api";
 import { buildInstitutePathFromSearch } from "@/lib/embed-href";
 import { getInstituteTabs, resolveInstituteTab, type InstituteTabId } from "@/lib/institute-tabs";
 import { ROLE_LABELS } from "@/lib/roles";
+import { EducationContextReporter } from "@/components/education-context-reporter";
 
 export type InstituteDetail = {
   id: string;
@@ -127,6 +128,8 @@ export function InstituteDashboard({
   const showPrincipalRoster = detail.role === "principal" && !canManage;
 
   return (
+    <>
+    <EducationContextReporter instituteName={detail.name} />
     <InstituteShell
       institutes={institutes}
       instituteId={instituteId}
@@ -248,6 +251,7 @@ export function InstituteDashboard({
         )}
       </div>
     </InstituteShell>
+    </>
   );
 }
 

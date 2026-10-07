@@ -95,6 +95,7 @@ export type Member = {
   displayName?: string;
   email?: string;
   username?: string;
+  dateOfBirth?: string;
 };
 export type Branch = {
   id: string;
@@ -117,6 +118,13 @@ export type Attendance = {
   attendanceDate: string;
   status: "present" | "absent" | "late" | "excused";
   markedBy: string;
+};
+export type InstitutePost = {
+  id: string;
+  title: string;
+  body: string;
+  postedBy: string;
+  createdAt: string;
 };
 
 export const eduApi = {
@@ -186,6 +194,13 @@ export const eduApi = {
     apiFetch(`/v1/institutes/${instituteId}/branches`, token),
   getSummary: (token: string, instituteId: string) =>
     apiFetch(`/v1/institutes/${instituteId}/summary`, token),
+  listPosts: (token: string, instituteId: string) =>
+    apiFetch(`/v1/institutes/${instituteId}/posts`, token),
+  createPost: (token: string, instituteId: string, title: string, body: string) =>
+    apiFetch(`/v1/institutes/${instituteId}/posts`, token, {
+      method: "POST",
+      body: JSON.stringify({ title, body }),
+    }),
   listAssignments: (token: string, sectionId: string) =>
     apiFetch(`/v1/sections/${sectionId}/assignments`, token),
   createAssignment: (token: string, sectionId: string, title: string, description: string) =>

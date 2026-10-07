@@ -7,6 +7,7 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { InstitutePeoplePanel } from "@/components/institute-people-panel";
 import type { InstituteSummary } from "@/lib/api";
 
@@ -61,6 +62,30 @@ export function OverviewTab({
   showRosterOnOverview = false,
 }: Props) {
   const insights = selectedBranch?.insights;
+  const [posts, setPosts] = useState<{ id: string; title: string; body: string; createdAt: string }[]>([]);
+  const [postTitle, setPostTitle] = useState("");
+  const [postBody, setPostBody] = useState("");
+
+  useEffect(() => {
+    fetch(`/api/institutes/${instituteId}/posts`, { credentials: "include" })
+      .then((response) => (response.ok ? response.json() : []))
+      .then(setPosts)
+      .catch(() => setPosts([]));
+  }, [instituteId]);
+
+  async function createPost() {
+    if (!postTitle.trim() || !postBody.trim()) return;
+    const response = await fetch(`/api/institutes/${instituteId}/posts`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: postTitle, body: postBody }),
+    });
+    if (!response.ok) return;
+    const created = await response.json();
+    setPosts((current) => [created, ...current]);
+    setPostTitle("");
+    setPostBody("");
+  }
 
   return (
     <div className="space-y-6">
@@ -173,6 +198,26 @@ export function OverviewTab({
           />
         </aside>
       </div>
+
+      <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
+        <h2 className="font-semibold">Institute posts</h2>
+        <div className="mt-3 space-y-2">
+          {posts.map((post) => (
+            <article key={post.id} className="rounded-lg bg-muted/40 px-3 py-2">
+              <h3 className="text-sm font-medium">{post.title}</h3>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">{post.body}</p>
+            </article>
+          ))}
+          {!posts.length && <p className="text-sm text-muted-foreground">No institute posts yet.</p>}
+        </div>
+        {canManage && (
+          <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_2fr_auto]">
+            <input value={postTitle} onChange={(event) => setPostTitle(event.target.value)} placeholder="Post title" className="rounded-lg border border-border px-3 py-2 text-sm" />
+            <input value={postBody} onChange={(event) => setPostBody(event.target.value)} placeholder="Share an update with the institute" className="rounded-lg border border-border px-3 py-2 text-sm" />
+            <button type="button" onClick={createPost} className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground">Post</button>
+          </div>
+        )}
+      </section>
 
       {showRosterOnOverview && selectedBranchId && (
         <InstitutePeoplePanel

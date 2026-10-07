@@ -8,6 +8,7 @@ import { InstituteDashboard } from "@/components/institute-dashboard";
 import { isSubscriptionError, SubscriptionRequired } from "@/components/subscription-required";
 import { Suspense } from "react";
 import { TeacherWorkspace } from "@/components/teacher-workspace";
+import { EducationContextReporter } from "@/components/education-context-reporter";
 
 export default async function InstitutePage({
   params,
@@ -127,6 +128,7 @@ export default async function InstitutePage({
             instituteId={id}
             instituteName={institute.name}
             sections={sections}
+            currentUserId={session.user?.id || ""}
           />
         )}
       </>
@@ -160,6 +162,7 @@ function MemberInstituteView({
 }) {
   return (
     <main className="mx-auto max-w-5xl px-6 py-8">
+      <EducationContextReporter instituteName={institute.name} />
       <h1 className="text-2xl font-semibold">{institute.name}</h1>
       <p className="mt-1 text-sm text-muted-foreground">Your role: {institute.role}</p>
 
