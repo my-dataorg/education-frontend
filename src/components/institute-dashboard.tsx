@@ -129,7 +129,11 @@ export function InstituteDashboard({
 
   return (
     <>
-    <EducationContextReporter instituteName={detail.name} />
+    <EducationContextReporter
+      instituteName={detail.name}
+      subtitle={branches.length > 1 ? selectedBranch?.name : undefined}
+      role={ROLE_LABELS[detail.role] || detail.role}
+    />
     <InstituteShell
       institutes={institutes}
       instituteId={instituteId}

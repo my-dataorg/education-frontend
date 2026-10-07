@@ -129,6 +129,7 @@ export default async function InstitutePage({
             instituteName={institute.name}
             sections={sections}
             currentUserId={session.user?.id || ""}
+            role={institute.role}
           />
         )}
       </>
@@ -162,7 +163,11 @@ function MemberInstituteView({
 }) {
   return (
     <main className="mx-auto max-w-5xl px-6 py-8">
-      <EducationContextReporter instituteName={institute.name} />
+      <EducationContextReporter
+        instituteName={institute.name}
+        subtitle={sections.length > 1 ? sections[0]?.branchName || undefined : undefined}
+        role={institute.role}
+      />
       <h1 className="text-2xl font-semibold">{institute.name}</h1>
       <p className="mt-1 text-sm text-muted-foreground">Your role: {institute.role}</p>
 

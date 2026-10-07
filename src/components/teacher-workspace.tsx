@@ -48,11 +48,13 @@ export function TeacherWorkspace({
   instituteName,
   sections,
   currentUserId,
+  role,
 }: {
   instituteId: string;
   instituteName: string;
   sections: Section[];
   currentUserId: string;
+  role: string;
 }) {
   const [tab, setTab] = useState<TeacherTab>("overview");
   const [schedule, setSchedule] = useState<Schedule | null>(null);
@@ -105,7 +107,7 @@ export function TeacherWorkspace({
 
   return (
     <TeacherShell instituteName={instituteName} activeTab={tab} onTabChange={setTab}>
-      <EducationContextReporter instituteName={instituteName} />
+      <EducationContextReporter instituteName={instituteName} role={role} />
 
       {error && <p className="mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
 

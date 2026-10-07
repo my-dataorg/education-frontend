@@ -72,7 +72,7 @@ export default async function SectionPage({
   return (
     <>
       <EduNavGate />
-      <EducationContextReporter instituteName={institute.name} />
+      <EducationContextReporter instituteName={institute.name} role={institute.role} />
       <main className="mx-auto max-w-5xl px-6 py-8">
         <Link href={`/institutes/${id}`} className="text-sm text-muted-foreground hover:text-foreground">
           ← {institute.name}
