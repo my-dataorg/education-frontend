@@ -27,6 +27,26 @@ type Overview = {
   students?: Member[];
   teachers?: Member[];
 };
+type StudentInsight = Member & {
+  performancePercent: number | null;
+  attendance: {
+    present: number;
+    absent: number;
+    late: number;
+    excused: number;
+    marked: number;
+    attendancePercent: number | null;
+  };
+};
+type Performance = {
+  overallPercent: number | null;
+  academicYears: string[];
+  records: { assignmentId: string; title: string; type: string; academicYear: string; date: string | null; percentage: number; submitted: boolean }[];
+};
+type AttendanceHistory = {
+  summary: Record<string, number>;
+  records: { date: string; status: string }[];
+};
 
 export function SectionWorkspace({
   instituteId,
@@ -57,8 +77,21 @@ export function SectionWorkspace({
   const [sectionNotes, setSectionNotes] = useState(notes);
   const [attendance, setAttendance] = useState<Record<string, Attendance["status"]>>({});
   const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().slice(0, 10));
+  const [studentInsights, setStudentInsights] = useState<StudentInsight[]>([]);
+  const [profile, setProfile] = useState<Record<string, unknown> | null>(null);
+  const [performance, setPerformance] = useState<Performance | null>(null);
+  const [attendanceHistory, setAttendanceHistory] = useState<AttendanceHistory | null>(null);
+  const [dialogStudent, setDialogStudent] = useState<Member | null>(null);
   const isTeacher = ["owner", "admin", "principal", "teacher", "lecturer", "professor"].includes(role);
   const isStudent = role === "student";
+
+  useEffect(() => {
+    if (!isTeacher) return;
+    fetch(`/api/sections/${sectionId}/student-insights`, { credentials: "include", cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : []))
+      .then(setStudentInsights)
+      .catch(() => setStudentInsights([]));
+  }, [isTeacher, sectionId]);
 
   useEffect(() => {
     Promise.all([
@@ -150,6 +183,36 @@ export function SectionWorkspace({
     refreshOverview();
   }
 
+  async function openProfile(student: Member) {
+    setDialogStudent(student);
+    setProfile(null);
+    const response = await fetch(
+      `/api/institutes/${instituteId}/members/${student.userId}/profile`,
+      { credentials: "include" }
+    );
+    if (response.ok) setProfile(await response.json());
+  }
+
+  async function openPerformance(student: Member) {
+    setDialogStudent(student);
+    setPerformance(null);
+    const response = await fetch(
+      `/api/sections/${sectionId}/students/${student.userId}/performance`,
+      { credentials: "include" }
+    );
+    if (response.ok) setPerformance(await response.json());
+  }
+
+  async function openAttendanceHistory(student: Member) {
+    setDialogStudent(student);
+    setAttendanceHistory(null);
+    const response = await fetch(
+      `/api/sections/${sectionId}/students/${student.userId}/attendance`,
+      { credentials: "include" }
+    );
+    if (response.ok) setAttendanceHistory(await response.json());
+  }
+
   return (
     <div className="mt-6">
       <div className="flex flex-wrap gap-1 border-b border-border">
@@ -186,7 +249,7 @@ export function SectionWorkspace({
                       <span className="font-medium">{subject.name}</span>
                       <span className="mt-1 block text-xs text-muted-foreground">
                         {subject.teachers.length
-                          ? `Teacher${subject.teachers.length === 1 ? "" : "s"} assigned: ${subject.teachers.length}`
+                          ? `Teacher: ${subject.teachers.map((teacher) => teacherName(overview.teachers, teacher.userId)).join(", ")}`
                           : "No teacher assigned"}
                       </span>
                     </li>
@@ -200,28 +263,44 @@ export function SectionWorkspace({
         )}
 
         {tab === "students" && isTeacher && (
-          <ul className="space-y-2">
-            {(overview.students || []).map((s) => (
-              <li key={s.userId} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-2 text-sm">
-                <UserIdentity user={s} role={s.role || "student"} />
-                {isTeacher && (
-                  <select
-                    value={attendance[s.userId] || "present"}
-                    onChange={(event) => setAttendance((current) => ({ ...current, [s.userId]: event.target.value as Attendance["status"] }))}
-                    className="rounded-md border border-border bg-background px-2 py-1 text-xs"
-                  >
-                    <option value="present">Present</option>
-                    <option value="absent">Absent</option>
-                    <option value="late">Late</option>
-                    <option value="excused">Excused</option>
-                  </select>
-                )}
+          <div>
+            <div className="grid grid-cols-[minmax(0,1fr)_110px_120px_110px] gap-2 rounded-lg bg-muted/50 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <span>Student</span><span>Performance</span><span>Attendance</span><span>Today</span>
+            </div>
+            <ul className="mt-2 space-y-2">
+            {(overview.students || []).map((s) => {
+              const insight = studentInsights.find((item) => item.userId === s.userId);
+              return (
+              <li key={s.userId} className="grid grid-cols-[minmax(0,1fr)_110px_120px_110px] items-center gap-2 rounded-lg border border-border bg-card px-4 py-3 text-sm">
+                <button type="button" onClick={() => void openProfile(s)} className="min-w-0 text-left hover:text-primary">
+                  <UserIdentity user={s} role={s.role || "student"} />
+                </button>
+                <button type="button" onClick={() => void openPerformance(s)} className="text-left text-xs font-medium text-primary">
+                  {insight?.performancePercent == null ? "—" : `${insight.performancePercent}%`}
+                  <span className="block text-[10px] text-muted-foreground">History</span>
+                </button>
+                <button type="button" onClick={() => void openAttendanceHistory(s)} className="text-left text-xs font-medium text-primary">
+                  {insight?.attendance.attendancePercent == null ? "—" : `${insight.attendance.attendancePercent}%`}
+                  <span className="block text-[10px] text-muted-foreground">{insight?.attendance.marked ?? 0} marked</span>
+                </button>
+                <select
+                  value={attendance[s.userId] || "present"}
+                  onChange={(event) => setAttendance((current) => ({ ...current, [s.userId]: event.target.value as Attendance["status"] }))}
+                  className="rounded-md border border-border bg-background px-2 py-1 text-xs"
+                >
+                  <option value="present">Present</option>
+                  <option value="absent">Absent</option>
+                  <option value="late">Late</option>
+                  <option value="excused">Excused</option>
+                </select>
               </li>
-            ))}
+              );
+            })}
+            </ul>
             {!overview.students?.length && (
               <p className="text-sm text-muted-foreground">No students enrolled yet.</p>
             )}
-            {isTeacher && overview.students?.length ? (
+            {overview.students?.length ? (
               <div className="mt-3 flex items-center gap-2">
                 <input type="date" value={attendanceDate} onChange={(event) => setAttendanceDate(event.target.value)} className="rounded-md border border-border px-2 py-1 text-xs" />
                 <button type="button" onClick={saveAttendance} className="rounded-md bg-primary px-3 py-1.5 text-xs text-primary-foreground">
@@ -229,7 +308,7 @@ export function SectionWorkspace({
                 </button>
               </div>
             ) : null}
-          </ul>
+          </div>
         )}
 
         {tab === "assignments" && (
@@ -332,6 +411,24 @@ export function SectionWorkspace({
           </ul>
         )}
       </div>
+      {dialogStudent && profile && (
+        <InsightModal title="Student profile" onClose={() => setDialogStudent(null)}>
+          <div className="grid gap-3 sm:grid-cols-2 text-sm">
+            <Info label="Name" value={studentName(dialogStudent)} />
+            <Info label="Username" value={value(profile["username"])} />
+            <Info label="Email" value={value(profile["email"])} />
+            <Info label="Date of birth" value={value(profile["dateOfBirth"])} />
+            <Info label="Gender" value={value(profile["gender"])} />
+            <Info label="Contact" value={value(profile["contactNumber"])} />
+          </div>
+        </InsightModal>
+      )}
+      {dialogStudent && performance && (
+        <PerformanceModal performance={performance} onClose={() => setDialogStudent(null)} />
+      )}
+      {dialogStudent && attendanceHistory && (
+        <AttendanceModal attendance={attendanceHistory} onClose={() => setDialogStudent(null)} />
+      )}
     </div>
   );
 }
@@ -343,4 +440,94 @@ function Stat({ label, value }: { label: string; value: string | number }) {
       <p className="text-xs text-muted-foreground">{label}</p>
     </div>
   );
+}
+
+function teacherName(teachers: Member[] | undefined, userId: string) {
+  const teacher = teachers?.find((item) => item.userId === userId);
+  return teacher?.displayName || teacher?.username || userId;
+}
+
+function studentName(student: Member) {
+  return student.displayName || student.username || `${student.firstName || ""} ${student.lastName || ""}`.trim() || "Student";
+}
+
+function value(item: unknown) {
+  return item == null || item === "" ? "Not provided" : String(item);
+}
+
+function InsightModal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-xl">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-lg font-semibold">{title}</h3>
+          <button type="button" onClick={onClose} className="text-xl text-muted-foreground">×</button>
+        </div>
+        <div className="mt-4">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function Info({ label, value: item }: { label: string; value: string }) {
+  return <div><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 font-medium">{item}</p></div>;
+}
+
+function PerformanceModal({ performance, onClose }: { performance: Performance; onClose: () => void }) {
+  const [year, setYear] = useState(performance.academicYears[0] || "");
+  const records = performance.records.filter((record) => !year || record.academicYear === year);
+  return (
+    <InsightModal title={`Performance · ${performance.overallPercent ?? "—"}%`} onClose={onClose}>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">Assignment and test submission performance</p>
+        <select value={year} onChange={(event) => setYear(event.target.value)} className="rounded-lg border border-border bg-background px-2 py-1 text-xs">
+          <option value="">All years</option>
+          {performance.academicYears.map((item) => <option key={item} value={item}>{item}</option>)}
+        </select>
+      </div>
+      <div className="mt-4 space-y-2">
+        {records.map((record) => (
+          <div key={record.assignmentId} className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2 text-sm">
+            <span><span className="font-medium">{record.title}</span><span className="ml-2 text-xs text-muted-foreground">{record.type} · {record.academicYear}</span></span>
+            <span className="font-semibold text-primary">{record.percentage}%</span>
+          </div>
+        ))}
+        {!records.length && <p className="text-sm text-muted-foreground">No performance records yet.</p>}
+      </div>
+    </InsightModal>
+  );
+}
+
+function AttendanceModal({ attendance, onClose }: { attendance: AttendanceHistory; onClose: () => void }) {
+  const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
+  const recordByDate = new Map(attendance.records.map((record) => [record.date, record.status]));
+  const days = Array.from({ length: new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate() }, (_, index) => {
+    const date = `${month}-${String(index + 1).padStart(2, "0")}`;
+    return { date, status: recordByDate.get(date) || "unknown" };
+  });
+  return (
+    <InsightModal title="Attendance calendar" onClose={onClose}>
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">Present, absent, late, and unmarked days</p>
+        <input type="month" value={month} onChange={(event) => setMonth(event.target.value)} className="rounded-lg border border-border px-2 py-1 text-xs" />
+      </div>
+      <div className="mt-4 grid grid-cols-7 gap-2">
+        {days.map((day) => (
+          <div key={day.date} title={`${day.date}: ${day.status}`} className={`rounded-lg p-2 text-center text-xs ${attendanceColor(day.status)}`}>
+            {Number(day.date.slice(-2))}
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 flex flex-wrap gap-3 text-xs">
+        {["present", "absent", "late", "unknown"].map((status) => <span key={status} className="flex items-center gap-1"><i className={`h-3 w-3 rounded ${attendanceColor(status)}`} />{status}</span>)}
+      </div>
+    </InsightModal>
+  );
+}
+
+function attendanceColor(status: string) {
+  if (status === "present") return "bg-emerald-100 text-emerald-800";
+  if (status === "absent") return "bg-red-100 text-red-800";
+  if (status === "late") return "bg-amber-100 text-amber-800";
+  return "bg-muted text-muted-foreground";
 }
