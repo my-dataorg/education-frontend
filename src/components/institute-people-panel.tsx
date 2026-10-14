@@ -77,6 +77,9 @@ export function InstitutePeoplePanel({
   canManage,
   currentUserId,
   refreshKey,
+  searchQuery = "",
+  memberType = "all",
+  memberStatus = "all",
   onChanged,
 }: {
   instituteId: string;
@@ -85,6 +88,9 @@ export function InstitutePeoplePanel({
   canManage: boolean;
   currentUserId: string;
   refreshKey: number;
+  searchQuery?: string;
+  memberType?: string;
+  memberStatus?: string;
   onChanged: () => void;
 }) {
   const [expanded, setExpanded] = useState(canManage);
@@ -110,10 +116,17 @@ export function InstitutePeoplePanel({
     queueMicrotask(loadMembers);
   }, [expanded, loadMembers, refreshKey]);
 
-  const people = useMemo(
-    () => buildBranchPeople(branchId, branches, allStaff, allStudents),
-    [branchId, branches, allStaff, allStudents]
-  );
+  const people = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return buildBranchPeople(branchId, branches, allStaff, allStudents).filter((person) => {
+      if (memberStatus === "pending") return false;
+      if (memberType !== "all" && person.kind !== memberType) return false;
+      if (!query) return true;
+      return [person.displayName, person.firstName, person.lastName, person.username, person.email]
+        .filter(Boolean)
+        .some((value) => value!.toLowerCase().includes(query));
+    });
+  }, [branchId, branches, allStaff, allStudents, memberStatus, memberType, searchQuery]);
 
   async function changeRole(memberUserId: string, newRole: string) {
     await fetch(`/api/institutes/${instituteId}/members/${memberUserId}`, {

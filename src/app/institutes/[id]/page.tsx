@@ -2,23 +2,24 @@ import { auth } from "@/auth";
 import { eduApi, type InstituteSummary, type Section } from "@/lib/api";
 import { MANAGE_ROLES } from "@/lib/roles";
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { EduNavGate } from "@/components/edu-nav-gate";
 import { InstituteDashboard } from "@/components/institute-dashboard";
 import { isSubscriptionError, SubscriptionRequired } from "@/components/subscription-required";
 import { Suspense } from "react";
 import { TeacherWorkspace } from "@/components/teacher-workspace";
-import { EducationContextReporter } from "@/components/education-context-reporter";
+import { StudentWorkspace } from "@/components/student-workspace";
+import { ParentWorkspace } from "@/components/parent-workspace";
+import type { TeacherTab } from "@/components/teacher-shell";
 
 export default async function InstitutePage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ branch?: string }>;
+  searchParams: Promise<{ branch?: string; tab?: string }>;
 }) {
   const { id } = await params;
-  await searchParams;
+  const query = await searchParams;
   const session = await auth();
   if (!session?.accessToken) redirect("/login");
 
@@ -93,6 +94,7 @@ export default async function InstitutePage({
             summary={summary}
             canManage={canManage}
             currentUserId={session.user?.id || ""}
+            currentUserName={session.user?.name || session.user?.email || "Owner"}
           />
         </Suspense>
       </>
@@ -114,6 +116,21 @@ export default async function InstitutePage({
   }
 
   if (["teacher", "lecturer", "professor"].includes(institute.role)) {
+    const teacherTabs: TeacherTab[] = [
+      "overview",
+      "classes",
+      "schedule",
+      "attendance",
+      "assignments",
+      "marks",
+      "daily-notes",
+      "class-teacher",
+      "leave",
+      "notices",
+    ];
+    const initialTeacherTab = teacherTabs.includes(query.tab as TeacherTab)
+      ? (query.tab as TeacherTab)
+      : "overview";
     return (
       <>
         <EduNavGate />
@@ -130,8 +147,26 @@ export default async function InstitutePage({
             sections={sections}
             currentUserId={session.user?.id || ""}
             role={institute.role}
+            initialTab={initialTeacherTab}
           />
         )}
+      </>
+    );
+  }
+
+  if (institute.role === "parent") {
+    return <ParentWorkspace instituteName={institute.name} />;
+  }
+
+  if (institute.role !== "student") {
+    return (
+      <>
+        <EduNavGate />
+        <main className="mx-auto max-w-5xl px-6 py-8">
+          <p className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
+            Your Education workspace is not available for this role yet.
+          </p>
+        </main>
       </>
     );
   }
@@ -146,52 +181,14 @@ export default async function InstitutePage({
           </p>
         </main>
       ) : (
-        <MemberInstituteView institute={institute} sections={sections} instituteId={id} />
+        <StudentWorkspace
+          instituteId={id}
+          instituteName={institute.name}
+          sections={sections}
+          studentId={session.user?.id || ""}
+          studentName={session.user?.name || session.user?.email || "Student"}
+        />
       )}
     </>
-  );
-}
-
-function MemberInstituteView({
-  institute,
-  sections,
-  instituteId,
-}: {
-  institute: { id: string; name: string; role: string };
-  sections: Section[];
-  instituteId: string;
-}) {
-  return (
-    <main className="mx-auto max-w-5xl px-6 py-8">
-      <EducationContextReporter
-        instituteName={institute.name}
-        subtitle={sections.length > 1 ? sections[0]?.branchName || undefined : undefined}
-        role={institute.role}
-      />
-      <h1 className="text-2xl font-semibold">{institute.name}</h1>
-      <p className="mt-1 text-sm text-muted-foreground">Your role: {institute.role}</p>
-
-      <h2 className="mt-10 font-medium">My sections</h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Sections you are assigned to at this institute
-      </p>
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        {sections.map((s) => (
-          <Link
-            key={s.id}
-            href={`/institutes/${instituteId}/sections/${s.id}`}
-            className="rounded-xl border border-border bg-card p-5 hover:border-primary/30"
-          >
-            <h3 className="font-medium">{s.name}</h3>
-            {s.className && <p className="text-sm text-muted-foreground">{s.className}</p>}
-          </Link>
-        ))}
-      </div>
-      {sections.length === 0 && (
-        <p className="mt-6 text-sm text-muted-foreground">
-          You are not enrolled in any sections yet. Ask your admin to assign you.
-        </p>
-      )}
-    </main>
   );
 }

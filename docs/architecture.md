@@ -19,7 +19,8 @@
 | Students | Manage: owner/admin | Admit students, roster |
 | Branches | Manage: owner/admin | Campus CRUD |
 
-Teaching staff see Staff/Students read-only. Students see sections grid only.
+Teaching staff see Staff/Students read-only. Students see a role-specific
+workspace with overview, timetable, classes, assignments, and attendance.
 
 ## BFF
 

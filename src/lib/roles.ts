@@ -16,11 +16,13 @@ export const ROLE_LABELS: Record<string, string> = {
   lecturer: "Lecturer",
   professor: "Professor",
   student: "Student",
+  parent: "Parent / guardian",
 };
 
 export const INVITATION_ROLE_OPTIONS = [
   { value: "teacher", label: "Teacher" },
   { value: "student", label: "Student" },
+  { value: "parent", label: "Parent / guardian" },
 ];
 
 export function shortId(id: string) {

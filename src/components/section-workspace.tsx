@@ -52,6 +52,7 @@ export function SectionWorkspace({
   instituteId,
   sectionId,
   role,
+  initialTab = "overview",
   overview: initialOverview,
   assignments,
   notes,
@@ -59,6 +60,7 @@ export function SectionWorkspace({
   instituteId: string;
   sectionId: string;
   role: string;
+  initialTab?: Tab;
   overview: Overview;
   assignments: {
     id: string;
@@ -70,7 +72,7 @@ export function SectionWorkspace({
   notes: { id: string; content: string; noteDate: string }[];
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>("overview");
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [overview, setOverview] = useState(initialOverview);
   const [subjects, setSubjects] = useState<SectionSubject[]>([]);
   const [sectionAssignments, setSectionAssignments] = useState(assignments);
@@ -153,7 +155,9 @@ export function SectionWorkspace({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         attendanceDate,
-        records: Object.entries(attendance).map(([studentId, status]) => ({ studentId, status })),
+        records: Object.entries(attendance)
+          .filter(([, status]) => status)
+          .map(([studentId, status]) => ({ studentId, status })),
       }),
     });
   }
@@ -284,10 +288,11 @@ export function SectionWorkspace({
                   <span className="block text-[10px] text-muted-foreground">{insight?.attendance.marked ?? 0} marked</span>
                 </button>
                 <select
-                  value={attendance[s.userId] || "present"}
+                  value={attendance[s.userId] || ""}
                   onChange={(event) => setAttendance((current) => ({ ...current, [s.userId]: event.target.value as Attendance["status"] }))}
                   className="rounded-md border border-border bg-background px-2 py-1 text-xs"
                 >
+                  <option value="">Unmarked</option>
                   <option value="present">Present</option>
                   <option value="absent">Absent</option>
                   <option value="late">Late</option>

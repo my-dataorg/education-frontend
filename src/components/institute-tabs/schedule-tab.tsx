@@ -285,6 +285,46 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
   return (
     <div className="space-y-5">
       {error && <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+      <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-primary">Timetable</p>
+            <h2 className="mt-1 text-xl font-semibold">Weekly class timetable</h2>
+            <p className="mt-1 text-sm text-muted-foreground">View and edit the active class schedule.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <select
+              value={detailSectionId || orderedSections[0]?.id || ""}
+              onChange={(event) => setDetailSectionId(event.target.value)}
+              className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
+              aria-label="Timetable class"
+            >
+              {orderedSections.map((section) => (
+                <option key={section.id} value={section.id}>{section.className}-{section.name}</option>
+              ))}
+            </select>
+            <button type="button" onClick={() => void save()} disabled={saving} className="rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground disabled:opacity-50">
+              {saving ? "Saving..." : "Save"}
+            </button>
+            <button type="button" onClick={() => window.print()} className="rounded-lg border border-border px-3 py-2 text-xs font-medium">
+              Print / PDF
+            </button>
+          </div>
+        </div>
+        {orderedSections.length > 0 ? (
+          <WeeklyTimetable
+            schedule={schedule}
+            section={orderedSections.find((section) => section.id === (detailSectionId || orderedSections[0].id)) || orderedSections[0]}
+            subjects={subjects[detailSectionId || orderedSections[0].id] ?? []}
+            teachers={teachers}
+            onEdit={(sectionId) => setDetailSectionId(sectionId)}
+          />
+        ) : (
+          <p className="mt-4 rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+            Create a class and section before setting a timetable.
+          </p>
+        )}
+      </section>
       <section className="rounded-2xl border border-border bg-gradient-to-br from-primary/10 via-card to-card p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -434,10 +474,14 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
               current?.entry?.teacherId || current?.teacherIds?.[0] || sectionTeacher?.userId || "";
             const absence = absences.find((item) => item.teacherId === currentTeacherId);
             return (
-              <button
+              <div
                 key={section.id}
-                type="button"
                 onClick={() => setDetailSectionId(section.id)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") setDetailSectionId(section.id);
+                }}
                 className="rounded-xl border border-border bg-background/80 p-4 text-left transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-sm"
               >
                 <div className="flex items-start justify-between gap-2">
@@ -474,7 +518,7 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
                 ) : (
                   <p className="mt-3 text-xs text-muted-foreground">No active period right now</p>
                 )}
-              </button>
+              </div>
             );
           })}
         </div>
@@ -1009,6 +1053,94 @@ function compareSections(a: Section, b: Section) {
     numeric: true,
     sensitivity: "base",
   });
+}
+
+function WeeklyTimetable({
+  schedule,
+  section,
+  subjects,
+  teachers,
+  onEdit,
+}: {
+  schedule: Schedule;
+  section: Section;
+  subjects: Subject[];
+  teachers: Teacher[];
+  onEdit: (sectionId: string) => void;
+}) {
+  const weekdays = schedule.settings.weekdays.filter((day) => day >= 1 && day <= 5);
+  const slots = [...schedule.slots].sort((a, b) => a.position - b.position);
+  const subjectNames = new Map(subjects.map((subject) => [subject.id, subject.name]));
+  const instructionalSlots = slots.filter((slot) => slot.kind === "instruction");
+  const assignedPeriods = schedule.entries.filter((entry) => entry.sectionId === section.id).length;
+  const emptyPeriods = Math.max(0, instructionalSlots.length * 5 - assignedPeriods);
+
+  return (
+    <div className="mt-4 overflow-x-auto">
+      <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
+        <span className="rounded-full bg-emerald-50 px-2.5 py-1 font-medium text-emerald-700">No clashes</span>
+        <span className="rounded-full bg-muted px-2.5 py-1 text-muted-foreground">{emptyPeriods} empty periods</span>
+        <span className="rounded-full bg-muted px-2.5 py-1 text-muted-foreground">{assignedPeriods} assigned</span>
+        <span className="ml-auto text-muted-foreground">Draft saved</span>
+      </div>
+      <div className="min-w-[920px]">
+        <div
+          className="mb-2 grid min-w-[920px] gap-px overflow-hidden rounded-lg border border-border bg-border"
+          style={{ gridTemplateColumns: "118px repeat(5, minmax(150px, 1fr))" }}
+        >
+          <div className="bg-muted/60 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {section.className}-{section.name}
+          </div>
+          {["Mon", "Tue", "Wed", "Thu", "Fri"].map((day) => (
+            <div key={day} className="bg-muted/60 px-3 py-2 text-center text-xs font-semibold">{day}</div>
+          ))}
+        </div>
+        <div className="space-y-1">
+          {slots.map((slot) => (
+            <div
+              key={slot.id}
+              className="grid min-w-[920px] gap-1"
+              style={{ gridTemplateColumns: "118px repeat(5, minmax(150px, 1fr))" }}
+            >
+              <div className="rounded-lg bg-muted/40 px-3 py-3 text-xs">
+                <p className="font-medium">{slot.start}–{slot.end}</p>
+                <p className="mt-1 text-[10px] text-muted-foreground">{slot.label}</p>
+              </div>
+              {weekdays.map((day) => {
+                const entry = schedule.entries.find(
+                  (item) => item.dayOfWeek === day && item.slotId === slot.id && item.sectionId === section.id
+                );
+                const subject = entry ? subjectNames.get(entry.subjectId) : null;
+                const teacher = entry?.teacherId ? teacherName(teachers, entry.teacherId) : "";
+                const isBreak = slot.kind !== "instruction";
+                return (
+                  <button
+                    key={`${slot.id}-${day}`}
+                    type="button"
+                    onClick={() => onEdit(section.id)}
+                    className={`min-h-[72px] rounded-lg border p-2 text-left transition hover:border-primary ${
+                      isBreak ? "border-amber-200 bg-amber-50" : "border-border bg-background"
+                    }`}
+                  >
+                    {isBreak ? (
+                      <span className="text-xs font-medium text-amber-800">{slot.label}</span>
+                    ) : subject ? (
+                      <>
+                        <span className="block text-xs font-semibold">{subject}</span>
+                        <span className="mt-1 block text-[10px] text-muted-foreground">{teacher}</span>
+                      </>
+                    ) : (
+                      <span className="text-[11px] text-muted-foreground">+ Assign</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function createId() {

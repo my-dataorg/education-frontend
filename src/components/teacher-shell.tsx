@@ -1,9 +1,30 @@
 "use client";
 
-import { CalendarDays, LayoutDashboard, School } from "lucide-react";
+import {
+  Bell,
+  BookOpen,
+  CalendarCheck,
+  CalendarDays,
+  ClipboardCheck,
+  FileText,
+  GraduationCap,
+  LayoutDashboard,
+  School,
+  UserRoundCheck,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type TeacherTab = "overview" | "schedule" | "classes";
+export type TeacherTab =
+  | "overview"
+  | "classes"
+  | "schedule"
+  | "attendance"
+  | "assignments"
+  | "marks"
+  | "daily-notes"
+  | "class-teacher"
+  | "leave"
+  | "notices";
 
 export function TeacherShell({
   instituteName,
@@ -18,8 +39,15 @@ export function TeacherShell({
 }) {
   const items = [
     { id: "overview" as const, label: "Overview", icon: LayoutDashboard },
+    { id: "classes" as const, label: "My classes", icon: School },
     { id: "schedule" as const, label: "Schedule", icon: CalendarDays },
-    { id: "classes" as const, label: "Classes", icon: School },
+    { id: "attendance" as const, label: "Attendance", icon: CalendarCheck },
+    { id: "assignments" as const, label: "Assignments", icon: ClipboardCheck },
+    { id: "marks" as const, label: "Marks & gradebook", icon: GraduationCap },
+    { id: "daily-notes" as const, label: "Daily notes", icon: FileText },
+    { id: "class-teacher" as const, label: "Class teacher", icon: UserRoundCheck },
+    { id: "leave" as const, label: "Leave", icon: BookOpen },
+    { id: "notices" as const, label: "Notices", icon: Bell },
   ];
 
   return (

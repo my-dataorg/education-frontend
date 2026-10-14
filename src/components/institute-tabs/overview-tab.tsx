@@ -22,6 +22,7 @@ type Props = {
   pendingInvitations: number;
   canManage: boolean;
   currentUserId: string;
+  currentUserName: string;
   inviteRefreshKey: number;
   onChanged: () => void;
   showRosterOnOverview?: boolean;
@@ -48,6 +49,33 @@ function MetricCard({
   );
 }
 
+function AttendanceByClass({
+  sections,
+}: {
+  sections: { id: string; name: string; className?: string }[];
+}) {
+  const visibleSections = sections.slice(0, 8);
+  return (
+    <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
+      <h2 className="text-sm font-semibold">Attendance by class, today</h2>
+      <div className="mt-4 flex h-28 items-end gap-2">
+        {visibleSections.map((section) => (
+          <div key={section.id} className="flex min-w-0 flex-1 flex-col items-center gap-2">
+            <div className="flex h-20 w-full items-end rounded-t-md bg-muted/40">
+              <div className="w-full rounded-t-md bg-primary/30" style={{ height: "70%" }} />
+            </div>
+            <span className="truncate text-[10px] text-muted-foreground">
+              {section.className}-{section.name}
+            </span>
+          </div>
+        ))}
+      </div>
+      {!visibleSections.length && <p className="mt-4 text-sm text-muted-foreground">No classes configured.</p>}
+      <p className="mt-3 text-[11px] text-muted-foreground">Grey bar = not yet marked. Open a class to view its register.</p>
+    </section>
+  );
+}
+
 export function OverviewTab({
   instituteId,
   branches,
@@ -57,12 +85,14 @@ export function OverviewTab({
   pendingInvitations,
   canManage,
   currentUserId,
+  currentUserName,
   inviteRefreshKey,
   onChanged,
   showRosterOnOverview = false,
 }: Props) {
   const insights = selectedBranch?.insights;
   const [posts, setPosts] = useState<{ id: string; title: string; body: string; createdAt: string }[]>([]);
+  const [sections, setSections] = useState<{ id: string; name: string; className?: string }[]>([]);
   const [postTitle, setPostTitle] = useState("");
   const [postBody, setPostBody] = useState("");
 
@@ -71,6 +101,13 @@ export function OverviewTab({
       .then((response) => (response.ok ? response.json() : []))
       .then(setPosts)
       .catch(() => setPosts([]));
+  }, [instituteId]);
+
+  useEffect(() => {
+    fetch(`/api/institutes/${instituteId}/sections`, { credentials: "include" })
+      .then((response) => (response.ok ? response.json() : []))
+      .then(setSections)
+      .catch(() => setSections([]));
   }, [instituteId]);
 
   async function createPost() {
@@ -89,7 +126,99 @@ export function OverviewTab({
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_220px]">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="font-serif text-2xl font-semibold">Good evening, {currentUserName.split(" ")[0]}</h1>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Campus: {selectedBranch?.name || "Main campus"} · {new Date().toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-6 gap-3">
+        <MetricCard
+          icon={<GraduationCap className="h-4 w-4" />}
+          label="Students"
+          value={selectedBranch?.studentCount ?? 0}
+          hint="at this campus"
+        />
+        <MetricCard
+          icon={<Users className="h-4 w-4" />}
+          label="Staff"
+          value={selectedBranch?.teacherCount ?? 0}
+          hint="teaching here"
+        />
+        <MetricCard icon={<ClipboardList className="h-4 w-4" />} label="Attendance today" value="—" hint="classes unmarked" />
+        <MetricCard icon={<ClipboardList className="h-4 w-4" />} label="Fees this month" value="—" hint="collected · — due" />
+        <MetricCard
+          icon={<TrendingUp className="h-4 w-4" />}
+          label="Avg completion"
+          value={insights?.averageCompletionPercent != null ? `${insights.averageCompletionPercent}%` : "—"}
+          hint="assignment submissions"
+        />
+        <MetricCard
+          icon={<ClipboardList className="h-4 w-4" />}
+          label="Pending approvals"
+          value={pendingInvitations}
+          hint="requests, leave"
+        />
+      </div>
+
+      <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
+        <h2 className="text-sm font-semibold">Needs your attention</h2>
+        <div className="mt-3 divide-y divide-border">
+          {[
+            [`${pendingInvitations} join requests waiting`, "Review"],
+            ["Classes have not marked attendance today", "View"],
+            ["Timetable clash needs review", "Fix"],
+            ["Teachers on leave tomorrow, no substitute", "Assign"],
+            ["Half-yearly marks are pending", "Nudge"],
+            ["Students with fees overdue", "Remind"],
+          ].map(([item, action]) => (
+            <div key={item} className="flex items-center justify-between gap-3 py-2.5 text-xs">
+              <span>{item}</span>
+              <button type="button" className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted">{action}</button>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(260px,0.8fr)]">
+        <AttendanceByClass sections={sections} />
+        <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
+          <h2 className="text-sm font-semibold">Upcoming</h2>
+          <div className="mt-3 space-y-2">
+            {branchEvents.slice(0, 4).map((event, index) => (
+              <div key={`${event.title}-${index}`} className="flex items-center justify-between gap-3 rounded-lg bg-muted/40 px-3 py-2.5 text-xs">
+                <span>{event.title}</span>
+                <span className="shrink-0 rounded-full bg-amber-50 px-2 py-1 text-[10px] text-amber-700">
+                  {new Date(event.dueDate).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                </span>
+              </div>
+            ))}
+            {!branchEvents.length && <p className="text-xs text-muted-foreground">No upcoming events.</p>}
+          </div>
+          <h2 className="mt-5 border-t border-border pt-4 text-sm font-semibold">Institute posts</h2>
+          <div className="mt-3 space-y-2">
+            {posts.slice(0, 2).map((post) => (
+              <article key={post.id} className="rounded-lg bg-muted/40 px-3 py-2">
+                <p className="text-xs font-medium">{post.title}</p>
+                <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">{post.body}</p>
+              </article>
+            ))}
+            {!posts.length && <p className="text-xs text-muted-foreground">No institute posts yet.</p>}
+          </div>
+          {canManage && (
+            <div className="mt-3 space-y-2">
+              <input value={postTitle} onChange={(event) => setPostTitle(event.target.value)} placeholder="Post title" className="w-full rounded-lg border border-border px-3 py-2 text-xs" />
+              <textarea value={postBody} onChange={(event) => setPostBody(event.target.value)} placeholder="Share an update" rows={2} className="w-full rounded-lg border border-border px-3 py-2 text-xs" />
+              <button type="button" onClick={createPost} className="rounded-lg bg-primary px-3 py-1.5 text-xs text-primary-foreground">Post</button>
+            </div>
+          )}
+        </section>
+      </div>
+
+      <div className="hidden">
         <div className="space-y-6">
           <div className="grid gap-4 lg:grid-cols-5">
             <section className="rounded-xl border border-border bg-card p-4 shadow-sm lg:col-span-3">
@@ -208,34 +337,20 @@ export function OverviewTab({
         </div>
 
         <aside className="space-y-3">
-          <MetricCard
-            icon={<GraduationCap className="h-4 w-4" />}
-            label="Students"
-            value={selectedBranch?.studentCount ?? 0}
-            hint="at this campus"
-          />
-          <MetricCard
-            icon={<Users className="h-4 w-4" />}
-            label="Staff"
-            value={selectedBranch?.teacherCount ?? 0}
-            hint="teaching here"
-          />
-          <MetricCard
-            icon={<TrendingUp className="h-4 w-4" />}
-            label="Avg completion"
-            value={
-              insights?.averageCompletionPercent != null
-                ? `${insights.averageCompletionPercent}%`
-                : "—"
-            }
-            hint="assignment submissions"
-          />
-          <MetricCard
-            icon={<ClipboardList className="h-4 w-4" />}
-            label="Open tasks"
-            value={insights?.openAssignments ?? 0}
-            hint="due or ongoing"
-          />
+          <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
+            <h2 className="text-sm font-semibold">Upcoming</h2>
+            <div className="mt-3 space-y-2">
+              {branchEvents.slice(0, 4).map((event, index) => (
+                <div key={`${event.title}-${index}`} className="rounded-lg bg-muted/40 px-3 py-2">
+                  <p className="text-xs font-medium">{event.title}</p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {new Date(event.dueDate).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                  </p>
+                </div>
+              ))}
+              {!branchEvents.length && <p className="text-xs text-muted-foreground">No upcoming events.</p>}
+            </div>
+          </section>
         </aside>
       </div>
 

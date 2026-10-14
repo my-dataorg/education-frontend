@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { SectionWorkspace } from "@/components/section-workspace";
 import { TeacherShell, type TeacherTab } from "@/components/teacher-shell";
+import { TeacherModuleTab } from "@/components/teacher-module-tab";
 import { EducationContextReporter } from "@/components/education-context-reporter";
 import type { Assignment, InstitutePost, Member, Note, Section } from "@/lib/api";
 
@@ -49,14 +51,17 @@ export function TeacherWorkspace({
   sections,
   currentUserId,
   role,
+  initialTab = "overview",
 }: {
   instituteId: string;
   instituteName: string;
   sections: Section[];
   currentUserId: string;
   role: string;
+  initialTab?: TeacherTab;
 }) {
-  const [tab, setTab] = useState<TeacherTab>("overview");
+  const router = useRouter();
+  const [tab, setTab] = useState<TeacherTab>(initialTab);
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [allSections, setAllSections] = useState<Section[]>(sections);
   const [staff, setStaff] = useState<Member[]>([]);
@@ -106,7 +111,16 @@ export function TeacherWorkspace({
     .slice(0, 6);
 
   return (
-    <TeacherShell instituteName={instituteName} activeTab={tab} onTabChange={setTab}>
+    <TeacherShell
+      instituteName={instituteName}
+      activeTab={tab}
+      onTabChange={(nextTab) => {
+        setTab(nextTab);
+        const params = new URLSearchParams(window.location.search);
+        params.set("tab", nextTab);
+        router.replace(`/institutes/${instituteId}?${params.toString()}`, { scroll: false });
+      }}
+    >
       <EducationContextReporter instituteName={instituteName} role={role} />
 
       {error && <p className="mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
@@ -156,7 +170,7 @@ export function TeacherWorkspace({
         </div>
       )}
 
-      {tab === "classes" && (
+      {["classes", "assignments", "attendance", "daily-notes"].includes(tab) && (
         <div className="mt-6 grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
           <section>
             <h2 className="text-xl font-semibold">My classes</h2>
@@ -183,9 +197,19 @@ export function TeacherWorkspace({
           </section>
           {selectedSection && selectedOverview ? (
             <SectionWorkspace
+              key={`${selectedSection.id}-${tab}`}
               instituteId={instituteId}
               sectionId={selectedSection.id}
               role="teacher"
+              initialTab={
+                tab === "assignments"
+                  ? "assignments"
+                  : tab === "attendance"
+                    ? "students"
+                    : tab === "daily-notes"
+                      ? "notes"
+                      : "overview"
+              }
               overview={selectedOverview}
               assignments={selectedOverview.assignments}
               notes={[] as Note[]}
@@ -196,6 +220,10 @@ export function TeacherWorkspace({
             </div>
           )}
         </div>
+      )}
+
+      {(["marks", "class-teacher", "leave", "notices"] as const).includes(tab as "marks" | "class-teacher" | "leave" | "notices") && (
+        <TeacherModuleTab module={tab as "marks" | "class-teacher" | "leave" | "notices"} />
       )}
     </TeacherShell>
   );

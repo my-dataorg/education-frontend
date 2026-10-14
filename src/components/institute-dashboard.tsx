@@ -11,6 +11,8 @@ import { SubjectTeachersTab } from "@/components/institute-tabs/subject-teachers
 import { MembersTab } from "@/components/institute-tabs/members-tab";
 import { OverviewTab } from "@/components/institute-tabs/overview-tab";
 import { ScheduleTab } from "@/components/institute-tabs/schedule-tab";
+import { AttendanceTab } from "@/components/institute-tabs/attendance-tab";
+import { WireframeModuleTab } from "@/components/institute-tabs/wireframe-module-tab";
 import { BranchPills, InstituteShell } from "@/components/institute-shell";
 import { ManageInstitutesDropdown } from "@/components/manage-institutes-dropdown";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -46,6 +48,7 @@ export function InstituteDashboard({
   summary: initialSummary,
   canManage,
   currentUserId,
+  currentUserName,
 }: {
   instituteId: string;
   institutes: Institute[];
@@ -53,6 +56,7 @@ export function InstituteDashboard({
   summary: InstituteSummary | null;
   canManage: boolean;
   currentUserId: string;
+  currentUserName: string;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -146,7 +150,7 @@ export function InstituteDashboard({
       activeTab={activeTab}
       tabHref={tabHref}
     >
-      <div className="px-4 py-6 sm:px-6">
+      <div className="px-4 py-5 sm:px-6">
         <div className="flex flex-wrap justify-end gap-2">
           <ManageInstitutesDropdown />
           {canManage && <JoinCodeChip code={detail.joinCode} />}
@@ -190,6 +194,7 @@ export function InstituteDashboard({
                 pendingInvitations={summary?.pendingInvitations ?? 0}
                 canManage={canManage}
                 currentUserId={currentUserId}
+                currentUserName={currentUserName}
                 inviteRefreshKey={inviteRefreshKey}
                 onChanged={onChanged}
                 showRosterOnOverview={showPrincipalRoster}
@@ -230,6 +235,16 @@ export function InstituteDashboard({
                 <TabsContent value="schedule" className="w-full">
                   <ScheduleTab instituteId={instituteId} />
                 </TabsContent>
+
+                <TabsContent value="attendance" className="w-full">
+                  <AttendanceTab instituteId={instituteId} />
+                </TabsContent>
+
+                {(["academic-year", "exams", "fees", "notices", "reports", "roles-settings"] as const).map((module) => (
+                  <TabsContent key={module} value={module} className="w-full">
+                    <WireframeModuleTab module={module} instituteId={instituteId} />
+                  </TabsContent>
+                ))}
 
                 <TabsContent value="campuses" className="w-full">
                   <CampusesTab

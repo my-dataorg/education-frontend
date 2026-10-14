@@ -8,6 +8,7 @@ import { ROLE_LABELS } from "@/lib/roles";
 const ROLES = [
   { value: "student", label: ROLE_LABELS.student },
   { value: "teacher", label: ROLE_LABELS.teacher },
+  { value: "parent", label: ROLE_LABELS.parent },
 ];
 
 export function JoinInstituteForm() {
@@ -16,6 +17,7 @@ export function JoinInstituteForm() {
   const [instituteName, setInstituteName] = useState("");
   const [instituteId, setInstituteId] = useState("");
   const [role, setRole] = useState("student");
+  const [childAdmissionNumber, setChildAdmissionNumber] = useState("");
   const [message, setMessage] = useState("");
   const [step, setStep] = useState<"code" | "form" | "done">("code");
   const [error, setError] = useState("");
@@ -48,7 +50,12 @@ export function JoinInstituteForm() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ requestedRole: role, message: message.trim() }),
+      body: JSON.stringify({
+        requestedRole: role,
+        message: [message.trim(), role === "parent" && childAdmissionNumber.trim()
+          ? `Child admission number: ${childAdmissionNumber.trim()}`
+          : ""].filter(Boolean).join("\n"),
+      }),
     });
     setLoading(false);
     const data = await res.json();
@@ -118,6 +125,20 @@ export function JoinInstituteForm() {
                 ))}
               </select>
             </div>
+            {role === "parent" && (
+              <div>
+                <label htmlFor="child-admission" className="text-sm font-medium">
+                  Child admission number
+                </label>
+                <input
+                  id="child-admission"
+                  value={childAdmissionNumber}
+                  onChange={(event) => setChildAdmissionNumber(event.target.value)}
+                  required
+                  className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
+                />
+              </div>
+            )}
             <div>
               <label htmlFor="message" className="text-sm font-medium">
                 Message (optional)

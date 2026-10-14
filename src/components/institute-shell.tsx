@@ -3,13 +3,20 @@
 import Link from "next/link";
 import {
   BookOpen,
+  BarChart3,
   Building2,
   CalendarDays,
+  CalendarRange,
+  CheckSquare,
   ClipboardList,
+  GraduationCap,
   LayoutDashboard,
   MapPin,
+  Megaphone,
   Plus,
+  ShieldCheck,
   Users,
+  WalletCards,
 } from "lucide-react";
 import type { Institute } from "@/lib/api";
 import type { InstituteSummary } from "@/lib/api";
@@ -21,11 +28,18 @@ import { cn } from "@/lib/utils";
 const TAB_ICONS: Record<InstituteTabId, React.ComponentType<{ className?: string }>> = {
   overview: LayoutDashboard,
   members: Users,
+  "academic-year": CalendarRange,
   enrollment: ClipboardList,
   "subject-teachers": Users,
   campuses: MapPin,
   classes: BookOpen,
   schedule: CalendarDays,
+  attendance: CheckSquare,
+  exams: GraduationCap,
+  fees: WalletCards,
+  notices: Megaphone,
+  reports: BarChart3,
+  "roles-settings": ShieldCheck,
 };
 
 type Props = {
@@ -55,9 +69,9 @@ export function InstituteShell({
   children,
 }: Props & { children: React.ReactNode }) {
   return (
-    <div className="institute-shell flex min-h-[calc(100vh-3.5rem)] w-full bg-background">
-      <aside className="hidden w-64 shrink-0 border-r border-border bg-card md:block">
-        <div className="sticky top-0 p-4">
+    <div className="institute-shell flex min-h-0 h-[calc(100vh-3.5rem)] w-full overflow-hidden bg-background md:pl-56">
+      <aside className="fixed inset-y-14 left-0 z-20 hidden h-[calc(100vh-3.5rem)] min-h-0 w-56 overscroll-y-contain overflow-y-auto border-r border-border bg-card md:block">
+        <div className="p-4">
           <p className="mb-1 font-serif text-base font-semibold">Education</p>
           <p className="mb-4 text-[11px] text-muted-foreground">Institute workspace</p>
 
@@ -182,7 +196,7 @@ export function InstituteShell({
         </div>
       </aside>
 
-      <div className="min-w-0 flex-1">{children}</div>
+      <div className="education-content min-h-0 min-w-0 w-full flex-1 overscroll-y-contain overflow-y-auto">{children}</div>
     </div>
   );
 }

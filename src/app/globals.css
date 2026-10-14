@@ -59,4 +59,17 @@ html[data-embed="1"] body.embed-mode {
 
 html[data-embed="1"] .institute-shell {
   min-height: 0 !important;
+  height: calc(100vh - 3.5rem) !important;
+  overflow: hidden !important;
+}
+
+@media (min-width: 768px) {
+  .institute-shell {
+    padding-left: 224px;
+  }
+
+  .institute-shell .education-content {
+    width: 100%;
+    flex: none;
+  }
 }
