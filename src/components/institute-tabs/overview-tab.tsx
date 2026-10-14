@@ -8,10 +8,25 @@ import {
   Users,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { InstitutePeoplePanel } from "@/components/institute-people-panel";
 import type { InstituteSummary } from "@/lib/api";
 
 type Branch = InstituteSummary["branches"][number];
+type Overview = {
+  stats: {
+    students: number | null;
+    staff: number | null;
+    attendancePercent: number | null;
+    unmarkedClasses: number | null;
+    assignmentCompletionPercent: number | null;
+    pendingApprovals: number | null;
+  };
+  attention: { kind: string; count: number; label: string }[];
+  attendanceByClass: { sectionId: string; label: string; marked: boolean; present: number; total: number; percent: number | null }[];
+  upcoming: { id: string; title: string; date: string; type: string; sectionId: string }[];
+  posts: { id: string; title: string; body: string; createdAt: string }[];
+};
 
 type Props = {
   instituteId: string;
@@ -33,41 +48,46 @@ function MetricCard({
   label,
   value,
   hint,
+  href,
 }: {
   icon: React.ReactNode;
   label: string;
   value: number | string;
   hint: string;
+  href?: string;
 }) {
-  return (
-    <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+  const card = (
+    <div className="rounded-xl border border-border bg-card p-4 shadow-sm transition hover:border-primary/50">
       <div className="flex items-center gap-2 text-muted-foreground">{icon}</div>
       <p className="mt-2 text-2xl font-semibold tabular-nums tracking-tight">{value}</p>
       <p className="text-xs font-medium text-foreground">{label}</p>
       <p className="text-[11px] text-muted-foreground">{hint}</p>
     </div>
   );
+  return href ? <Link href={href}>{card}</Link> : card;
 }
 
 function AttendanceByClass({
   sections,
+  instituteId,
 }: {
-  sections: { id: string; name: string; className?: string }[];
+  sections: Overview["attendanceByClass"];
+  instituteId: string;
 }) {
-  const visibleSections = sections.slice(0, 8);
+  const visibleSections = sections;
   return (
     <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
       <h2 className="text-sm font-semibold">Attendance by class, today</h2>
       <div className="mt-4 flex h-28 items-end gap-2">
         {visibleSections.map((section) => (
-          <div key={section.id} className="flex min-w-0 flex-1 flex-col items-center gap-2">
-            <div className="flex h-20 w-full items-end rounded-t-md bg-muted/40">
-              <div className="w-full rounded-t-md bg-primary/30" style={{ height: "70%" }} />
+          <Link href={`/institutes/${instituteId}/sections/${section.sectionId}?tab=attendance`} key={section.sectionId} className="flex min-w-0 flex-1 flex-col items-center gap-2">
+            <div className={`flex h-20 w-full items-end rounded-t-md ${section.marked ? "bg-muted/40" : "border border-dashed border-muted-foreground/40 bg-muted/20"}`}>
+              <div className={`w-full rounded-t-md ${section.percent != null && section.percent < 60 ? "bg-red-400" : section.percent != null && section.percent < 75 ? "bg-amber-400" : "bg-primary/60"}`} style={{ height: `${section.percent ?? 4}%` }} />
             </div>
             <span className="truncate text-[10px] text-muted-foreground">
-              {section.className}-{section.name}
+              {section.label}
             </span>
-          </div>
+          </Link>
         ))}
       </div>
       {!visibleSections.length && <p className="mt-4 text-sm text-muted-foreground">No classes configured.</p>}
@@ -91,24 +111,26 @@ export function OverviewTab({
   showRosterOnOverview = false,
 }: Props) {
   const insights = selectedBranch?.insights;
-  const [posts, setPosts] = useState<{ id: string; title: string; body: string; createdAt: string }[]>([]);
-  const [sections, setSections] = useState<{ id: string; name: string; className?: string }[]>([]);
+  const [overview, setOverview] = useState<Overview | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const posts = overview?.posts ?? [];
+  const currentHour = Number(new Intl.DateTimeFormat("en-IN", { hour: "numeric", hour12: false, timeZone: "Asia/Kolkata" }).format(new Date()));
+  const greeting = currentHour < 12 ? "Good morning" : currentHour < 17 ? "Good afternoon" : "Good evening";
   const [postTitle, setPostTitle] = useState("");
   const [postBody, setPostBody] = useState("");
 
   useEffect(() => {
-    fetch(`/api/institutes/${instituteId}/posts`, { credentials: "include" })
-      .then((response) => (response.ok ? response.json() : []))
-      .then(setPosts)
-      .catch(() => setPosts([]));
-  }, [instituteId]);
-
-  useEffect(() => {
-    fetch(`/api/institutes/${instituteId}/sections`, { credentials: "include" })
-      .then((response) => (response.ok ? response.json() : []))
-      .then(setSections)
-      .catch(() => setSections([]));
-  }, [instituteId]);
+    const campus = selectedBranchId ? `?campus_id=${selectedBranchId}` : "";
+    fetch(`/api/institutes/${instituteId}/overview${campus}`, { credentials: "include" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Could not load overview");
+        setOverview(await response.json());
+        setError("");
+      })
+      .catch((reason) => setError(reason instanceof Error ? reason.message : "Could not load overview"))
+      .finally(() => setLoading(false));
+  }, [instituteId, selectedBranchId]);
 
   async function createPost() {
     if (!postTitle.trim() || !postBody.trim()) return;
@@ -119,7 +141,7 @@ export function OverviewTab({
     });
     if (!response.ok) return;
     const created = await response.json();
-    setPosts((current) => [created, ...current]);
+    setOverview((current) => current ? { ...current, posts: [created, ...current.posts].slice(0, 3) } : current);
     setPostTitle("");
     setPostBody("");
   }
@@ -128,71 +150,65 @@ export function OverviewTab({
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-serif text-2xl font-semibold">Good evening, {currentUserName.split(" ")[0]}</h1>
+          <h1 className="font-serif text-2xl font-semibold">{greeting}, {currentUserName.split(" ")[0]}</h1>
           <p className="mt-1 text-xs text-muted-foreground">
             Campus: {selectedBranch?.name || "Main campus"} · {new Date().toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}
           </p>
         </div>
       </div>
+      {error && <div className="flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700"><span>{error}</span><button type="button" onClick={() => window.location.reload()} className="font-medium underline">Retry</button></div>}
 
       <div className="grid grid-cols-6 gap-3">
         <MetricCard
           icon={<GraduationCap className="h-4 w-4" />}
           label="Students"
-          value={selectedBranch?.studentCount ?? 0}
+          value={loading ? "…" : overview?.stats.students ?? "—"}
           hint="at this campus"
+          href="?tab=members&memberTab=students"
         />
         <MetricCard
           icon={<Users className="h-4 w-4" />}
           label="Staff"
-          value={selectedBranch?.teacherCount ?? 0}
+          value={loading ? "…" : overview?.stats.staff ?? "—"}
           hint="teaching here"
+          href="?tab=members&memberTab=staff"
         />
-        <MetricCard icon={<ClipboardList className="h-4 w-4" />} label="Attendance today" value="—" hint="classes unmarked" />
-        <MetricCard icon={<ClipboardList className="h-4 w-4" />} label="Fees this month" value="—" hint="collected · — due" />
+        <MetricCard icon={<ClipboardList className="h-4 w-4" />} label="Attendance today" value={overview?.stats.attendancePercent != null ? `${overview.stats.attendancePercent}%` : "—"} hint={`${overview?.stats.unmarkedClasses ?? "—"} classes unmarked`} href="?tab=attendance" />
+        <MetricCard icon={<ClipboardList className="h-4 w-4" />} label="Fees this month" value="—" hint="Set up a fee plan" href="?tab=fees" />
         <MetricCard
           icon={<TrendingUp className="h-4 w-4" />}
           label="Avg completion"
-          value={insights?.averageCompletionPercent != null ? `${insights.averageCompletionPercent}%` : "—"}
+          value={overview?.stats.assignmentCompletionPercent != null ? `${overview.stats.assignmentCompletionPercent}%` : "—"}
           hint="assignment submissions"
+          href="?tab=reports&report=assignments"
         />
         <MetricCard
           icon={<ClipboardList className="h-4 w-4" />}
           label="Pending approvals"
-          value={pendingInvitations}
+          value={overview?.stats.pendingApprovals ?? pendingInvitations}
           hint="requests, leave"
+          href="?tab=members&memberTab=requests"
         />
       </div>
 
       <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
         <h2 className="text-sm font-semibold">Needs your attention</h2>
         <div className="mt-3 divide-y divide-border">
-          {[
-            [`${pendingInvitations} join requests waiting`, "Review"],
-            ["Classes have not marked attendance today", "View"],
-            ["Timetable clash needs review", "Fix"],
-            ["Teachers on leave tomorrow, no substitute", "Assign"],
-            ["Half-yearly marks are pending", "Nudge"],
-            ["Students with fees overdue", "Remind"],
-          ].map(([item, action]) => (
-            <div key={item} className="flex items-center justify-between gap-3 py-2.5 text-xs">
-              <span>{item}</span>
-              <button type="button" className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted">{action}</button>
-            </div>
-          ))}
+          {!overview?.attention.length && !loading && <p className="py-2 text-xs text-muted-foreground">Nothing needs your attention right now.</p>}
+          {overview?.attention.map((item) => <div key={item.kind} className="flex items-center justify-between gap-3 py-2.5 text-xs"><span>{item.label}</span><Link href={item.kind === "join_requests" ? `?tab=members&memberTab=requests` : "?tab=attendance"} className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted">{item.kind === "join_requests" ? "Review" : "View"}</Link></div>)}
         </div>
       </section>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(260px,0.8fr)]">
-        <AttendanceByClass sections={sections} />
+        <AttendanceByClass instituteId={instituteId} sections={overview?.attendanceByClass ?? []} />
         <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
           <h2 className="text-sm font-semibold">Upcoming</h2>
           <div className="mt-3 space-y-2">
-            {branchEvents.slice(0, 4).map((event, index) => (
+            {(overview?.upcoming ?? branchEvents.slice(0, 4)).map((event, index) => (
               <div key={`${event.title}-${index}`} className="flex items-center justify-between gap-3 rounded-lg bg-muted/40 px-3 py-2.5 text-xs">
                 <span>{event.title}</span>
                 <span className="shrink-0 rounded-full bg-amber-50 px-2 py-1 text-[10px] text-amber-700">
-                  {new Date(event.dueDate).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                  {new Date("date" in event ? event.date : event.dueDate).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
                 </span>
               </div>
             ))}
@@ -200,13 +216,13 @@ export function OverviewTab({
           </div>
           <h2 className="mt-5 border-t border-border pt-4 text-sm font-semibold">Institute posts</h2>
           <div className="mt-3 space-y-2">
-            {posts.slice(0, 2).map((post) => (
+            {(overview?.posts ?? []).slice(0, 2).map((post) => (
               <article key={post.id} className="rounded-lg bg-muted/40 px-3 py-2">
                 <p className="text-xs font-medium">{post.title}</p>
                 <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">{post.body}</p>
               </article>
             ))}
-            {!posts.length && <p className="text-xs text-muted-foreground">No institute posts yet.</p>}
+            {!overview?.posts.length && <p className="text-xs text-muted-foreground">No institute posts yet.</p>}
           </div>
           {canManage && (
             <div className="mt-3 space-y-2">
