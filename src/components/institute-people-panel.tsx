@@ -16,7 +16,12 @@ type Member = {
   email?: string;
   username?: string;
 };
-export type PersonRow = Member & { kind: "staff" | "student" | "parent" };
+export type PersonRow = Member & {
+  kind: "staff" | "student" | "parent";
+  classLabel?: string;
+  status?: string;
+  admissionNo?: string;
+};
 const PAGE_SIZE = 25;
 
 type RosterResponse = {
@@ -101,6 +106,8 @@ export function InstitutePeoplePanel({
   page = 1,
   onPageChange,
   onRosterLoaded,
+  roleFilter = "",
+  classFilter = "",
   onChanged,
 }: {
   instituteId: string;
@@ -112,6 +119,8 @@ export function InstitutePeoplePanel({
   searchQuery?: string;
   memberType?: string;
   memberStatus?: string;
+  roleFilter?: string;
+  classFilter?: string;
   rosterLayout?: boolean;
   rosterTab?: string;
   selectedUserId?: string | null;
@@ -122,6 +131,7 @@ export function InstitutePeoplePanel({
   onChanged: () => void;
 }) {
   const [expanded, setExpanded] = useState(rosterLayout || canManage);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [allStaff, setAllStaff] = useState<Member[]>([]);
   const [allStudents, setAllStudents] = useState<Member[]>([]);
   const [rosterRows, setRosterRows] = useState<PersonRow[]>([]);
@@ -148,26 +158,33 @@ export function InstitutePeoplePanel({
         q: searchQuery.trim(),
       });
       if (memberStatus !== "all") params.set("status", memberStatus);
+      if (roleFilter) params.set("role", roleFilter);
+      if (classFilter) params.set("class", classFilter);
       fetch(`/api/institutes/${instituteId}/members/roster?${params}`, { credentials: "include" })
         .then(async (r) => {
           const data = (await r.json()) as RosterResponse;
           if (!r.ok) throw new Error("Could not load roster");
-          const rows: PersonRow[] = (data.items || []).map((row) => ({
-            userId: row.userId,
-            role: row.role,
-            firstName: row.firstName,
-            lastName: row.lastName,
-            displayName: row.displayName,
-            email: row.email,
-            username: row.username,
-            kind: (() => {
-              const raw = row.kind || row.memberType;
-              if (raw === "staff" || raw === "student" || raw === "parent") return raw;
-              if (row.role === "student") return "student";
-              if (row.role === "parent") return "parent";
-              return "staff";
-            })(),
-          }));
+          const rows: PersonRow[] = (data.items || [])
+            .filter((row) => row.userId)
+            .map((row) => ({
+              userId: row.userId!,
+              role: row.role || "",
+              firstName: row.firstName,
+              lastName: row.lastName,
+              displayName: row.displayName,
+              email: row.email,
+              username: row.username,
+              classLabel: row.classLabel,
+              status: row.status,
+              admissionNo: (row as { admissionNo?: string }).admissionNo,
+              kind: (() => {
+                const raw = row.kind || row.memberType;
+                if (raw === "staff" || raw === "student" || raw === "parent") return raw;
+                if (row.role === "student") return "student";
+                if (row.role === "parent") return "parent";
+                return "staff";
+              })(),
+            }));
           setRosterRows(rows);
           setRosterTotal(data.total ?? rows.length);
           onRosterLoaded?.(data);
@@ -195,10 +212,16 @@ export function InstitutePeoplePanel({
     memberType,
     onRosterLoaded,
     page,
+    roleFilter,
+    classFilter,
     rosterLayout,
     rosterTab,
     searchQuery,
   ]);
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [page, rosterTab, searchQuery, memberStatus, roleFilter, refreshKey]);
 
   useEffect(() => {
     if (!expanded) return;
@@ -253,14 +276,30 @@ export function InstitutePeoplePanel({
   const branch = branches.find((b) => b.id === branchId);
   const totalPeople = (branch?.teacherCount ?? 0) + (branch?.studentCount ?? 0);
 
+  const pageUserIds = pageRows.map((p) => p.userId);
+  const allPageSelected = pageUserIds.length > 0 && pageUserIds.every((id) => selectedIds.has(id));
+
+  function toggleRow(userId: string) {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
+  }
+
+  function togglePage() {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (allPageSelected) pageUserIds.forEach((id) => next.delete(id));
+      else pageUserIds.forEach((id) => next.add(id));
+      return next;
+    });
+  }
+
   return (
-    <section className="rounded-xl border border-border bg-card shadow-sm">
-      {rosterLayout ? (
-        <div className="border-b border-border px-4 py-3.5">
-          <h3 className="text-sm font-semibold">Staff &amp; students</h3>
-          <p className="mt-0.5 text-xs text-muted-foreground">{totalPeople} people at this campus</p>
-        </div>
-      ) : (
+    <section className={rosterLayout ? "min-w-0" : "rounded-xl border border-border bg-card shadow-sm"}>
+      {rosterLayout ? null : (
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
@@ -279,8 +318,8 @@ export function InstitutePeoplePanel({
       )}
 
       {expanded && (
-        <div className="border-t border-border">
-          {canManage && (
+        <div className={rosterLayout ? "" : "border-t border-border"}>
+          {!rosterLayout && canManage && (
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
               <PendingInvites instituteId={instituteId} refreshKey={refreshKey} />
               <InviteMembersButton
@@ -294,7 +333,7 @@ export function InstitutePeoplePanel({
             </div>
           )}
 
-          <div className="overflow-x-auto">
+          <div className={rosterLayout ? "overflow-x-auto rounded-xl border border-border bg-card shadow-sm" : "overflow-x-auto"}>
             {loading ? (
               <p className="px-4 py-8 text-sm text-muted-foreground">Loading roster...</p>
             ) : people.length === 0 ? (
@@ -307,7 +346,12 @@ export function InstitutePeoplePanel({
                   people={pageRows}
                   currentUserId={currentUserId}
                   canManage={canManage}
+                  rosterLayout={rosterLayout}
                   selectedUserId={selectedUserId}
+                  selectedIds={selectedIds}
+                  allPageSelected={allPageSelected}
+                  onTogglePage={togglePage}
+                  onToggleRow={toggleRow}
                   onSelectUser={onSelectUser}
                   onChangeRole={changeRole}
                   onRemove={removeMember}
@@ -340,6 +384,30 @@ export function InstitutePeoplePanel({
               </>
             )}
           </div>
+          {rosterLayout && selectedIds.size > 0 && (
+            <div className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 flex-wrap items-center gap-2 rounded-full border border-border bg-card px-4 py-2.5 text-xs shadow-lg">
+              <span className="font-medium">{selectedIds.size} selected</span>
+              <button type="button" className="rounded-full border border-border px-3 py-1 hover:bg-muted">
+                Assign to class
+              </button>
+              <button type="button" className="rounded-full border border-border px-3 py-1 hover:bg-muted">
+                Change role
+              </button>
+              <button type="button" className="rounded-full border border-border px-3 py-1 hover:bg-muted">
+                Message
+              </button>
+              <button type="button" className="rounded-full border border-red-200 px-3 py-1 text-red-700 hover:bg-red-50">
+                Remove
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedIds(new Set())}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                Clear
+              </button>
+            </div>
+          )}
         </div>
       )}
     </section>
@@ -383,11 +451,43 @@ function PendingInvites({
   );
 }
 
+function classRoleLabel(person: PersonRow) {
+  if (person.kind === "student") {
+    const parts = [person.classLabel, person.admissionNo ? `Adm ${person.admissionNo}` : ""].filter(Boolean);
+    return parts.length ? parts.join(" · ") : ROLE_LABELS[person.role] || person.role;
+  }
+  if (person.kind === "parent") return "Parent";
+  const role = ROLE_LABELS[person.role] || person.role;
+  return person.classLabel ? `${role} · ${person.classLabel}` : role;
+}
+
+function StatusPill({ status }: { status?: string }) {
+  const value = (status || "active").toLowerCase();
+  const styles: Record<string, string> = {
+    active: "bg-emerald-50 text-emerald-800",
+    invited: "bg-amber-50 text-amber-800",
+    pending: "bg-amber-50 text-amber-800",
+    inactive: "bg-muted text-muted-foreground",
+    left: "bg-muted text-muted-foreground",
+  };
+  const label = value.charAt(0).toUpperCase() + value.slice(1);
+  return (
+    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${styles[value] || styles.active}`}>
+      {label}
+    </span>
+  );
+}
+
 function PeopleTable({
   people,
   currentUserId,
   canManage,
+  rosterLayout = false,
   selectedUserId,
+  selectedIds,
+  allPageSelected,
+  onTogglePage,
+  onToggleRow,
   onSelectUser,
   onChangeRole,
   onRemove,
@@ -395,7 +495,12 @@ function PeopleTable({
   people: PersonRow[];
   currentUserId: string;
   canManage: boolean;
+  rosterLayout?: boolean;
   selectedUserId?: string | null;
+  selectedIds: Set<string>;
+  allPageSelected: boolean;
+  onTogglePage: () => void;
+  onToggleRow: (userId: string) => void;
   onSelectUser?: (person: PersonRow) => void;
   onChangeRole: (userId: string, role: string) => void;
   onRemove: (userId: string) => void;
@@ -407,6 +512,16 @@ function PeopleTable({
     <table className="w-full text-xs">
       <thead className="bg-muted/40 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
         <tr>
+          {rosterLayout && (
+            <th className="w-10 px-3 py-2">
+              <input
+                type="checkbox"
+                checked={allPageSelected}
+                onChange={onTogglePage}
+                aria-label="Select all on page"
+              />
+            </th>
+          )}
           <th className="px-3 py-2 font-medium">Person</th>
           <th className="px-3 py-2 font-medium">Type</th>
           <th className="px-3 py-2 font-medium">Class / Role</th>
@@ -427,6 +542,16 @@ function PeopleTable({
               className={`border-t border-border/80 ${selectedUserId === person.userId ? "bg-primary/5" : ""} ${onSelectUser ? "cursor-pointer hover:bg-muted/30" : ""}`}
               onClick={() => onSelectUser?.(person)}
             >
+              {rosterLayout && (
+                <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(person.userId)}
+                    onChange={() => onToggleRow(person.userId)}
+                    aria-label={`Select ${person.displayName || person.userId}`}
+                  />
+                </td>
+              )}
               <td className="px-3 py-2">
                 <UserIdentity user={person} role={person.role} />
                 {isSelf && <span className="ml-1 text-primary">(you)</span>}
@@ -443,7 +568,9 @@ function PeopleTable({
                 </span>
               </td>
               <td className="px-3 py-2">
-                {!canManage || isOwnerRow || isSelf ? (
+                {rosterLayout ? (
+                  classRoleLabel(person)
+                ) : !canManage || isOwnerRow || isSelf ? (
                   ROLE_LABELS[person.role] || person.role
                 ) : (
                   <select
@@ -464,22 +591,34 @@ function PeopleTable({
                 )}
               </td>
               <td className="px-3 py-2">
-                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-800">Active</span>
+                <StatusPill status={person.status} />
               </td>
               {canManage && (
                 <td className="px-3 py-2 text-right">
-                  {!isOwnerRow && !isSelf && (
+                  <div className="flex justify-end gap-2">
                     <button
                       type="button"
                       onClick={(event) => {
                         event.stopPropagation();
-                        onRemove(person.userId);
+                        onSelectUser?.(person);
                       }}
-                      className="text-[11px] text-red-600 hover:underline"
+                      className="text-[11px] text-primary hover:underline"
                     >
-                      Remove
+                      Edit
                     </button>
-                  )}
+                    {!isOwnerRow && !isSelf && (
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onRemove(person.userId);
+                        }}
+                        className="text-[11px] text-red-600 hover:underline"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
                 </td>
               )}
             </tr>

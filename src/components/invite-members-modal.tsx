@@ -142,10 +142,12 @@ export function InviteMembersButton({
   instituteId,
   onSent,
   className = "",
+  label = "Invite people",
 }: {
   instituteId: string;
   onSent: () => void;
   className?: string;
+  label?: string;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -158,7 +160,7 @@ export function InviteMembersButton({
           "rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
         }
       >
-        Send invitation
+        {label}
       </button>
       <InviteMembersModal
         instituteId={instituteId}
