@@ -1,21 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
-import type { ReactNode } from "react";
+import { GripVertical } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ROLE_LABELS } from "@/lib/roles";
 import { formatUserName } from "@/components/user-identity";
-import type { Member, SectionSubject } from "@/lib/api";
+import type { Member } from "@/lib/api";
 import { buildInstitutePathFromSearch } from "@/lib/embed-href";
 
 type Section = { id: string; name: string; className?: string };
-type SectionMapping = {
-  teachers: Member[];
-  students: Member[];
-  subjects: (SectionSubject & { students?: { userId: string }[] })[];
-};
-type FilterMode = "section" | "class" | "teacher" | "student";
-type EnrollmentModule = "subjects" | "teachers" | "students";
+type SectionMapping = { teachers: Member[]; students: Member[] };
+type EnrollmentModule = "teachers" | "students";
+
+function rosterModuleFromUrl(raw: string | null): EnrollmentModule {
+  return raw === "students" ? "students" : "teachers";
+}
 
 export function EnrollmentManager({
   instituteId,
@@ -29,23 +27,13 @@ export function EnrollmentManager({
   const [sections, setSections] = useState<Section[]>([]);
   const [staff, setStaff] = useState<Member[]>([]);
   const [students, setStudents] = useState<Member[]>([]);
-  const [subjects, setSubjects] = useState<{ id: string; name: string }[]>([]);
   const [mappings, setMappings] = useState<Record<string, SectionMapping>>({});
-  const [sectionId, setSectionId] = useState("");
-  const [userId, setUserId] = useState("");
-  const [memberType, setMemberType] = useState<"teacher" | "student">("student");
-  const [filterMode, setFilterMode] = useState<FilterMode>("section");
-  const [filterValue, setFilterValue] = useState("");
   const [message, setMessage] = useState("");
-  const [loading, setLoading] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const urlModule = searchParams.get("enrollmentModule");
-  const initialModule: EnrollmentModule =
-    urlModule === "students" || urlModule === "subjects" || urlModule === "teachers"
-      ? urlModule
-      : "teachers";
-  const [module, setModule] = useState<EnrollmentModule>(initialModule);
+  const [module, setModule] = useState<EnrollmentModule>(() =>
+    rosterModuleFromUrl(searchParams.get("enrollmentModule"))
+  );
   const [selectedSectionId, setSelectedSectionId] = useState(searchParams.get("section") || "");
   const [personSearch, setPersonSearch] = useState(searchParams.get("q") || "");
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
@@ -65,12 +53,11 @@ export function EnrollmentManager({
   );
 
   const load = useCallback(async () => {
-    const [instituteRes, sectionRes, staffRes, studentRes, subjectRes] = await Promise.all([
+    const [instituteRes, sectionRes, staffRes, studentRes] = await Promise.all([
       fetch(`/api/institutes/${instituteId}`, { credentials: "include" }),
       fetch(`/api/institutes/${instituteId}/sections`, { credentials: "include" }),
       fetch(`/api/institutes/${instituteId}/members?group=staff`, { credentials: "include" }),
       fetch(`/api/institutes/${instituteId}/members?group=students`, { credentials: "include" }),
-      fetch(`/api/institutes/${instituteId}/subjects`, { credentials: "include" }),
     ]);
     if (instituteRes.ok) {
       const institute = await instituteRes.json();
@@ -86,21 +73,17 @@ export function EnrollmentManager({
     }
     if (staffRes.ok) setStaff(await staffRes.json());
     if (studentRes.ok) setStudents(await studentRes.json());
-    if (subjectRes.ok) setSubjects(await subjectRes.json());
 
-    const rows = await Promise.all(nextSections.map(async (section: Section) => {
-      const [overviewRes, subjectsRes] = await Promise.all([
-        fetch(`/api/sections/${section.id}`, { credentials: "include" }),
-        fetch(`/api/sections/${section.id}/subjects`, { credentials: "include" }),
-      ]);
-      const overview = overviewRes.ok ? await overviewRes.json() : {};
-      const sectionSubjects = subjectsRes.ok ? await subjectsRes.json() : [];
-      return [section.id, {
-        teachers: overview.teachers ?? [],
-        students: overview.students ?? [],
-        subjects: sectionSubjects,
-      }] as const;
-    }));
+    const rows = await Promise.all(
+      nextSections.map(async (section: Section) => {
+        const overviewRes = await fetch(`/api/sections/${section.id}`, { credentials: "include" });
+        const overview = overviewRes.ok ? await overviewRes.json() : {};
+        return [
+          section.id,
+          { teachers: overview.teachers ?? [], students: overview.students ?? [] },
+        ] as const;
+      })
+    );
     setMappings(Object.fromEntries(rows));
   }, [instituteId]);
 
@@ -124,28 +107,6 @@ export function EnrollmentManager({
     setSelectedUserIds([]);
   }, [module, selectedSectionId]);
 
-  async function assign(e: React.FormEvent) {
-    e.preventDefault();
-    if (!sectionId || !userId) return;
-    setLoading(true);
-    setMessage("");
-    const res = await fetch(`/api/sections/${sectionId}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ userId, memberType }),
-    });
-    setLoading(false);
-    if (res.ok) {
-      setMessage("Assigned successfully.");
-      await load();
-      onChanged?.();
-    } else {
-      const data = await res.json();
-      setMessage(data.detail || "Could not assign.");
-    }
-  }
-
   async function change(path: string, options: RequestInit = {}) {
     const res = await fetch(path, {
       ...options,
@@ -162,27 +123,18 @@ export function EnrollmentManager({
         method: body ? "POST" : "DELETE",
         body: body ? JSON.stringify(body) : undefined,
       });
+      onChanged?.();
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Could not update enrollment.");
     }
   }
 
-  const roster =
-    memberType === "teacher"
-      ? staff.filter((m) => ["teacher", "lecturer", "professor", "principal", "admin"].includes(m.role))
-      : students;
-  const filterOptions = getFilterOptions(filterMode, sections, mappings);
-  const matchingSections = sections.filter((section) => {
-    if (!filterValue) return true;
-    const mapping = mappings[section.id];
-    if (filterMode === "section") return section.id === filterValue;
-    if (filterMode === "class") return section.className === filterValue;
-    if (filterMode === "teacher") return mapping?.teachers.some((member) => member.userId === filterValue);
-    return mapping?.students.some((member) => member.userId === filterValue);
-  });
-
   return (
-    <section className="mt-6 space-y-6">
+    <section className="space-y-4">
+      <div>
+        <h1 className="text-2xl font-semibold">Enrollment</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Assign teachers and students to each class.</p>
+      </div>
       <SectionFirstWorkspace
         sections={sections}
         staff={staff}
@@ -226,251 +178,6 @@ export function EnrollmentManager({
         }}
       />
       {message && <p className="text-sm text-muted-foreground">{message}</p>}
-      <div className="hidden">
-      <div className="rounded-2xl border border-border bg-gradient-to-br from-primary/10 via-card to-card p-5 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-primary">Institute enrollment</p>
-            <h2 className="mt-1 text-xl font-semibold">Build your academic roster</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Place teachers and students into sections, then connect subjects to their teachers.
-            </p>
-          </div>
-          <div className="rounded-xl border border-primary/20 bg-background/70 px-3 py-2 text-center">
-            <p className="text-xl font-semibold">{sections.length}</p>
-            <p className="text-[11px] text-muted-foreground">Sections</p>
-          </div>
-        </div>
-        <form onSubmit={assign} className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Field label="Section">
-          <select
-            value={sectionId}
-            onChange={(e) => setSectionId(e.target.value)}
-            required
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-          >
-            <option value="">Select section</option>
-            {sections.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name} · {s.className || "No grade"}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Role">
-          <select
-            value={memberType}
-            onChange={(e) => {
-              setMemberType(e.target.value as "teacher" | "student");
-              setUserId("");
-            }}
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-          >
-            <option value="student">Student</option>
-            <option value="teacher">Teacher</option>
-          </select>
-        </Field>
-        <Field label="Person">
-          <select
-            value={userId}
-            onChange={(e) => setUserId(e.target.value)}
-            required
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-          >
-            <option value="">Select member</option>
-            {roster.map((m) => (
-              <option key={m.userId} value={m.userId}>
-                {formatUserName(m)} ({ROLE_LABELS[m.role] || m.role})
-              </option>
-            ))}
-          </select>
-        </Field>
-          <button
-          type="submit"
-          disabled={loading}
-          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
-        >
-          Assign
-        </button>
-        </form>
-        {message && <p className="mt-3 text-xs text-muted-foreground">{message}</p>}
-      </div>
-      <div className="space-y-4">
-        <div>
-          <h3 className="text-lg font-semibold">Section assignments</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Filter the institute roster to focus on the records you need.
-          </p>
-        </div>
-        <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="View by">
-              <select
-                value={filterMode}
-                onChange={(e) => {
-                  setFilterMode(e.target.value as FilterMode);
-                  setFilterValue("");
-                }}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-              >
-                <option value="section">Section</option>
-                <option value="class">Class / grade</option>
-                <option value="teacher">Teacher</option>
-                <option value="student">Student</option>
-              </select>
-            </Field>
-            <Field label={`Select ${filterMode === "class" ? "class / grade" : filterMode}`}>
-              <select
-                value={filterValue}
-                onChange={(e) => setFilterValue(e.target.value)}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-              >
-                <option value="">All {filterMode === "class" ? "classes" : `${filterMode}s`}</option>
-                {filterOptions.map((option) => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </select>
-            </Field>
-          </div>
-          <p className="mt-3 text-xs text-muted-foreground">
-            Showing {matchingSections.length} of {sections.length} sections
-          </p>
-        </div>
-        {matchingSections.map((section) => (
-          <SectionMappingCard
-            key={section.id}
-            section={section}
-            mapping={mappings[section.id] ?? { teachers: [], students: [], subjects: [] }}
-            subjects={subjects}
-            staff={staff}
-            update={update}
-          />
-        ))}
-        {!matchingSections.length && (
-          <div className="rounded-2xl border border-dashed border-border p-8 text-center">
-            <p className="font-medium">No matching enrollment records</p>
-            <p className="mt-1 text-sm text-muted-foreground">Try another filter or assign members to a section.</p>
-          </div>
-        )}
-      </div>
-      </div>
-    </section>
-  );
-}
-
-function SectionMappingCard({
-  section,
-  mapping,
-  subjects,
-  staff,
-  update,
-}: {
-  section: Section;
-  mapping: SectionMapping;
-  subjects: { id: string; name: string }[];
-  staff: Member[];
-  update: (path: string, body?: object) => void;
-}) {
-  const availableSubjects = subjects.filter(
-    (subject) => !mapping.subjects.some((linked) => linked.id === subject.id)
-  );
-  const assignedTeacherIds = new Set(mapping.teachers.map((teacher) => teacher.userId));
-
-  return (
-    <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border bg-muted/30 px-4 py-4">
-        <div>
-          <h4 className="text-base font-semibold">{section.name}</h4>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Class / grade: <span className="font-medium text-foreground">{section.className || "Not configured"}</span>
-          </p>
-        </div>
-        <div className="flex gap-2 text-[11px]">
-          <CountBadge label="Teachers" count={mapping.teachers.length} />
-          <CountBadge label="Students" count={mapping.students.length} />
-          <CountBadge label="Subjects" count={mapping.subjects.length} />
-        </div>
-      </div>
-      <div className="p-4">
-        <div className="grid gap-3 text-xs sm:grid-cols-2">
-        <MemberList
-          label="Teachers"
-          members={mapping.teachers}
-          remove={(id) => update(`/api/sections/${section.id}/members/${id}`)}
-        />
-        <MemberList
-          label="Students"
-          members={mapping.students}
-          remove={(id) => update(`/api/sections/${section.id}/members/${id}`)}
-        />
-        </div>
-        <div className="mt-5">
-        <p className="text-xs text-muted-foreground">Subjects and subject teachers</p>
-          <select
-          defaultValue=""
-          onChange={(e) => {
-            if (e.target.value) {
-              update(`/api/sections/${section.id}/subjects`, { subjectId: e.target.value });
-              e.target.value = "";
-            }
-          }}
-          className="mt-2 rounded-lg border border-border px-2 py-1.5 text-xs"
-        >
-          <option value="">Add subject…</option>
-          {availableSubjects.map((subject) => (
-            <option key={subject.id} value={subject.id}>{subject.name}</option>
-          ))}
-        </select>
-          <div className="mt-3 space-y-2">
-          {mapping.subjects.map((subject) => (
-              <div key={subject.id} className="rounded-xl border border-border bg-muted/30 p-3">
-              <div className="flex justify-between text-sm font-medium">
-                <span>{subject.name}</span>
-                <button
-                  type="button"
-                  onClick={() => update(`/api/sections/${section.id}/subjects/${subject.id}`)}
-                  className="text-xs text-destructive"
-                >
-                  Unlink
-                </button>
-              </div>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                {subject.teachers.map((teacher) => (
-                  <span key={teacher.userId} className="rounded-full border border-border px-2 py-1">
-                    {personName(staff, teacher.userId)}
-                    <button
-                      type="button"
-                      onClick={() => update(`/api/sections/${section.id}/subjects/${subject.id}/teachers/${teacher.userId}`)}
-                      className="ml-2 text-destructive"
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-                <select
-                  defaultValue=""
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      update(`/api/sections/${section.id}/subjects/${subject.id}/teachers`, { userId: e.target.value });
-                      e.target.value = "";
-                    }
-                  }}
-                  className="rounded-lg border border-border px-2 py-1.5"
-                >
-                  <option value="">Assign teacher…</option>
-                  {staff.filter((member) => assignedTeacherIds.has(member.userId)).map((member) => (
-                    <option key={member.userId} value={member.userId}>{personName([member], member.userId)}</option>
-                  ))}
-                </select>
-              </div>
-              </div>
-          ))}
-          {!mapping.subjects.length && (
-            <p className="text-xs text-muted-foreground">No subjects linked to this section.</p>
-          )}
-          </div>
-        </div>
-      </div>
     </section>
   );
 }
@@ -510,15 +217,29 @@ function SectionFirstWorkspace({
   bulkLoading: boolean;
   onBulkAssign: (userIds: string[]) => Promise<void>;
 }) {
+  const [classSearch, setClassSearch] = useState("");
+  const [dragOver, setDragOver] = useState(false);
   const section = sections.find((item) => item.id === selectedSectionId);
-  const mapping = section ? mappings[section.id] ?? { teachers: [], students: [], subjects: [] } : null;
-  const people = module === "students"
-    ? students
-    : staff.filter((person) =>
-      ["teacher", "lecturer", "professor", "principal"].includes(person.role)
-    );
+  const mapping = section ? mappings[section.id] ?? { teachers: [], students: [] } : null;
+  const people =
+    module === "students"
+      ? students
+      : staff.filter((person) =>
+          ["teacher", "lecturer", "professor", "principal"].includes(person.role)
+        );
   const assigned = module === "students" ? mapping?.students ?? [] : mapping?.teachers ?? [];
+  const moduleLabel = module === "students" ? "Students" : "Teachers";
+  const dropHint =
+    module === "students" ? "Drop students here to assign them." : "Drop teachers here to assign them.";
   const searchLower = personSearch.trim().toLowerCase();
+  const classSearchLower = classSearch.trim().toLowerCase();
+  const filteredSections = useMemo(() => {
+    if (!classSearchLower) return sections;
+    return sections.filter((item) => {
+      const label = `${item.className || ""} ${item.name}`.toLowerCase();
+      return label.includes(classSearchLower);
+    });
+  }, [sections, classSearchLower]);
   const filteredPeople = useMemo(() => {
     if (!searchLower) return people;
     return people.filter((person) => {
@@ -533,7 +254,10 @@ function SectionFirstWorkspace({
 
   function assign(userId: string) {
     if (!canManage || !section || assigned.some((person) => person.userId === userId)) return;
-    update(`/api/sections/${section.id}`, { userId, memberType: module === "students" ? "student" : "teacher" });
+    update(`/api/sections/${section.id}`, {
+      userId,
+      memberType: module === "students" ? "student" : "teacher",
+    });
   }
 
   function toggleSelected(userId: string) {
@@ -544,201 +268,261 @@ function SectionFirstWorkspace({
 
   return (
     <section className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-      <div className="grid gap-4 lg:grid-cols-[180px_minmax(280px,1fr)_280px]">
-        <div className="space-y-2">
-          <h2 className="px-2 text-sm font-semibold">Classes</h2>
-          {sections.map((item) => {
-            const itemMapping = mappings[item.id] ?? { teachers: [], students: [], subjects: [] };
-            return (
-              <button key={item.id} type="button" onClick={() => setSelectedSectionId(item.id)} className={`w-full rounded-xl border p-3 text-left ${item.id === selectedSectionId ? "border-primary bg-primary/10" : "border-border bg-background"}`}>
-                <p className="font-semibold">{item.className || "Class"} · {item.name}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{itemMapping.teachers.length} teachers · {itemMapping.students.length} students</p>
-              </button>
-            );
-          })}
+      <div className="grid gap-4 lg:grid-cols-[200px_minmax(280px,1fr)_300px]">
+        <div className="lg:sticky lg:top-2 lg:self-start">
+          <h2 className="px-1 text-sm font-semibold">Classes</h2>
+          <input
+            type="search"
+            value={classSearch}
+            onChange={(e) => setClassSearch(e.target.value)}
+            placeholder="Filter classes"
+            className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+          />
+          <div className="mt-2 max-h-[28rem] space-y-2 overflow-y-auto">
+            {filteredSections.map((item) => {
+              const itemMapping = mappings[item.id] ?? { teachers: [], students: [] };
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setSelectedSectionId(item.id)}
+                  className={`w-full rounded-xl border p-3 text-left transition ${
+                    item.id === selectedSectionId
+                      ? "border-primary bg-primary/10"
+                      : "border-border bg-background hover:bg-muted/40"
+                  }`}
+                >
+                  <p className="font-semibold">{item.className || "Class"} · {item.name}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {itemMapping.teachers.length} teachers · {itemMapping.students.length} students
+                  </p>
+                </button>
+              );
+            })}
+            {!filteredSections.length && (
+              <p className="rounded-xl border border-dashed border-border p-3 text-xs text-muted-foreground">
+                No classes match your filter.
+              </p>
+            )}
+          </div>
         </div>
+
         <div
-          onDragOver={(event) => event.preventDefault()}
+          onDragOver={(event) => {
+            event.preventDefault();
+            if (canManage) setDragOver(true);
+          }}
+          onDragEnter={() => canManage && setDragOver(true)}
+          onDragLeave={() => setDragOver(false)}
           onDrop={(event) => {
+            setDragOver(false);
             const userId = event.dataTransfer.getData("userId");
             if (canManage && userId) assign(userId);
           }}
-          className="min-h-96 rounded-xl border-2 border-dashed border-border bg-muted/10 p-4"
+          className={`min-h-96 rounded-xl border-2 border-dashed p-4 transition ${
+            dragOver ? "border-primary bg-primary/5" : "border-border bg-muted/10"
+          }`}
         >
           {section && mapping ? (
             <>
-              <h2 className="text-xl font-semibold">{section.className || "Class"} · {section.name}</h2>
-              {canManage && <p className="mt-1 text-sm text-muted-foreground">Drag a person here to assign them.</p>}
-              <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                <AssignedGroup label="Teachers" members={mapping.teachers} onRemove={canManage ? (id) => update(`/api/sections/${section.id}/members/${id}`) : undefined} />
-                <AssignedGroup label="Students" members={mapping.students} onRemove={canManage ? (id) => update(`/api/sections/${section.id}/members/${id}`) : undefined} />
-              </div>
-            </>
-          ) : <p className="text-sm text-muted-foreground">Select a class to begin.</p>}
-        </div>
-        {canManage && <div>
-          <div className="grid grid-cols-2 gap-2">
-            {(["teachers", "students"] as const).map((value) => (
-              <button key={value} type="button" onClick={() => setModule(value)} className={`rounded-xl border p-3 text-left ${module === value ? "border-primary bg-primary/10" : "border-border bg-background"}`}>
-                <p className="font-semibold capitalize">{value}</p>
-                <p className="text-xs text-muted-foreground">{value === "teachers" ? staff.length : students.length} available</p>
-              </button>
-            ))}
-          </div>
-          <input
-            type="search"
-            value={personSearch}
-            onChange={(event) => setPersonSearch(event.target.value)}
-            placeholder="Search by name or email"
-            className="mt-3 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-          />
-          {selectableIds.length > 0 && (
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() =>
-                  setSelectedUserIds(
-                    selectedUserIds.length === selectableIds.length ? [] : selectableIds
-                  )
+              <h2 className="text-xl font-semibold">
+                {section.className || "Class"} · {section.name}
+              </h2>
+              {canManage && <p className="mt-1 text-sm text-muted-foreground">{dropHint}</p>}
+              <AssignedGroup
+                label={moduleLabel}
+                members={assigned}
+                onRemove={
+                  canManage
+                    ? (id) => update(`/api/sections/${section.id}/members/${id}`)
+                    : undefined
                 }
-                className="text-xs font-medium text-primary underline"
-              >
-                {selectedUserIds.length === selectableIds.length ? "Clear selection" : "Select all"}
-              </button>
-              {selectedUserIds.length > 0 && section && (
+              />
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">Select a class to begin.</p>
+          )}
+        </div>
+
+        {canManage && (
+          <div>
+            <div className="flex flex-wrap gap-5 border-b border-border px-1 text-xs">
+              <ModuleTab
+                label="Teachers"
+                active={module === "teachers"}
+                onClick={() => setModule("teachers")}
+              />
+              <ModuleTab
+                label="Students"
+                active={module === "students"}
+                onClick={() => setModule("students")}
+              />
+            </div>
+            <input
+              type="search"
+              value={personSearch}
+              onChange={(event) => setPersonSearch(event.target.value)}
+              placeholder="Search by name or email"
+              className="mt-3 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+            />
+            {selectableIds.length > 0 && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  disabled={bulkLoading}
-                  onClick={() => void onBulkAssign(selectedUserIds)}
-                  className="rounded-lg bg-primary px-3 py-1.5 text-xs text-primary-foreground disabled:opacity-50"
+                  onClick={() =>
+                    setSelectedUserIds(
+                      selectedUserIds.length === selectableIds.length ? [] : selectableIds
+                    )
+                  }
+                  className="text-xs font-medium text-primary underline"
                 >
-                  Add {selectedUserIds.length} to {section.className || "class"} · {section.name}
+                  {selectedUserIds.length === selectableIds.length ? "Clear selection" : "Select all"}
                 </button>
+                {selectedUserIds.length > 0 && section && (
+                  <button
+                    type="button"
+                    disabled={bulkLoading}
+                    onClick={() => void onBulkAssign(selectedUserIds)}
+                    className="rounded-lg bg-primary px-3 py-1.5 text-xs text-primary-foreground disabled:opacity-50"
+                  >
+                    Add {selectedUserIds.length} to {section.className || "class"} · {section.name}
+                  </button>
+                )}
+              </div>
+            )}
+            <div className="mt-3 max-h-[24rem] space-y-2 overflow-y-auto">
+              {filteredPeople.map((person) => {
+                const isAssigned = assigned.some((item) => item.userId === person.userId);
+                const isSelected = selectedUserIds.includes(person.userId);
+                return (
+                  <div
+                    key={person.userId}
+                    draggable={!isAssigned}
+                    onDragStart={(event) => event.dataTransfer.setData("userId", person.userId)}
+                    className={`flex items-center justify-between gap-2 rounded-xl border bg-background p-3 ${
+                      isAssigned ? "opacity-50" : "cursor-grab active:cursor-grabbing"
+                    }`}
+                  >
+                    <div className="flex min-w-0 flex-1 items-center gap-2">
+                      {!isAssigned && (
+                        <>
+                          <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSelected(person.userId)}
+                            aria-label={`Select ${formatUserName(person)}`}
+                          />
+                        </>
+                      )}
+                      <span
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary"
+                        aria-hidden
+                      >
+                        {memberInitials(person)}
+                      </span>
+                      <span className="min-w-0 truncate text-sm">{formatUserName(person)}</span>
+                      {isAssigned && (
+                        <span className="text-[10px] text-muted-foreground">In class</span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => assign(person.userId)}
+                      disabled={isAssigned}
+                      className="shrink-0 rounded-lg bg-primary px-3 py-1 text-xs font-medium text-primary-foreground disabled:opacity-40"
+                    >
+                      Add
+                    </button>
+                  </div>
+                );
+              })}
+              {!filteredPeople.length && (
+                <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
+                  No {module} match your search.
+                </p>
               )}
             </div>
-          )}
-          <div className="mt-3 space-y-2">
-            {filteredPeople.map((person) => {
-              const isAssigned = assigned.some((item) => item.userId === person.userId);
-              const isSelected = selectedUserIds.includes(person.userId);
-              return (
-                <div key={person.userId} draggable={!isAssigned} onDragStart={(event) => event.dataTransfer.setData("userId", person.userId)} className={`flex items-center justify-between rounded-xl border bg-background p-3 ${isAssigned ? "opacity-50" : "cursor-grab"}`}>
-                  <div className="flex min-w-0 items-center gap-2">
-                    {!isAssigned && (
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleSelected(person.userId)}
-                        aria-label={`Select ${formatUserName(person)}`}
-                      />
-                    )}
-                    <span className="min-w-0 truncate text-sm">{formatUserName(person)}</span>
-                    {isAssigned && <span className="text-[10px] text-muted-foreground">In class</span>}
-                  </div>
-                  <button type="button" onClick={() => assign(person.userId)} disabled={isAssigned} className="ml-2 rounded-lg border border-border px-3 py-1 text-lg leading-none disabled:opacity-40" aria-label={`Assign ${formatUserName(person)}`}>+</button>
-                </div>
-              );
-            })}
-            {!filteredPeople.length && <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">No {module} match your search.</p>}
           </div>
-        </div>}
+        )}
       </div>
     </section>
   );
 }
 
-function CountBadge({ label, count }: { label: string; count: number }) {
+function ModuleTab({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
   return (
-    <span className="rounded-full border border-border bg-background px-2.5 py-1">
-      <span className="font-semibold">{count}</span> {label}
-    </span>
+    <button
+      type="button"
+      onClick={onClick}
+      className={`border-b-2 pb-2.5 ${active ? "border-primary font-semibold text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+    >
+      {label}
+    </button>
   );
 }
 
-function AssignedGroup({ label, members, onRemove }: { label: string; members: Member[]; onRemove?: (id: string) => void }) {
+function AssignedGroup({
+  label,
+  members,
+  onRemove,
+}: {
+  label: string;
+  members: Member[];
+  onRemove?: (id: string) => void;
+}) {
   return (
-    <div className="rounded-xl border border-border bg-background p-3">
+    <div className="mt-6 rounded-xl border border-border bg-background p-3">
       <div className="flex items-center justify-between">
         <h3 className="font-semibold">{label}</h3>
         <span className="text-xs text-muted-foreground">{members.length}</span>
       </div>
       <div className="mt-3 space-y-2">
         {members.map((member) => (
-          <div key={member.userId} className="flex items-center justify-between rounded-lg bg-muted/30 px-3 py-2 text-sm">
-            <span className="truncate">{formatUserName(member)}</span>
-            {onRemove && <button type="button" onClick={() => onRemove(member.userId)} className="ml-2 text-lg text-destructive" aria-label={`Remove ${formatUserName(member)}`}>×</button>}
+          <div
+            key={member.userId}
+            className="flex items-center justify-between gap-2 rounded-lg bg-muted/30 px-3 py-2 text-sm"
+          >
+            <div className="flex min-w-0 items-center gap-2">
+              <span
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold"
+                aria-hidden
+              >
+                {memberInitials(member)}
+              </span>
+              <span className="truncate">{formatUserName(member)}</span>
+            </div>
+            {onRemove && (
+              <button
+                type="button"
+                onClick={() => onRemove(member.userId)}
+                className="shrink-0 text-xs font-medium text-destructive"
+              >
+                Remove
+              </button>
+            )}
           </div>
         ))}
-        {!members.length && <p className="text-sm text-muted-foreground">None assigned</p>}
+        {!members.length && (
+          <p className="text-sm text-muted-foreground">None assigned yet — drag from the list or use Add.</p>
+        )}
       </div>
     </div>
   );
 }
 
-function getFilterOptions(
-  mode: FilterMode,
-  sections: Section[],
-  mappings: Record<string, SectionMapping>
-) {
-  if (mode === "section") {
-    return sections.map((section) => ({
-      value: section.id,
-      label: `${section.name} · ${section.className || "No grade"}`,
-    }));
-  }
-  if (mode === "class") {
-    return [...new Set(sections.map((section) => section.className).filter((name): name is string => Boolean(name)))].map((name) => ({
-      value: name,
-      label: name,
-    }));
-  }
-
-  const people = new Map<string, Member>();
-  Object.values(mappings).forEach((mapping) => {
-    (mode === "teacher" ? mapping.teachers : mapping.students).forEach((member) => {
-      people.set(member.userId, member);
-    });
-  });
-  return [...people.values()].map((member) => ({
-    value: member.userId,
-    label: formatUserName(member),
-  }));
-}
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <label className="space-y-1">
-      <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</span>
-      {children}
-    </label>
-  );
-}
-
-function MemberList({
-  label,
-  members,
-  remove,
-}: {
-  label: string;
-  members: Member[];
-  remove: (id: string) => void;
-}) {
-  return (
-    <div className="rounded-xl border border-border bg-muted/20 p-3">
-      <p className="font-semibold text-foreground">{label}</p>
-      {members.length ? members.map((member) => (
-        <div key={member.userId} className="mt-2 flex items-center justify-between rounded-lg bg-background px-2.5 py-2">
-          <span>{formatUserName(member)}</span>
-          <button type="button" onClick={() => remove(member.userId)} className="text-[11px] text-muted-foreground hover:text-destructive">
-            Remove
-          </button>
-        </div>
-      )) : <p className="mt-1 text-muted-foreground">None assigned</p>}
-    </div>
-  );
-}
-
-function personName(people: Member[], id: string) {
-  const person = people.find((member) => member.userId === id);
-  return person ? formatUserName(person) : id;
+function memberInitials(user: Member): string {
+  const name = formatUserName(user);
+  const parts = name.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  if (parts[0]) return parts[0].slice(0, 2).toUpperCase();
+  return "?";
 }

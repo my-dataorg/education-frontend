@@ -13,6 +13,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { InstitutePeoplePanel } from "@/components/institute-people-panel";
 import type { InstituteSummary } from "@/lib/api";
 import { buildInstitutePathFromSearch } from "@/lib/embed-href";
+import { greetingForLocalHour } from "@/lib/greeting";
 
 type Branch = InstituteSummary["branches"][number];
 type Overview = {
@@ -133,8 +134,7 @@ export function OverviewTab({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const posts = overview?.posts ?? [];
-  const currentHour = Number(new Intl.DateTimeFormat("en-IN", { hour: "numeric", hour12: false, timeZone: "Asia/Kolkata" }).format(new Date()));
-  const greeting = currentHour < 12 ? "Good morning" : currentHour < 17 ? "Good afternoon" : "Good evening";
+  const greeting = greetingForLocalHour();
   const [postTitle, setPostTitle] = useState("");
   const [postBody, setPostBody] = useState("");
 
@@ -165,7 +165,7 @@ export function OverviewTab({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-serif text-2xl font-semibold">{greeting}, {currentUserName.split(" ")[0]}</h1>

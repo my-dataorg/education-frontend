@@ -154,7 +154,7 @@ export function InstituteDashboard({
       activeTab={activeTab}
       tabHref={tabHref}
     >
-      <div className="px-4 py-5 sm:px-6">
+      <div className="px-4 pt-3 pb-5 sm:px-6">
         <div>
           <BranchPills
             instituteId={instituteId}
@@ -172,7 +172,7 @@ export function InstituteDashboard({
             {error}
           </p>
         ) : (
-          <Tabs value={activeTab} className="mt-6 w-full min-w-0">
+          <Tabs value={activeTab} className={`${activeTab === "overview" ? "mt-3" : "mt-6"} w-full min-w-0`}>
             {tabs.length > 1 && (
               <TabsList aria-label="Institute sections" className="mb-2 md:hidden">
                 {tabs.map((tab) => (

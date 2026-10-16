@@ -2,12 +2,29 @@
 
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { InstituteSummary, Section, SectionSubject, Subject } from "@/lib/api";
+import { buildInstitutePathFromSearch } from "@/lib/embed-href";
+
+const CLASSES_TABS = ["sections", "subjects", "activities", "section-subjects"] as const;
+type ClassesTabId = (typeof CLASSES_TABS)[number];
 
 type Props = { instituteId: string; branches: InstituteSummary["branches"] };
 type Activity = { id: string; name: string };
 
 export function ClassesTab({ instituteId, branches }: Props) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("classesTab");
+  const activeTab: ClassesTabId = CLASSES_TABS.includes(tabParam as ClassesTabId)
+    ? (tabParam as ClassesTabId)
+    : "sections";
+
+  function selectTab(tab: ClassesTabId) {
+    router.replace(
+      buildInstitutePathFromSearch(instituteId, searchParams, { tab: "classes", classesTab: tab })
+    );
+  }
   const [sections, setSections] = useState<Section[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -167,9 +184,28 @@ export function ClassesTab({ instituteId, branches }: Props) {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
+      <div>
+        <h1 className="text-2xl font-semibold">Classes & subjects</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Set up classes, institute subjects, activities, and weekly period links for the timetable.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap gap-5 border-b border-border px-1 text-xs">
+        <ClassesSubTab label="Classes" active={activeTab === "sections"} onClick={() => selectTab("sections")} />
+        <ClassesSubTab label="Subjects" active={activeTab === "subjects"} onClick={() => selectTab("subjects")} />
+        <ClassesSubTab label="Activities" active={activeTab === "activities"} onClick={() => selectTab("activities")} />
+        <ClassesSubTab
+          label="Subjects per class"
+          active={activeTab === "section-subjects"}
+          onClick={() => selectTab("section-subjects")}
+        />
+      </div>
+
       {error && <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
-      <div className="grid gap-4 md:grid-cols-2">
+
+      {activeTab === "subjects" && (
         <FormCard title="Subjects">
           <div className="flex gap-2">
             <input value={subjectName} onChange={(e) => setSubjectName(e.target.value)} placeholder="Subject name" className="min-w-0 flex-1 rounded-lg border border-border px-3 py-2 text-sm" />
@@ -189,6 +225,9 @@ export function ClassesTab({ instituteId, branches }: Props) {
             ))}
           </ul>
         </FormCard>
+      )}
+
+      {activeTab === "sections" && (
         <FormCard title="Classes and sections">
           <div className="flex gap-2">
             <input value={sectionName} onChange={(e) => setSectionName(e.target.value)} placeholder="Section name" className="min-w-0 flex-1 rounded-lg border border-border px-3 py-2 text-sm" />
@@ -210,6 +249,9 @@ export function ClassesTab({ instituteId, branches }: Props) {
           </ul>
           {!sections.length && <p className="mt-3 text-xs text-muted-foreground">No classes yet.</p>}
         </FormCard>
+      )}
+
+      {activeTab === "activities" && (
         <FormCard title="Extra activities">
           <p className="text-xs text-muted-foreground">
             Use these for breaks, play time, lunch, and other non-subject periods.
@@ -233,6 +275,9 @@ export function ClassesTab({ instituteId, branches }: Props) {
             ))}
           </ul>
         </FormCard>
+      )}
+
+      {activeTab === "section-subjects" && (
         <FormCard title="Subjects per class">
           <p className="text-xs text-muted-foreground">
             Link institute subjects to a section and set how many periods per week each needs for the timetable.
@@ -317,8 +362,28 @@ export function ClassesTab({ instituteId, branches }: Props) {
             </>
           )}
         </FormCard>
-      </div>
+      )}
     </div>
+  );
+}
+
+function ClassesSubTab({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`border-b-2 pb-2.5 ${active ? "border-primary font-semibold text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+    >
+      {label}
+    </button>
   );
 }
 
