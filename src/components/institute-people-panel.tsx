@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { InviteMembersButton } from "@/components/invite-members-modal";
 import { UserIdentity, inviteeLabel } from "@/components/user-identity";
@@ -137,9 +137,13 @@ export function InstitutePeoplePanel({
   const [rosterRows, setRosterRows] = useState<PersonRow[]>([]);
   const [rosterTotal, setRosterTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState("");
+  const onRosterLoadedRef = useRef(onRosterLoaded);
+  onRosterLoadedRef.current = onRosterLoaded;
 
   const loadMembers = useCallback(() => {
     setLoading(true);
+    setLoadError("");
     if (rosterLayout) {
       const tab =
         rosterTab !== "all"
@@ -187,11 +191,12 @@ export function InstitutePeoplePanel({
             }));
           setRosterRows(rows);
           setRosterTotal(data.total ?? rows.length);
-          onRosterLoaded?.(data);
+          onRosterLoadedRef.current?.(data);
         })
         .catch(() => {
           setRosterRows([]);
           setRosterTotal(0);
+          setLoadError("Could not load members. Try again.");
         })
         .finally(() => setLoading(false));
       return;
@@ -210,7 +215,6 @@ export function InstitutePeoplePanel({
     instituteId,
     memberStatus,
     memberType,
-    onRosterLoaded,
     page,
     roleFilter,
     classFilter,
@@ -336,6 +340,13 @@ export function InstitutePeoplePanel({
           <div className={rosterLayout ? "overflow-x-auto rounded-xl border border-border bg-card shadow-sm" : "overflow-x-auto"}>
             {loading ? (
               <p className="px-4 py-8 text-sm text-muted-foreground">Loading roster...</p>
+            ) : loadError ? (
+              <p className="px-4 py-8 text-center text-sm text-red-600">
+                {loadError}{" "}
+                <button type="button" onClick={() => loadMembers()} className="text-primary underline">
+                  Retry
+                </button>
+              </p>
             ) : people.length === 0 ? (
               <p className="px-4 py-8 text-center text-sm text-muted-foreground">
                 {searchQuery ? "No members match these filters." : "No people at this campus yet."}
