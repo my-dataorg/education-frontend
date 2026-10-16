@@ -7,7 +7,7 @@ import { InstituteDashboard } from "@/components/institute-dashboard";
 import { isSubscriptionError, SubscriptionRequired } from "@/components/subscription-required";
 import { Suspense } from "react";
 import { TeacherWorkspace } from "@/components/teacher-workspace";
-import { StudentWorkspace } from "@/components/student-workspace";
+import { StudentWorkspace, type StudentTab } from "@/components/student-workspace";
 import { ParentWorkspace } from "@/components/parent-workspace";
 import type { TeacherTab } from "@/components/teacher-shell";
 
@@ -127,6 +127,7 @@ export default async function InstitutePage({
       "class-teacher",
       "leave",
       "notices",
+      "student-progress",
     ];
     const initialTeacherTab = teacherTabs.includes(query.tab as TeacherTab)
       ? (query.tab as TeacherTab)
@@ -155,7 +156,14 @@ export default async function InstitutePage({
   }
 
   if (institute.role === "parent") {
-    return <ParentWorkspace instituteName={institute.name} />;
+    return (
+      <>
+        <EduNavGate />
+        <Suspense fallback={<div className="p-8 text-sm text-muted-foreground">Loading...</div>}>
+          <ParentWorkspace instituteId={id} instituteName={institute.name} />
+        </Suspense>
+      </>
+    );
   }
 
   if (institute.role !== "student") {
@@ -187,6 +195,19 @@ export default async function InstitutePage({
           sections={sections}
           studentId={session.user?.id || ""}
           studentName={session.user?.name || session.user?.email || "Student"}
+          initialTab={
+            [
+              "overview",
+              "timetable",
+              "assignments",
+              "results",
+              "attendance",
+              "notices",
+              "profile",
+            ].includes(query.tab || "")
+              ? (query.tab as StudentTab)
+              : "overview"
+          }
         />
       )}
     </>

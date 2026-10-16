@@ -1,4 +1,6 @@
 export const MANAGE_ROLES = new Set(["owner", "admin"]);
+/** Owner workspace pages (overview, members, timetable, etc.) */
+export const INSTITUTE_ADMIN_ROLES = new Set(["owner", "admin", "principal"]);
 export const STAFF_VIEW_ROLES = new Set([
   "owner",
   "admin",

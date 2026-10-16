@@ -1,305 +1,328 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { formatUserName } from "@/components/user-identity";
-import type { Member, Section, SectionSubject } from "@/lib/api";
+import { useRouter, useSearchParams } from "next/navigation";
+import { AlertTriangle, Save } from "lucide-react";
+import { buildInstitutePathFromSearch } from "@/lib/embed-href";
 
-type SectionData = {
-  section: Section;
-  teachers: Member[];
-  subjects: SectionSubject[];
-  linkedSubjectIds: Set<string>;
+type MatrixColumn = { subjectId: string; name: string; offeredIn?: string[] };
+type MatrixCell = {
+  subjectId: string;
+  teacherId?: string | null;
+  teacherName?: string | null;
+  sectionLabels?: string[] | null;
+};
+type MatrixRow = {
+  sectionId?: string | null;
+  teacherId?: string | null;
+  label: string;
+  cells: MatrixCell[];
 };
 
-export function SubjectTeachersTab({ instituteId }: { instituteId: string }) {
-  const [sections, setSections] = useState<SectionData[]>([]);
-  const [selectedSectionId, setSelectedSectionId] = useState("");
-  const [selectedSubjectId, setSelectedSubjectId] = useState("");
-  const [staff, setStaff] = useState<Member[]>([]);
+type MatrixPayload = { columns: MatrixColumn[]; rows: MatrixRow[] };
+
+type ChecksPayload = {
+  unassignedCount: number;
+  overLimitCount: number;
+  noClassCount: number;
+  unassignedCells: { sectionLabel?: string; subjectName?: string }[];
+  overLimitTeachers: string[];
+  noClassTeachers: string[];
+};
+
+type TeacherOption = { userId: string; name: string };
+
+type Props = {
+  instituteId: string;
+  branchId: string | null;
+};
+
+export function SubjectTeachersTab({ instituteId, branchId }: Props) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const show = searchParams.get("show") === "teacher" ? "teacher" : "class";
+
+  const [matrix, setMatrix] = useState<MatrixPayload | null>(null);
+  const [checks, setChecks] = useState<ChecksPayload | null>(null);
+  const [teachers, setTeachers] = useState<TeacherOption[]>([]);
+  const [draft, setDraft] = useState<Record<string, string | null>>({});
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState("");
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  const campusQuery = branchId ? `&branch=${encodeURIComponent(branchId)}` : "";
 
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const [sectionsRes, staffRes, catalogRes] = await Promise.all([
-        fetch(`/api/institutes/${instituteId}/sections`, { credentials: "include" }),
+      const [matrixRes, checksRes, staffRes] = await Promise.all([
+        fetch(`/api/institutes/${instituteId}/subject-teachers?show=${show}${campusQuery}`, {
+          credentials: "include",
+        }),
+        fetch(`/api/institutes/${instituteId}/subject-teachers/checks?${branchId ? `branch=${branchId}` : ""}`, {
+          credentials: "include",
+        }),
         fetch(`/api/institutes/${instituteId}/members?group=staff`, { credentials: "include" }),
-        fetch(`/api/institutes/${instituteId}/subjects`, { credentials: "include" }),
       ]);
-      if (!sectionsRes.ok || !staffRes.ok || !catalogRes.ok) throw new Error("Could not load subject teachers.");
-
-      const nextSections = (await sectionsRes.json()) as Section[];
-      const nextStaff = (await staffRes.json()) as Member[];
-      const catalog = await catalogRes.json() as { id: string; name: string }[];
-      const data = await Promise.all(nextSections.map(async (section) => {
-        const [overviewRes, subjectsRes] = await Promise.all([
-          fetch(`/api/sections/${section.id}`, { credentials: "include" }),
-          fetch(`/api/sections/${section.id}/subjects`, { credentials: "include" }),
-        ]);
-        if (!overviewRes.ok || !subjectsRes.ok) throw new Error("Could not load subject mappings.");
-        const overview = await overviewRes.json();
-        const linkedSubjects = await subjectsRes.json() as SectionSubject[];
-        const linkedById = new Map(linkedSubjects.map((subject) => [subject.id, subject]));
-        return {
-          section,
-          teachers: overview.teachers ?? [],
-          linkedSubjectIds: new Set(linkedSubjects.map((subject) => subject.id)),
-          subjects: catalog.map((subject) => ({
-            ...subject,
-            teachers: linkedById.get(subject.id)?.teachers ?? [],
-          })),
-        };
-      }));
-
-      const sortedSections = sortSections(data);
-      setSections(sortedSections);
-      setStaff(nextStaff);
-      setSelectedSectionId((current) => current || sortedSections[0]?.section.id || "");
+      if (!matrixRes.ok || !checksRes.ok) throw new Error("Could not load subject teachers.");
+      const matrixJson = (await matrixRes.json()) as MatrixPayload;
+      setMatrix(matrixJson);
+      setChecks((await checksRes.json()) as ChecksPayload);
+      const staff = staffRes.ok ? await staffRes.json() : [];
+      setTeachers(
+        (staff as { userId: string; role: string; displayName?: string; username?: string }[])
+          .filter((m) => ["teacher", "lecturer", "professor", "principal"].includes(m.role))
+          .map((m) => ({
+            userId: m.userId,
+            name: m.displayName || m.username || m.userId,
+          }))
+      );
+      const nextDraft: Record<string, string | null> = {};
+      for (const row of matrixJson.rows) {
+        if (!row.sectionId) continue;
+        for (const cell of row.cells) {
+          nextDraft[`${row.sectionId}:${cell.subjectId}`] = cell.teacherId || null;
+        }
+      }
+      setDraft(nextDraft);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not load subject teachers.");
     } finally {
       setLoading(false);
     }
-  }, [instituteId]);
+  }, [campusQuery, instituteId, show, branchId]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timer);
   }, [load]);
 
-  const selected = sections.find(({ section }) => section.id === selectedSectionId);
-  const teachers = useMemo(
-    () => staff.filter((teacher) =>
-      ["teacher", "lecturer", "professor", "principal"].includes(teacher.role)
-    ),
-    [selected, staff]
-  );
-  const eligibleTeacherIds = new Set(selected?.teachers.map((teacher) => teacher.userId) ?? []);
-
-  const activeSubjectId = selected?.subjects.some((subject) => subject.id === selectedSubjectId)
-    ? selectedSubjectId
-    : selected?.subjects[0]?.id || "";
-
-  async function assign(subjectId: string, teacherId: string) {
-    if (!selected || saving || !eligibleTeacherIds.has(teacherId)) return;
-    const subject = selected.subjects.find((item) => item.id === subjectId);
-    if (!subject || subject.teachers.some((teacher) => teacher.userId === teacherId)) return;
-
-    setSaving(`${subjectId}:${teacherId}`);
-    setError("");
-    try {
-      if (!selected.linkedSubjectIds.has(subjectId)) {
-        const linkResponse = await fetch(`/api/sections/${selected.section.id}/subjects`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ subjectId }),
-        });
-        if (!linkResponse.ok) {
-          const body = await linkResponse.json().catch(() => ({}));
-          throw new Error(body.detail || "Could not link subject to class.");
-        }
+  const dirty = useMemo(() => {
+    if (!matrix || show !== "class") return false;
+    for (const row of matrix.rows) {
+      if (!row.sectionId) continue;
+      for (const cell of row.cells) {
+        const key = `${row.sectionId}:${cell.subjectId}`;
+        const current = draft[key] ?? cell.teacherId ?? null;
+        const original = cell.teacherId ?? null;
+        if (current !== original) return true;
       }
-      const response = await fetch(
-        `/api/sections/${selected.section.id}/subjects/${subjectId}/teachers`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ userId: teacherId }),
-        }
-      );
-      if (!response.ok) {
-        const body = await response.json().catch(() => ({}));
-        throw new Error(body.detail || "Could not assign teacher.");
-      }
-      await load();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not assign teacher.");
-    } finally {
-      setSaving("");
     }
+    return false;
+  }, [draft, matrix, show]);
+
+  function setShow(next: "class" | "teacher") {
+    router.replace(
+      buildInstitutePathFromSearch(instituteId, searchParams, {
+        tab: "subject-teachers",
+        show: next,
+        branch: branchId,
+      })
+    );
   }
 
-  async function remove(subjectId: string, teacherId: string) {
-    if (!selected || saving) return;
-    setSaving(`${subjectId}:${teacherId}`);
+  function setCell(sectionId: string, subjectId: string, teacherId: string | null) {
+    setDraft((prev) => ({ ...prev, [`${sectionId}:${subjectId}`]: teacherId || null }));
+  }
+
+  async function save() {
+    if (!matrix || show !== "class") return;
+    setSaving(true);
     setError("");
     try {
-      const response = await fetch(
-        `/api/sections/${selected.section.id}/subjects/${subjectId}/teachers/${teacherId}`,
-        { method: "DELETE", credentials: "include" }
-      );
-      if (!response.ok) throw new Error("Could not remove teacher.");
+      const assignments: { sectionId: string; subjectId: string; teacherId: string | null }[] = [];
+      for (const row of matrix.rows) {
+        if (!row.sectionId) continue;
+        for (const cell of row.cells) {
+          const key = `${row.sectionId}:${cell.subjectId}`;
+          const original = cell.teacherId ?? null;
+          const current = draft[key] ?? original;
+          if (current !== original) {
+            assignments.push({
+              sectionId: row.sectionId,
+              subjectId: cell.subjectId,
+              teacherId: current,
+            });
+          }
+        }
+      }
+      const res = await fetch(`/api/institutes/${instituteId}/subject-teachers/assignments`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assignments }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.detail || "Could not save assignments.");
+      }
       await load();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not remove teacher.");
+      setError(cause instanceof Error ? cause.message : "Could not save assignments.");
     } finally {
-      setSaving("");
+      setSaving(false);
     }
   }
 
   if (loading) return <p className="mt-6 text-sm text-muted-foreground">Loading subject teachers...</p>;
-  if (error && !sections.length) {
-    return <p className="mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>;
-  }
 
   return (
-    <section className="mt-6 space-y-4">
-      {error && <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
-      <div className="grid gap-4 lg:grid-cols-[190px_minmax(300px,1fr)_250px]">
-        <div className="space-y-2">
-          <h2 className="px-2 text-sm font-semibold">Classes</h2>
-          {sections.map(({ section, subjects }) => (
-            <button
-              key={section.id}
-              type="button"
-              onClick={() => {
-                setSelectedSectionId(section.id);
-                setSelectedSubjectId(subjects[0]?.id || "");
-              }}
-              className={`w-full rounded-xl border p-3 text-left ${
-                section.id === selectedSectionId ? "border-primary bg-primary/10" : "border-border bg-background"
-              }`}
-            >
-              <p className="font-semibold">{section.className || "Class"} · {section.name}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{subjects.length} subjects</p>
-            </button>
-          ))}
-          {!sections.length && <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">No classes configured.</p>}
+    <section className="space-y-5">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-primary">Owner workspace</p>
+          <h1 className="mt-1 text-2xl font-semibold">Subject teachers</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Assign teachers to subjects per class. Fix gaps using the checks panel.
+          </p>
         </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <ViewToggle show={show} onChange={setShow} />
+          <button
+            type="button"
+            disabled={!dirty || saving || show !== "class"}
+            onClick={() => void save()}
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground disabled:opacity-50"
+          >
+            <Save className="h-3.5 w-3.5" />
+            {saving ? "Saving…" : "Save assignments"}
+          </button>
+        </div>
+      </div>
 
-        <div className="min-h-96 rounded-xl border-2 border-dashed border-border bg-muted/10 p-4">
-          {selected ? (
-            <>
-              <h2 className="text-xl font-semibold">{selected.section.className || "Class"} · {selected.section.name}</h2>
-              <p className="mt-1 text-sm text-muted-foreground">All institute subjects are shown. Drop a teacher into a subject slot.</p>
-              <div className="mt-5 space-y-3">
-                {selected.subjects.map((subject) => (
-                  <SubjectCard
-                    key={subject.id}
-                    subject={subject}
-                    saving={saving}
-                    staff={staff}
-                    onDrop={(teacherId) => void assign(subject.id, teacherId)}
-                    onRemove={(teacherId) => void remove(subject.id, teacherId)}
-                    selected={subject.id === activeSubjectId}
-                    onSelect={() => setSelectedSubjectId(subject.id)}
-                  />
+      {error && (
+        <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>
+      )}
+
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+        <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
+          {matrix && matrix.rows.length > 0 ? (
+            <table className="min-w-full text-xs">
+              <thead className="bg-muted/40 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="sticky left-0 z-10 bg-muted/40 px-3 py-2 font-medium">
+                    {show === "class" ? "Class" : "Teacher"}
+                  </th>
+                  {matrix.columns.map((col) => (
+                    <th key={col.subjectId} className="px-3 py-2 font-medium whitespace-nowrap">
+                      {col.name}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {matrix.rows.map((row) => (
+                  <tr key={row.sectionId || row.teacherId || row.label} className="border-t border-border/80">
+                    <td className="sticky left-0 z-10 bg-card px-3 py-2 font-medium whitespace-nowrap">
+                      {row.label}
+                    </td>
+                    {row.cells.map((cell) => (
+                      <td key={cell.subjectId} className="px-2 py-2 align-top">
+                        {show === "class" && row.sectionId ? (
+                          <select
+                            value={draft[`${row.sectionId}:${cell.subjectId}`] ?? cell.teacherId ?? ""}
+                            onChange={(event) =>
+                              setCell(row.sectionId!, cell.subjectId, event.target.value || null)
+                            }
+                            className="w-full min-w-[120px] rounded-md border border-border bg-background px-2 py-1"
+                          >
+                            <option value="">Unassigned</option>
+                            {teachers.map((teacher) => (
+                              <option key={teacher.userId} value={teacher.userId}>
+                                {teacher.name}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="text-muted-foreground">
+                            {(cell.sectionLabels && cell.sectionLabels.length > 0
+                              ? cell.sectionLabels.join(", ")
+                              : cell.teacherName) || "—"}
+                          </span>
+                        )}
+                      </td>
+                    ))}
+                  </tr>
                 ))}
-                {!selected.subjects.length && <p className="rounded-xl border border-dashed border-border p-6 text-sm text-muted-foreground">No institute subjects configured yet.</p>}
-              </div>
-            </>
-          ) : <p className="text-sm text-muted-foreground">Select a class to begin.</p>}
+              </tbody>
+            </table>
+          ) : (
+            <p className="p-8 text-center text-sm text-muted-foreground">No classes or teachers to display.</p>
+          )}
         </div>
 
-        <div className="space-y-2">
-          <h2 className="px-2 text-sm font-semibold">Teachers</h2>
-          <p className="px-2 text-xs text-muted-foreground">Teachers enrolled in this institute</p>
-          {teachers.map((teacher) => (
-            <div
-              key={teacher.userId}
-              draggable={eligibleTeacherIds.has(teacher.userId) && !saving}
-              onDragStart={(event) => event.dataTransfer.setData("teacherId", teacher.userId)}
-              className={`flex items-center justify-between rounded-xl border bg-background p-3 text-sm ${
-                eligibleTeacherIds.has(teacher.userId) ? "cursor-grab border-border" : "border-border/60 opacity-60"
-              }`}
-            >
-              <span className="truncate">{formatUserName(teacher)}</span>
-              {eligibleTeacherIds.has(teacher.userId) ? (
-                <>
-                  <span className="ml-2 text-xs text-muted-foreground">Drag</span>
-                  <button
-                    type="button"
-                    disabled={!activeSubjectId || Boolean(saving)}
-                    onClick={() => void assign(activeSubjectId, teacher.userId)}
-                    className="rounded-lg border border-border px-2 py-1 text-base leading-none disabled:opacity-40"
-                    aria-label={`Assign ${formatUserName(teacher)} to selected subject`}
-                  >
-                    +
-                  </button>
-                </>
-              ) : (
-                <span className="ml-2 text-[11px] text-muted-foreground">Assign to class first</span>
-              )}
-            </div>
-          ))}
-          {!teachers.length && <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">No teachers configured.</p>}
-        </div>
+        <ChecksPanel checks={checks} />
       </div>
     </section>
   );
 }
 
-function SubjectCard({
-  subject,
-  staff,
-  saving,
-  onDrop,
-  onRemove,
-  selected,
-  onSelect,
+function ViewToggle({
+  show,
+  onChange,
 }: {
-  subject: SectionSubject;
-  staff: Member[];
-  saving: string;
-  onDrop: (teacherId: string) => void;
-  onRemove: (teacherId: string) => void;
-  selected: boolean;
-  onSelect: () => void;
+  show: "class" | "teacher";
+  onChange: (value: "class" | "teacher") => void;
 }) {
   return (
-    <div
-      onClick={onSelect}
-      className={`rounded-xl border bg-background p-4 ${selected ? "border-primary ring-1 ring-primary/30" : "border-border"}`}
-    >
-      <div className="grid gap-3 sm:grid-cols-[minmax(120px,0.7fr)_minmax(180px,1.3fr)] sm:items-center">
-        <div>
-          <h3 className="font-semibold">{subject.name}</h3>
-          <span className="text-xs text-muted-foreground">{subject.teachers.length} assigned</span>
-        </div>
-        <div
-          onDragOver={(event) => event.preventDefault()}
-          onDrop={(event) => {
-            const teacherId = event.dataTransfer.getData("teacherId");
-            if (teacherId) onDrop(teacherId);
-          }}
-          className="min-h-12 rounded-lg border-2 border-dashed border-primary/30 bg-primary/5 p-2"
-        >
-          <p className="mb-1 text-[11px] font-medium text-primary">Drop teacher here</p>
-          <div className="flex flex-wrap gap-2">
-            {subject.teachers.map((teacher) => (
-              <span key={teacher.userId} className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-sm">
-                {formatUserName(findMember(staff, teacher.userId) ?? teacher)}
-                <button
-                  type="button"
-                  disabled={Boolean(saving)}
-                  onClick={() => onRemove(teacher.userId)}
-                  className="text-destructive disabled:opacity-50"
-                  aria-label={`Remove ${formatUserName(findMember(staff, teacher.userId) ?? teacher)}`}
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-          </div>
-        </div>
-      </div>
+    <div className="inline-flex rounded-lg border border-border bg-card p-0.5 text-xs">
+      <button
+        type="button"
+        onClick={() => onChange("class")}
+        className={`rounded-md px-3 py-1.5 ${show === "class" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+      >
+        By class
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange("teacher")}
+        className={`rounded-md px-3 py-1.5 ${show === "teacher" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+      >
+        By teacher
+      </button>
     </div>
   );
 }
 
-function findMember(members: Member[], userId: string) {
-  return members.find((member) => member.userId === userId);
-}
+function ChecksPanel({ checks }: { checks: ChecksPayload | null }) {
+  if (!checks) {
+    return (
+      <aside className="rounded-xl border border-dashed border-border bg-card p-4 text-sm text-muted-foreground">
+        Loading checks…
+      </aside>
+    );
+  }
 
-function sortSections(data: SectionData[]) {
-  return [...data].sort((a, b) => {
-    const grade = Number(a.section.className) - Number(b.section.className);
-    if (!Number.isNaN(grade) && grade !== 0) return grade;
-    return `${a.section.className}-${a.section.name}`.localeCompare(`${b.section.className}-${b.section.name}`);
-  });
+  return (
+    <aside className="space-y-3 rounded-xl border border-border bg-card p-4 shadow-sm">
+      <div className="flex items-center gap-2">
+        <AlertTriangle className="h-4 w-4 text-amber-600" />
+        <h2 className="text-sm font-semibold">Checks</h2>
+      </div>
+      <ul className="space-y-2 text-xs text-muted-foreground">
+        <li>
+          <span className="font-medium text-foreground">{checks.unassignedCount}</span> subject slots without a teacher
+        </li>
+        <li>
+          <span className="font-medium text-foreground">{checks.noClassCount}</span> teachers not enrolled in the class they teach
+        </li>
+        <li>
+          <span className="font-medium text-foreground">{checks.overLimitCount}</span> teachers over weekly period limit
+        </li>
+      </ul>
+      {checks.unassignedCells.length > 0 && (
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Unassigned</p>
+          <ul className="mt-1 max-h-40 space-y-1 overflow-y-auto text-xs">
+            {checks.unassignedCells.slice(0, 12).map((cell, index) => (
+              <li key={index}>
+                {cell.sectionLabel} · {cell.subjectName}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </aside>
+  );
 }

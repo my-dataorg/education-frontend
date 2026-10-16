@@ -26,11 +26,13 @@ export function IncomingRequestsPanel({
   canManage,
   refreshKey = 0,
   onChanged,
+  tableOnly = false,
 }: {
   instituteId: string;
   canManage: boolean;
   refreshKey?: number;
   onChanged?: () => void;
+  tableOnly?: boolean;
 }) {
   const router = useRouter();
   const [requests, setRequests] = useState<JoinRequestItem[]>([]);
@@ -94,8 +96,45 @@ export function IncomingRequestsPanel({
     load();
   }
 
+  const pending = requests.filter((r) => r.status === "pending");
+
   if (!canManage) return null;
-  if (loading) return null;
+  if (loading) {
+    return <p className="text-sm text-muted-foreground">{tableOnly ? "Loading requests…" : null}</p>;
+  }
+
+  if (tableOnly) {
+    if (!pending.length) {
+      return <p className="rounded-xl border border-dashed border-border bg-card p-8 text-center text-sm text-muted-foreground">No pending requests.</p>;
+    }
+    return (
+      <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
+        <table className="w-full text-left text-xs">
+          <thead className="bg-muted/50 uppercase tracking-wide text-muted-foreground">
+            <tr>
+              <th className="px-3 py-2 font-medium">Person</th>
+              <th className="px-3 py-2 font-medium">Role asked</th>
+              <th className="px-3 py-2 font-medium">Message</th>
+              <th className="px-3 py-2 font-medium text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pending.map((req) => (
+              <tr key={req.id} className="border-t border-border">
+                <td className="px-3 py-2.5"><UserIdentity user={req} role={req.requestedRole} /></td>
+                <td className="px-3 py-2.5">{ROLE_LABELS[req.requestedRole] || req.requestedRole}</td>
+                <td className="px-3 py-2.5 text-muted-foreground">{req.message || "—"}</td>
+                <td className="px-3 py-2.5 text-right">
+                  <button type="button" onClick={() => acceptRequest(req.id)} className="mr-2 rounded-lg bg-primary px-2 py-1 text-primary-foreground">Approve</button>
+                  <button type="button" onClick={() => rejectRequest(req.id)} className="rounded-lg border border-border px-2 py-1">Decline</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
 
   if (requests.length === 0 && invites.length === 0) {
     return (

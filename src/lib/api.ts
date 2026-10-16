@@ -84,6 +84,7 @@ export type Section = {
 };
 export type Subject = { id: string; name: string };
 export type SectionSubject = Subject & {
+  weeklyPeriods?: number | null;
   teachers: { userId: string }[];
   students?: { userId: string }[];
 };

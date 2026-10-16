@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   School,
   UserRoundCheck,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -24,7 +25,8 @@ export type TeacherTab =
   | "daily-notes"
   | "class-teacher"
   | "leave"
-  | "notices";
+  | "notices"
+  | "student-progress";
 
 export function TeacherShell({
   instituteName,
@@ -48,12 +50,13 @@ export function TeacherShell({
     { id: "class-teacher" as const, label: "Class teacher", icon: UserRoundCheck },
     { id: "leave" as const, label: "Leave", icon: BookOpen },
     { id: "notices" as const, label: "Notices", icon: Bell },
+    { id: "student-progress" as const, label: "Student progress", icon: Users },
   ];
 
   return (
-    <div className="flex min-h-[calc(100vh-3.5rem)] w-full bg-background">
-      <aside className="hidden w-64 shrink-0 border-r border-border bg-card md:block">
-        <div className="sticky top-0 p-4">
+    <div className="institute-shell flex min-h-0 h-[calc(100vh-3.5rem)] w-full overflow-hidden bg-background md:pl-56">
+      <aside className="fixed inset-y-14 left-0 z-20 hidden h-[calc(100vh-3.5rem)] min-h-0 w-56 overscroll-y-contain overflow-y-auto border-r border-border bg-card md:block">
+        <div className="p-4">
           <p className="font-serif text-base font-semibold">Education</p>
           <p className="mt-1 truncate text-[11px] text-muted-foreground">{instituteName}</p>
           <nav className="mt-6 space-y-1">
@@ -76,7 +79,7 @@ export function TeacherShell({
           </nav>
         </div>
       </aside>
-      <main className="min-w-0 flex-1 px-4 py-6 sm:px-6">
+      <main className="education-content min-h-0 min-w-0 w-full flex-1 overscroll-y-contain overflow-y-auto px-4 py-6 sm:px-6">
         <div className="mb-5 flex gap-1 overflow-x-auto border-b border-border pb-1 md:hidden">
           {items.map(({ id, label }) => (
             <button

@@ -29,7 +29,7 @@ const ALL_TABS: InstituteTab[] = [
   { id: "classes", label: "Classes & subjects" },
   { id: "enrollment", label: "Enrollment" },
   { id: "subject-teachers", label: "Subject teachers" },
-  { id: "schedule", label: "Schedule" },
+  { id: "schedule", label: "Timetable" },
   { id: "attendance", label: "Attendance" },
   { id: "exams", label: "Exams & results" },
   { id: "fees", label: "Fees" },
@@ -41,12 +41,14 @@ const ALL_TABS: InstituteTab[] = [
 
 export function getInstituteTabs(role: string): InstituteTab[] {
   if (role === "owner") return ALL_TABS;
+  if (role === "principal") {
+    return ALL_TABS.filter((tab) => tab.id !== "roles-settings");
+  }
   if (role === "admin") {
     return ALL_TABS.filter(
       (tab) => !["classes", "enrollment", "subject-teachers", "roles-settings"].includes(tab.id)
     );
   }
-  if (role === "principal") return [ALL_TABS[0]];
   return [];
 }
 

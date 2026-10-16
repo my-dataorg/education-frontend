@@ -28,6 +28,12 @@ export async function EduNav({ pendingInviteCount = 0 }: { pendingInviteCount?: 
             </Link>
           </div>
           <div className="flex items-center gap-3">
+            <Link href="/institutes?stay=1" className="hidden text-sm text-muted-foreground hover:text-foreground sm:inline">
+              Switch institute
+            </Link>
+            <Link href="/account" className="text-sm text-muted-foreground hover:text-foreground">
+              Account
+            </Link>
             <ManageInstitutesDropdown />
             <span className="hidden text-sm text-muted-foreground sm:inline">{session?.user?.name}</span>
             <Link href="http://localhost:3000/dashboard" className="text-sm text-primary hover:underline">

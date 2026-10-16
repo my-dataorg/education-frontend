@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { Copy } from "lucide-react";
+import { JoinCodeChip } from "@/components/join-code-chip";
 import { CampusesTab } from "@/components/institute-tabs/campuses-tab";
 import { ClassesTab } from "@/components/institute-tabs/classes-tab";
 import { EnrollmentTab } from "@/components/institute-tabs/enrollment-tab";
@@ -12,14 +12,19 @@ import { MembersTab } from "@/components/institute-tabs/members-tab";
 import { OverviewTab } from "@/components/institute-tabs/overview-tab";
 import { ScheduleTab } from "@/components/institute-tabs/schedule-tab";
 import { AttendanceTab } from "@/components/institute-tabs/attendance-tab";
-import { WireframeModuleTab } from "@/components/institute-tabs/wireframe-module-tab";
+import { AcademicYearTab } from "@/components/institute-tabs/academic-year-tab";
+import { ExamsTab } from "@/components/institute-tabs/exams-tab";
+import { FeesTab } from "@/components/institute-tabs/fees-tab";
+import { NoticesTab } from "@/components/institute-tabs/notices-tab";
+import { ReportsTab } from "@/components/institute-tabs/reports-tab";
+import { RolesSettingsTab } from "@/components/institute-tabs/roles-settings-tab";
 import { BranchPills, InstituteShell } from "@/components/institute-shell";
 import { ManageInstitutesDropdown } from "@/components/manage-institutes-dropdown";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Institute, InstituteSummary } from "@/lib/api";
 import { buildInstitutePathFromSearch } from "@/lib/embed-href";
 import { getInstituteTabs, resolveInstituteTab, type InstituteTabId } from "@/lib/institute-tabs";
-import { ROLE_LABELS } from "@/lib/roles";
+import { INSTITUTE_ADMIN_ROLES, ROLE_LABELS } from "@/lib/roles";
 import { EducationContextReporter } from "@/components/education-context-reporter";
 
 export type InstituteDetail = {
@@ -64,6 +69,7 @@ export function InstituteDashboard({
   const [loading, setLoading] = useState(!initialSummary);
   const [error, setError] = useState("");
   const [inviteRefreshKey, setInviteRefreshKey] = useState(0);
+  const [joinCode, setJoinCode] = useState(detail.joinCode);
 
   const tabs = getInstituteTabs(detail.role);
   const activeTab = resolveInstituteTab(detail.role, searchParams.get("tab"));
@@ -71,9 +77,11 @@ export function InstituteDashboard({
   const branches = summary?.branches ?? [];
   const branchParam = searchParams.get("branch");
   const selectedBranchId =
-    branchParam && branches.some((b) => b.id === branchParam)
-      ? branchParam
-      : defaultBranchId(branches);
+    branchParam === "all"
+      ? null
+      : branchParam && branches.some((b) => b.id === branchParam)
+        ? branchParam
+        : defaultBranchId(branches);
 
   const selectedBranch = branches.find((b) => b.id === selectedBranchId) ?? null;
 
@@ -129,7 +137,8 @@ export function InstituteDashboard({
     (ev) => !ev.branchName || !selectedBranch || ev.branchName === selectedBranch.name
   );
 
-  const showPrincipalRoster = detail.role === "principal" && !canManage;
+  const canAdminWorkspace = INSTITUTE_ADMIN_ROLES.has(detail.role);
+  const isOwner = detail.role === "owner";
 
   return (
     <>
@@ -143,8 +152,8 @@ export function InstituteDashboard({
       instituteId={instituteId}
       branches={branches}
       selectedBranchId={selectedBranchId}
-      canManage={canManage}
-      campusesTabHref={canManage ? tabHref("campuses") : undefined}
+      canManage={canAdminWorkspace}
+      campusesTabHref={canAdminWorkspace ? tabHref("campuses") : undefined}
       searchParams={searchParams}
       sectionTabs={tabs}
       activeTab={activeTab}
@@ -153,7 +162,14 @@ export function InstituteDashboard({
       <div className="px-4 py-5 sm:px-6">
         <div className="flex flex-wrap justify-end gap-2">
           <ManageInstitutesDropdown />
-          {canManage && <JoinCodeChip code={detail.joinCode} />}
+          {canAdminWorkspace && (
+            <JoinCodeChip
+              code={joinCode}
+              instituteId={instituteId}
+              canRegenerate={isOwner}
+              onCodeChange={setJoinCode}
+            />
+          )}
         </div>
 
         <div className="mt-4">
@@ -192,18 +208,17 @@ export function InstituteDashboard({
                 selectedBranchId={selectedBranchId}
                 branchEvents={branchEvents}
                 pendingInvitations={summary?.pendingInvitations ?? 0}
-                canManage={canManage}
+                canManage={canAdminWorkspace}
                 currentUserId={currentUserId}
                 currentUserName={currentUserName}
                 inviteRefreshKey={inviteRefreshKey}
                 onChanged={onChanged}
-                showRosterOnOverview={showPrincipalRoster}
               />
             </TabsContent>
 
-            {canManage && (
+            {canAdminWorkspace && (
               <>
-                {detail.role === "owner" && (
+                {getInstituteTabs(detail.role).some((t) => t.id === "classes") && (
                   <TabsContent value="classes" className="w-full">
                     <ClassesTab instituteId={instituteId} branches={branches} />
                   </TabsContent>
@@ -211,7 +226,7 @@ export function InstituteDashboard({
                 <TabsContent value="members" className="w-full">
                   <MembersTab
                     instituteId={instituteId}
-                    joinCode={detail.joinCode}
+                    joinCode={joinCode}
                     branches={branches}
                     selectedBranchId={selectedBranchId}
                     currentUserId={currentUserId}
@@ -229,7 +244,7 @@ export function InstituteDashboard({
                 </TabsContent>
 
                 <TabsContent value="subject-teachers" className="w-full">
-                  <SubjectTeachersTab instituteId={instituteId} />
+                  <SubjectTeachersTab instituteId={instituteId} branchId={selectedBranchId} />
                 </TabsContent>
 
                 <TabsContent value="schedule" className="w-full">
@@ -237,14 +252,29 @@ export function InstituteDashboard({
                 </TabsContent>
 
                 <TabsContent value="attendance" className="w-full">
-                  <AttendanceTab instituteId={instituteId} />
+                  <AttendanceTab instituteId={instituteId} branchId={selectedBranchId} />
                 </TabsContent>
 
-                {(["academic-year", "exams", "fees", "notices", "reports", "roles-settings"] as const).map((module) => (
-                  <TabsContent key={module} value={module} className="w-full">
-                    <WireframeModuleTab module={module} instituteId={instituteId} />
+                <TabsContent value="academic-year" className="w-full">
+                  <AcademicYearTab instituteId={instituteId} />
+                </TabsContent>
+                <TabsContent value="exams" className="w-full">
+                  <ExamsTab instituteId={instituteId} />
+                </TabsContent>
+                <TabsContent value="fees" className="w-full">
+                  <FeesTab instituteId={instituteId} />
+                </TabsContent>
+                <TabsContent value="notices" className="w-full">
+                  <NoticesTab instituteId={instituteId} branchId={selectedBranchId} />
+                </TabsContent>
+                <TabsContent value="reports" className="w-full">
+                  <ReportsTab instituteId={instituteId} branchId={selectedBranchId} />
+                </TabsContent>
+                {isOwner && (
+                  <TabsContent value="roles-settings" className="w-full">
+                    <RolesSettingsTab instituteId={instituteId} />
                   </TabsContent>
-                ))}
+                )}
 
                 <TabsContent value="campuses" className="w-full">
                   <CampusesTab
@@ -263,23 +293,3 @@ export function InstituteDashboard({
   );
 }
 
-function JoinCodeChip({ code }: { code: string }) {
-  const [copied, setCopied] = useState(false);
-  async function copy() {
-    await navigator.clipboard.writeText(code);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-  return (
-    <button
-      type="button"
-      onClick={copy}
-      className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs shadow-sm transition hover:bg-muted/60"
-    >
-      <span className="text-muted-foreground">Join</span>
-      <code className="font-semibold tracking-wider">{code}</code>
-      <Copy className="h-3 w-3 text-muted-foreground" />
-      {copied && <span className="text-primary">Copied</span>}
-    </button>
-  );
-}

@@ -26,6 +26,7 @@ type SectionOverview = {
 };
 
 type Schedule = {
+  publishedAt?: string | null;
   settings: { schoolStart: string; schoolEnd: string; weekdays: number[] };
   slots: Array<{ id: string; label: string; kind: string; start: string; end: string }>;
   entries: Array<{
@@ -38,6 +39,14 @@ type Schedule = {
 };
 
 const DAYS = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+type StudentInsightRow = {
+  userId: string;
+  displayName?: string;
+  username?: string;
+  performancePercent: number | null;
+  attendance: { attendancePercent: number | null; present: number; marked: number };
+};
 
 async function loadJson<T>(path: string): Promise<T> {
   const response = await fetch(path, { credentials: "include", cache: "no-store" });
@@ -70,6 +79,7 @@ export function TeacherWorkspace({
   const [overviews, setOverviews] = useState<Record<string, SectionOverview>>({});
   const [selectedSectionId, setSelectedSectionId] = useState(sections[0]?.id || "");
   const [error, setError] = useState("");
+  const [progressBySection, setProgressBySection] = useState<Record<string, StudentInsightRow[]>>({});
 
   useEffect(() => {
     Promise.all([
@@ -94,6 +104,23 @@ export function TeacherWorkspace({
       })
       .catch((reason) => setError(reason instanceof Error ? reason.message : "Could not load workspace"));
   }, [instituteId, sections]);
+
+  useEffect(() => {
+    if (tab !== "student-progress" || !sections.length) return;
+    Promise.all(
+      sections.map((section) =>
+        fetch(`/api/sections/${section.id}/student-insights`, { credentials: "include", cache: "no-store" }).then(
+          (response) => (response.ok ? response.json() : [])
+        )
+      )
+    )
+      .then((rows) => {
+        setProgressBySection(
+          Object.fromEntries(sections.map((section, index) => [section.id, rows[index] as StudentInsightRow[]]))
+        );
+      })
+      .catch(() => setProgressBySection({}));
+  }, [tab, sections]);
 
   const selectedSection = sections.find((section) => section.id === selectedSectionId);
   const selectedOverview = selectedSectionId ? overviews[selectedSectionId] : undefined;
@@ -154,8 +181,13 @@ export function TeacherWorkspace({
 
       {tab === "schedule" && (
         <div className="mt-6">
-          <h2 className="text-xl font-semibold">School schedule</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Read-only timetable for the whole institute.</p>
+          <h2 className="text-xl font-semibold">My schedule</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Published timetable for your classes.</p>
+          {!schedule?.publishedAt && (
+            <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              The timetable has not been published yet.
+            </p>
+          )}
           <ScheduleCard
             schedule={schedule}
             sections={allSections}
@@ -222,8 +254,60 @@ export function TeacherWorkspace({
         </div>
       )}
 
+      {tab === "student-progress" && (
+        <div className="mt-6 space-y-6">
+          <div>
+            <h2 className="text-xl font-semibold">Student progress</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Attendance and assignment completion for students in your classes.
+            </p>
+          </div>
+          {sections.map((section) => {
+            const rows = progressBySection[section.id] || [];
+            return (
+              <section key={section.id} className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                <h3 className="font-semibold">{section.className} · {section.name}</h3>
+                {!rows.length ? (
+                  <p className="mt-3 text-sm text-muted-foreground">No student data yet.</p>
+                ) : (
+                  <div className="mt-3 overflow-x-auto">
+                    <table className="w-full text-left text-sm">
+                      <thead className="text-xs uppercase tracking-wide text-muted-foreground">
+                        <tr>
+                          <th className="px-2 py-2">Student</th>
+                          <th className="px-2 py-2">Attendance</th>
+                          <th className="px-2 py-2">Performance</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.map((row) => (
+                          <tr key={row.userId} className="border-t border-border">
+                            <td className="px-2 py-2.5">{row.displayName || row.username || row.userId}</td>
+                            <td className="px-2 py-2.5">
+                              {row.attendance.attendancePercent == null
+                                ? "—"
+                                : `${row.attendance.attendancePercent}%`}
+                            </td>
+                            <td className="px-2 py-2.5">
+                              {row.performancePercent == null ? "—" : `${row.performancePercent}%`}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
+            );
+          })}
+        </div>
+      )}
+
       {(["marks", "class-teacher", "leave", "notices"] as const).includes(tab as "marks" | "class-teacher" | "leave" | "notices") && (
-        <TeacherModuleTab module={tab as "marks" | "class-teacher" | "leave" | "notices"} />
+        <TeacherModuleTab
+          module={tab as "marks" | "class-teacher" | "leave" | "notices"}
+          posts={tab === "notices" ? posts : []}
+        />
       )}
     </TeacherShell>
   );
@@ -339,6 +423,13 @@ function ScheduleCard({
   const sectionNames = useMemo(() => new Map(sections.map((section) => [section.id, `${section.className}-${section.name}`])), [sections]);
   const subjectNames = useMemo(() => new Map(subjects.map((subject) => [subject.id, subject.name])), [subjects]);
   if (!schedule) return <section className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">Loading schedule…</section>;
+  if (!schedule.publishedAt && !schedule.entries.length) {
+    return (
+      <section className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
+        The timetable has not been published yet.
+      </section>
+    );
+  }
 
   return (
     <section className="rounded-xl border border-border bg-card p-4 shadow-sm">

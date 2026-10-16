@@ -1,10 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import type { ReactNode } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ROLE_LABELS } from "@/lib/roles";
 import { formatUserName } from "@/components/user-identity";
 import type { Member, SectionSubject } from "@/lib/api";
+import { buildInstitutePathFromSearch } from "@/lib/embed-href";
 
 type Section = { id: string; name: string; className?: string };
 type SectionMapping = {
@@ -36,9 +38,31 @@ export function EnrollmentManager({
   const [filterValue, setFilterValue] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
-  const [module, setModule] = useState<EnrollmentModule>("teachers");
-  const [selectedSectionId, setSelectedSectionId] = useState("");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlModule = searchParams.get("enrollmentModule");
+  const initialModule: EnrollmentModule =
+    urlModule === "students" || urlModule === "subjects" || urlModule === "teachers"
+      ? urlModule
+      : "teachers";
+  const [module, setModule] = useState<EnrollmentModule>(initialModule);
+  const [selectedSectionId, setSelectedSectionId] = useState(searchParams.get("section") || "");
+  const [personSearch, setPersonSearch] = useState(searchParams.get("q") || "");
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [bulkLoading, setBulkLoading] = useState(false);
   const [canManage, setCanManage] = useState(false);
+
+  const replaceEnrollmentQuery = useCallback(
+    (patch: Record<string, string | undefined>) => {
+      router.replace(
+        buildInstitutePathFromSearch(instituteId, searchParams, {
+          tab: "enrollment",
+          ...patch,
+        })
+      );
+    },
+    [instituteId, router, searchParams]
+  );
 
   const load = useCallback(async () => {
     const [instituteRes, sectionRes, staffRes, studentRes, subjectRes] = await Promise.all([
@@ -54,7 +78,12 @@ export function EnrollmentManager({
     }
     const nextSections = sectionRes.ok ? await sectionRes.json() : [];
     setSections(nextSections);
-    setSelectedSectionId((current) => current || nextSections[0]?.id || "");
+    const fromUrl = searchParams.get("section");
+    if (fromUrl && nextSections.some((s: Section) => s.id === fromUrl)) {
+      setSelectedSectionId(fromUrl);
+    } else {
+      setSelectedSectionId((current) => current || nextSections[0]?.id || "");
+    }
     if (staffRes.ok) setStaff(await staffRes.json());
     if (studentRes.ok) setStudents(await studentRes.json());
     if (subjectRes.ok) setSubjects(await subjectRes.json());
@@ -81,6 +110,19 @@ export function EnrollmentManager({
     }, 0);
     return () => window.clearTimeout(timer);
   }, [load, refreshKey]);
+
+  useEffect(() => {
+    if (!selectedSectionId) return;
+    replaceEnrollmentQuery({
+      section: selectedSectionId,
+      enrollmentModule: module,
+      q: personSearch.trim() || undefined,
+    });
+  }, [module, personSearch, replaceEnrollmentQuery, selectedSectionId]);
+
+  useEffect(() => {
+    setSelectedUserIds([]);
+  }, [module, selectedSectionId]);
 
   async function assign(e: React.FormEvent) {
     e.preventDefault();
@@ -152,7 +194,38 @@ export function EnrollmentManager({
         setModule={setModule}
         update={update}
         canManage={canManage}
+        personSearch={personSearch}
+        setPersonSearch={setPersonSearch}
+        selectedUserIds={selectedUserIds}
+        setSelectedUserIds={setSelectedUserIds}
+        bulkLoading={bulkLoading}
+        onBulkAssign={async (userIds) => {
+          if (!selectedSectionId || !userIds.length) return;
+          setBulkLoading(true);
+          setMessage("");
+          const memberType = module === "students" ? "student" : "teacher";
+          let ok = 0;
+          for (const userId of userIds) {
+            const res = await fetch(`/api/sections/${selectedSectionId}`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({ userId, memberType }),
+            });
+            if (res.ok) ok += 1;
+          }
+          setBulkLoading(false);
+          setSelectedUserIds([]);
+          if (ok) {
+            setMessage(`Assigned ${ok} ${memberType}${ok === 1 ? "" : "s"}.`);
+            await load();
+            onChanged?.();
+          } else {
+            setMessage("Could not assign selected members.");
+          }
+        }}
       />
+      {message && <p className="text-sm text-muted-foreground">{message}</p>}
       <div className="hidden">
       <div className="rounded-2xl border border-border bg-gradient-to-br from-primary/10 via-card to-card p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -413,6 +486,12 @@ function SectionFirstWorkspace({
   setModule,
   update,
   canManage,
+  personSearch,
+  setPersonSearch,
+  selectedUserIds,
+  setSelectedUserIds,
+  bulkLoading,
+  onBulkAssign,
 }: {
   sections: Section[];
   staff: Member[];
@@ -424,6 +503,12 @@ function SectionFirstWorkspace({
   setModule: (module: EnrollmentModule) => void;
   update: (path: string, body?: object) => void;
   canManage: boolean;
+  personSearch: string;
+  setPersonSearch: (value: string) => void;
+  selectedUserIds: string[];
+  setSelectedUserIds: Dispatch<SetStateAction<string[]>>;
+  bulkLoading: boolean;
+  onBulkAssign: (userIds: string[]) => Promise<void>;
 }) {
   const section = sections.find((item) => item.id === selectedSectionId);
   const mapping = section ? mappings[section.id] ?? { teachers: [], students: [], subjects: [] } : null;
@@ -433,10 +518,28 @@ function SectionFirstWorkspace({
       ["teacher", "lecturer", "professor", "principal"].includes(person.role)
     );
   const assigned = module === "students" ? mapping?.students ?? [] : mapping?.teachers ?? [];
+  const searchLower = personSearch.trim().toLowerCase();
+  const filteredPeople = useMemo(() => {
+    if (!searchLower) return people;
+    return people.filter((person) => {
+      const name = formatUserName(person).toLowerCase();
+      const email = (person.email || "").toLowerCase();
+      return name.includes(searchLower) || email.includes(searchLower);
+    });
+  }, [people, searchLower]);
+  const selectableIds = filteredPeople
+    .filter((person) => !assigned.some((item) => item.userId === person.userId))
+    .map((person) => person.userId);
 
   function assign(userId: string) {
     if (!canManage || !section || assigned.some((person) => person.userId === userId)) return;
     update(`/api/sections/${section.id}`, { userId, memberType: module === "students" ? "student" : "teacher" });
+  }
+
+  function toggleSelected(userId: string) {
+    setSelectedUserIds((current) =>
+      current.includes(userId) ? current.filter((id) => id !== userId) : [...current, userId]
+    );
   }
 
   return (
@@ -482,17 +585,61 @@ function SectionFirstWorkspace({
               </button>
             ))}
           </div>
+          <input
+            type="search"
+            value={personSearch}
+            onChange={(event) => setPersonSearch(event.target.value)}
+            placeholder="Search by name or email"
+            className="mt-3 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+          />
+          {selectableIds.length > 0 && (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  setSelectedUserIds(
+                    selectedUserIds.length === selectableIds.length ? [] : selectableIds
+                  )
+                }
+                className="text-xs font-medium text-primary underline"
+              >
+                {selectedUserIds.length === selectableIds.length ? "Clear selection" : "Select all"}
+              </button>
+              {selectedUserIds.length > 0 && section && (
+                <button
+                  type="button"
+                  disabled={bulkLoading}
+                  onClick={() => void onBulkAssign(selectedUserIds)}
+                  className="rounded-lg bg-primary px-3 py-1.5 text-xs text-primary-foreground disabled:opacity-50"
+                >
+                  Add {selectedUserIds.length} to {section.className || "class"} · {section.name}
+                </button>
+              )}
+            </div>
+          )}
           <div className="mt-3 space-y-2">
-            {people.map((person) => {
+            {filteredPeople.map((person) => {
               const isAssigned = assigned.some((item) => item.userId === person.userId);
+              const isSelected = selectedUserIds.includes(person.userId);
               return (
                 <div key={person.userId} draggable={!isAssigned} onDragStart={(event) => event.dataTransfer.setData("userId", person.userId)} className={`flex items-center justify-between rounded-xl border bg-background p-3 ${isAssigned ? "opacity-50" : "cursor-grab"}`}>
-                  <span className="min-w-0 truncate text-sm">{formatUserName(person)}</span>
+                  <div className="flex min-w-0 items-center gap-2">
+                    {!isAssigned && (
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelected(person.userId)}
+                        aria-label={`Select ${formatUserName(person)}`}
+                      />
+                    )}
+                    <span className="min-w-0 truncate text-sm">{formatUserName(person)}</span>
+                    {isAssigned && <span className="text-[10px] text-muted-foreground">In class</span>}
+                  </div>
                   <button type="button" onClick={() => assign(person.userId)} disabled={isAssigned} className="ml-2 rounded-lg border border-border px-3 py-1 text-lg leading-none disabled:opacity-40" aria-label={`Assign ${formatUserName(person)}`}>+</button>
                 </div>
               );
             })}
-            {!people.length && <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">No {module} available.</p>}
+            {!filteredPeople.length && <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">No {module} match your search.</p>}
           </div>
         </div>}
       </div>

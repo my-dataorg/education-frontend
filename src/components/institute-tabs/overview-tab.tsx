@@ -7,10 +7,12 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { InstitutePeoplePanel } from "@/components/institute-people-panel";
 import type { InstituteSummary } from "@/lib/api";
+import { buildInstitutePathFromSearch } from "@/lib/embed-href";
 
 type Branch = InstituteSummary["branches"][number];
 type Overview = {
@@ -70,14 +72,18 @@ function MetricCard({
 function AttendanceByClass({
   sections,
   instituteId,
+  attendanceTabHref,
 }: {
   sections: Overview["attendanceByClass"];
   instituteId: string;
+  attendanceTabHref: string;
 }) {
   const visibleSections = sections;
   return (
     <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
-      <h2 className="text-sm font-semibold">Attendance by class, today</h2>
+      <h2 className="text-sm font-semibold">
+        <Link href={attendanceTabHref} className="hover:text-primary">Attendance by class, today</Link>
+      </h2>
       <div className="mt-4 flex h-28 items-end gap-2">
         {visibleSections.map((section) => (
           <Link href={`/institutes/${instituteId}/sections/${section.sectionId}?tab=attendance`} key={section.sectionId} className="flex min-w-0 flex-1 flex-col items-center gap-2">
@@ -110,6 +116,18 @@ export function OverviewTab({
   onChanged,
   showRosterOnOverview = false,
 }: Props) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const instituteHref = useCallback(
+    (overrides: Record<string, string | null | undefined>) =>
+      buildInstitutePathFromSearch(instituteId, searchParams, {
+        branch: selectedBranchId,
+        ...overrides,
+      }),
+    [instituteId, searchParams, selectedBranchId]
+  );
+  const campusSelectValue =
+    searchParams.get("branch") === "all" ? "all" : selectedBranchId || "";
   const insights = selectedBranch?.insights;
   const [overview, setOverview] = useState<Overview | null>(null);
   const [loading, setLoading] = useState(true);
@@ -151,8 +169,32 @@ export function OverviewTab({
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-serif text-2xl font-semibold">{greeting}, {currentUserName.split(" ")[0]}</h1>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Campus: {selectedBranch?.name || "Main campus"} · {new Date().toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}
+          <p className="mt-1 flex flex-wrap items-center gap-x-1 text-xs text-muted-foreground">
+            <span>Campus:</span>
+            {branches.length > 1 ? (
+              <select
+                value={campusSelectValue}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  router.replace(
+                    buildInstitutePathFromSearch(instituteId, searchParams, {
+                      tab: "overview",
+                      branch: value === "all" ? "all" : value || null,
+                    })
+                  );
+                }}
+                className="max-w-[10rem] rounded-md border border-border bg-background px-1.5 py-0.5 text-xs text-foreground"
+                aria-label="Filter by campus"
+              >
+                <option value="all">All campuses</option>
+                {branches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>{branch.name}</option>
+                ))}
+              </select>
+            ) : (
+              <span>{selectedBranch?.name || "Main campus"}</span>
+            )}
+            <span>· {new Date().toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}</span>
           </p>
         </div>
       </div>
@@ -164,30 +206,36 @@ export function OverviewTab({
           label="Students"
           value={loading ? "…" : overview?.stats.students ?? "—"}
           hint="at this campus"
-          href="?tab=members&memberTab=students"
+          href={instituteHref({ tab: "members", memberTab: "students" })}
         />
         <MetricCard
           icon={<Users className="h-4 w-4" />}
           label="Staff"
           value={loading ? "…" : overview?.stats.staff ?? "—"}
           hint="teaching here"
-          href="?tab=members&memberTab=staff"
+          href={instituteHref({ tab: "members", memberTab: "staff" })}
         />
-        <MetricCard icon={<ClipboardList className="h-4 w-4" />} label="Attendance today" value={overview?.stats.attendancePercent != null ? `${overview.stats.attendancePercent}%` : "—"} hint={`${overview?.stats.unmarkedClasses ?? "—"} classes unmarked`} href="?tab=attendance" />
-        <MetricCard icon={<ClipboardList className="h-4 w-4" />} label="Fees this month" value="—" hint="Set up a fee plan" href="?tab=fees" />
+        <MetricCard
+          icon={<ClipboardList className="h-4 w-4" />}
+          label="Attendance today"
+          value={overview?.stats.attendancePercent != null ? `${overview.stats.attendancePercent}%` : "—"}
+          hint={`${overview?.stats.unmarkedClasses ?? "—"} classes unmarked`}
+          href={instituteHref({ tab: "attendance", register: "unmarked" })}
+        />
+        <MetricCard icon={<ClipboardList className="h-4 w-4" />} label="Fees this month" value="—" hint="Set up a fee plan" href={instituteHref({ tab: "fees" })} />
         <MetricCard
           icon={<TrendingUp className="h-4 w-4" />}
           label="Avg completion"
           value={overview?.stats.assignmentCompletionPercent != null ? `${overview.stats.assignmentCompletionPercent}%` : "—"}
           hint="assignment submissions"
-          href="?tab=reports&report=assignments"
+          href={instituteHref({ tab: "reports", report: "assignments" })}
         />
         <MetricCard
           icon={<ClipboardList className="h-4 w-4" />}
           label="Pending approvals"
           value={overview?.stats.pendingApprovals ?? pendingInvitations}
           hint="requests, leave"
-          href="?tab=members&memberTab=requests"
+          href={instituteHref({ tab: "members", memberTab: "requests" })}
         />
       </div>
 
@@ -195,12 +243,30 @@ export function OverviewTab({
         <h2 className="text-sm font-semibold">Needs your attention</h2>
         <div className="mt-3 divide-y divide-border">
           {!overview?.attention.length && !loading && <p className="py-2 text-xs text-muted-foreground">Nothing needs your attention right now.</p>}
-          {overview?.attention.map((item) => <div key={item.kind} className="flex items-center justify-between gap-3 py-2.5 text-xs"><span>{item.label}</span><Link href={item.kind === "join_requests" ? `?tab=members&memberTab=requests` : "?tab=attendance"} className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted">{item.kind === "join_requests" ? "Review" : "View"}</Link></div>)}
+          {overview?.attention.map((item) => (
+            <div key={item.kind} className="flex items-center justify-between gap-3 py-2.5 text-xs">
+              <span>{item.label}</span>
+              <Link
+                href={
+                  item.kind === "join_requests"
+                    ? instituteHref({ tab: "members", memberTab: "requests" })
+                    : instituteHref({ tab: "attendance", register: "unmarked" })
+                }
+                className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted"
+              >
+                {item.kind === "join_requests" ? "Review" : "View"}
+              </Link>
+            </div>
+          ))}
         </div>
       </section>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(260px,0.8fr)]">
-        <AttendanceByClass instituteId={instituteId} sections={overview?.attendanceByClass ?? []} />
+        <AttendanceByClass
+          instituteId={instituteId}
+          sections={overview?.attendanceByClass ?? []}
+          attendanceTabHref={instituteHref({ tab: "attendance" })}
+        />
         <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
           <h2 className="text-sm font-semibold">Upcoming</h2>
           <div className="mt-3 space-y-2">

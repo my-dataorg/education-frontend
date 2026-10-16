@@ -16,7 +16,21 @@ type Member = {
   email?: string;
   username?: string;
 };
-type PersonRow = Member & { kind: "staff" | "student" };
+export type PersonRow = Member & { kind: "staff" | "student" | "parent" };
+const PAGE_SIZE = 25;
+
+type RosterResponse = {
+  items: (Member & {
+    kind?: string;
+    memberType?: string;
+    status?: string;
+    classLabel?: string;
+    className?: string;
+    sectionName?: string;
+  })[];
+  total: number;
+  tabCounts?: Record<string, number>;
+};
 type BranchSummary = InstituteSummary["branches"][number];
 
 function defaultBranchId(branches: BranchSummary[]): string | null {
@@ -80,6 +94,13 @@ export function InstitutePeoplePanel({
   searchQuery = "",
   memberType = "all",
   memberStatus = "all",
+  rosterLayout = false,
+  rosterTab = "all",
+  selectedUserId = null,
+  onSelectUser,
+  page = 1,
+  onPageChange,
+  onRosterLoaded,
   onChanged,
 }: {
   instituteId: string;
@@ -91,15 +112,73 @@ export function InstitutePeoplePanel({
   searchQuery?: string;
   memberType?: string;
   memberStatus?: string;
+  rosterLayout?: boolean;
+  rosterTab?: string;
+  selectedUserId?: string | null;
+  onSelectUser?: (person: PersonRow) => void;
+  page?: number;
+  onPageChange?: (page: number) => void;
+  onRosterLoaded?: (data: RosterResponse) => void;
   onChanged: () => void;
 }) {
-  const [expanded, setExpanded] = useState(canManage);
+  const [expanded, setExpanded] = useState(rosterLayout || canManage);
   const [allStaff, setAllStaff] = useState<Member[]>([]);
   const [allStudents, setAllStudents] = useState<Member[]>([]);
+  const [rosterRows, setRosterRows] = useState<PersonRow[]>([]);
+  const [rosterTotal, setRosterTotal] = useState(0);
   const [loading, setLoading] = useState(false);
 
   const loadMembers = useCallback(() => {
     setLoading(true);
+    if (rosterLayout) {
+      const tab =
+        rosterTab !== "all"
+          ? rosterTab
+          : memberType === "staff"
+            ? "staff"
+            : memberType === "student"
+              ? "students"
+              : memberType === "parent"
+                ? "parents"
+                : "all";
+      const params = new URLSearchParams({
+        tab,
+        page: String(page),
+        branch: branchId,
+        q: searchQuery.trim(),
+      });
+      if (memberStatus !== "all") params.set("status", memberStatus);
+      fetch(`/api/institutes/${instituteId}/members/roster?${params}`, { credentials: "include" })
+        .then(async (r) => {
+          const data = (await r.json()) as RosterResponse;
+          if (!r.ok) throw new Error("Could not load roster");
+          const rows: PersonRow[] = (data.items || []).map((row) => ({
+            userId: row.userId,
+            role: row.role,
+            firstName: row.firstName,
+            lastName: row.lastName,
+            displayName: row.displayName,
+            email: row.email,
+            username: row.username,
+            kind: (() => {
+              const raw = row.kind || row.memberType;
+              if (raw === "staff" || raw === "student" || raw === "parent") return raw;
+              if (row.role === "student") return "student";
+              if (row.role === "parent") return "parent";
+              return "staff";
+            })(),
+          }));
+          setRosterRows(rows);
+          setRosterTotal(data.total ?? rows.length);
+          onRosterLoaded?.(data);
+        })
+        .catch(() => {
+          setRosterRows([]);
+          setRosterTotal(0);
+        })
+        .finally(() => setLoading(false));
+      return;
+    }
     Promise.all([
       fetch(`/api/institutes/${instituteId}/members?group=staff`).then((r) => r.json()),
       fetch(`/api/institutes/${instituteId}/members?group=students`).then((r) => r.json()),
@@ -109,7 +188,17 @@ export function InstitutePeoplePanel({
         setAllStudents(students);
       })
       .finally(() => setLoading(false));
-  }, [instituteId]);
+  }, [
+    branchId,
+    instituteId,
+    memberStatus,
+    memberType,
+    onRosterLoaded,
+    page,
+    rosterLayout,
+    rosterTab,
+    searchQuery,
+  ]);
 
   useEffect(() => {
     if (!expanded) return;
@@ -117,6 +206,7 @@ export function InstitutePeoplePanel({
   }, [expanded, loadMembers, refreshKey]);
 
   const people = useMemo(() => {
+    if (rosterLayout) return rosterRows;
     const query = searchQuery.trim().toLowerCase();
     return buildBranchPeople(branchId, branches, allStaff, allStudents).filter((person) => {
       if (memberStatus === "pending") return false;
@@ -126,7 +216,22 @@ export function InstitutePeoplePanel({
         .filter(Boolean)
         .some((value) => value!.toLowerCase().includes(query));
     });
-  }, [branchId, branches, allStaff, allStudents, memberStatus, memberType, searchQuery]);
+  }, [
+    rosterLayout,
+    rosterRows,
+    branchId,
+    branches,
+    allStaff,
+    allStudents,
+    memberStatus,
+    memberType,
+    searchQuery,
+  ]);
+
+  const totalCount = rosterLayout ? rosterTotal : people.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const pageRows = rosterLayout ? people : people.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   async function changeRole(memberUserId: string, newRole: string) {
     await fetch(`/api/institutes/${instituteId}/members/${memberUserId}`, {
@@ -150,21 +255,28 @@ export function InstitutePeoplePanel({
 
   return (
     <section className="rounded-xl border border-border bg-card shadow-sm">
-      <button
-        type="button"
-        onClick={() => setExpanded((v) => !v)}
-        className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition hover:bg-muted/30"
-      >
-        <div>
+      {rosterLayout ? (
+        <div className="border-b border-border px-4 py-3.5">
           <h3 className="text-sm font-semibold">Staff &amp; students</h3>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {totalPeople} people at this campus · expand to view roster
-          </p>
+          <p className="mt-0.5 text-xs text-muted-foreground">{totalPeople} people at this campus</p>
         </div>
-        <ChevronDown
-          className={`h-4 w-4 shrink-0 text-muted-foreground transition ${expanded ? "rotate-180" : ""}`}
-        />
-      </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition hover:bg-muted/30"
+        >
+          <div>
+            <h3 className="text-sm font-semibold">Staff &amp; students</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {totalPeople} people at this campus · expand to view roster
+            </p>
+          </div>
+          <ChevronDown
+            className={`h-4 w-4 shrink-0 text-muted-foreground transition ${expanded ? "rotate-180" : ""}`}
+          />
+        </button>
+      )}
 
       {expanded && (
         <div className="border-t border-border">
@@ -187,16 +299,45 @@ export function InstitutePeoplePanel({
               <p className="px-4 py-8 text-sm text-muted-foreground">Loading roster...</p>
             ) : people.length === 0 ? (
               <p className="px-4 py-8 text-center text-sm text-muted-foreground">
-                No people at this campus yet.
+                {searchQuery ? "No members match these filters." : "No people at this campus yet."}
               </p>
             ) : (
-              <PeopleTable
-                people={people}
-                currentUserId={currentUserId}
-                canManage={canManage}
-                onChangeRole={changeRole}
-                onRemove={removeMember}
-              />
+              <>
+                <PeopleTable
+                  people={pageRows}
+                  currentUserId={currentUserId}
+                  canManage={canManage}
+                  selectedUserId={selectedUserId}
+                  onSelectUser={onSelectUser}
+                  onChangeRole={changeRole}
+                  onRemove={removeMember}
+                />
+                {totalPages > 1 && onPageChange && (
+                  <div className="flex items-center justify-between border-t border-border px-4 py-3 text-xs">
+                    <span className="text-muted-foreground">
+                      Page {safePage} of {totalPages} · {totalCount} members
+                    </span>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        disabled={safePage <= 1}
+                        onClick={() => onPageChange(safePage - 1)}
+                        className="rounded border border-border px-2 py-1 disabled:opacity-40"
+                      >
+                        Previous
+                      </button>
+                      <button
+                        type="button"
+                        disabled={safePage >= totalPages}
+                        onClick={() => onPageChange(safePage + 1)}
+                        className="rounded border border-border px-2 py-1 disabled:opacity-40"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -246,12 +387,16 @@ function PeopleTable({
   people,
   currentUserId,
   canManage,
+  selectedUserId,
+  onSelectUser,
   onChangeRole,
   onRemove,
 }: {
   people: PersonRow[];
   currentUserId: string;
   canManage: boolean;
+  selectedUserId?: string | null;
+  onSelectUser?: (person: PersonRow) => void;
   onChangeRole: (userId: string, role: string) => void;
   onRemove: (userId: string) => void;
 }) {
@@ -264,7 +409,8 @@ function PeopleTable({
         <tr>
           <th className="px-3 py-2 font-medium">Person</th>
           <th className="px-3 py-2 font-medium">Type</th>
-          <th className="px-3 py-2 font-medium">Role</th>
+          <th className="px-3 py-2 font-medium">Class / Role</th>
+          <th className="px-3 py-2 font-medium">Status</th>
           {canManage && <th className="px-3 py-2 text-right font-medium">Actions</th>}
         </tr>
       </thead>
@@ -276,7 +422,11 @@ function PeopleTable({
             person.kind === "student" ? studentEditableRoles : staffEditableRoles;
 
           return (
-            <tr key={person.userId} className="border-t border-border/80">
+            <tr
+              key={person.userId}
+              className={`border-t border-border/80 ${selectedUserId === person.userId ? "bg-primary/5" : ""} ${onSelectUser ? "cursor-pointer hover:bg-muted/30" : ""}`}
+              onClick={() => onSelectUser?.(person)}
+            >
               <td className="px-3 py-2">
                 <UserIdentity user={person} role={person.role} />
                 {isSelf && <span className="ml-1 text-primary">(you)</span>}
@@ -289,7 +439,7 @@ function PeopleTable({
                       : "bg-muted text-muted-foreground"
                   }`}
                 >
-                  {person.kind === "staff" ? "Staff" : "Student"}
+                  {person.kind === "staff" ? "Staff" : person.kind === "parent" ? "Parent" : "Student"}
                 </span>
               </td>
               <td className="px-3 py-2">
@@ -298,6 +448,7 @@ function PeopleTable({
                 ) : (
                   <select
                     value={person.role}
+                    onClick={(event) => event.stopPropagation()}
                     onChange={(e) => onChangeRole(person.userId, e.target.value)}
                     className="rounded-md border border-border px-1.5 py-0.5 text-[11px]"
                   >
@@ -312,12 +463,18 @@ function PeopleTable({
                   </select>
                 )}
               </td>
+              <td className="px-3 py-2">
+                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-800">Active</span>
+              </td>
               {canManage && (
                 <td className="px-3 py-2 text-right">
                   {!isOwnerRow && !isSelf && (
                     <button
                       type="button"
-                      onClick={() => onRemove(person.userId)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onRemove(person.userId);
+                      }}
                       className="text-[11px] text-red-600 hover:underline"
                     >
                       Remove

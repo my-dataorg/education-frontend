@@ -19,17 +19,22 @@ export function buildInstitutePath(instituteId: string, params: QueryParams = {}
 export function buildInstitutePathFromSearch(
   instituteId: string,
   searchParams: URLSearchParams,
-  overrides: QueryParams = {}
+  overrides: QueryParams & Record<string, string | null | undefined> = {}
 ): string {
   const embed =
     overrides.embed ?? isEmbedValue(searchParams.get("embed"));
-  const branch = overrides.branch !== undefined ? overrides.branch : searchParams.get("branch");
-  const tab = overrides.tab ?? searchParams.get("tab") ?? undefined;
+  const sp = new URLSearchParams(searchParams.toString());
+  for (const [key, value] of Object.entries(overrides)) {
+    if (key === "embed" || key === "branch") continue;
+    if (value === undefined || value === null || value === "") sp.delete(key);
+    else sp.set(key, String(value));
+  }
+  const branch =
+    overrides.branch !== undefined ? overrides.branch : sp.get("branch");
+  if (branch) sp.set("branch", branch);
+  else sp.delete("branch");
 
-  const path = buildInstitutePath(instituteId, {
-    tab: tab || undefined,
-    branch,
-    embed: false,
-  });
+  const qs = sp.toString();
+  const path = `/institutes/${instituteId}${qs ? `?${qs}` : ""}`;
   return embed ? addEmbedParam(path) : path;
 }

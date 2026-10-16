@@ -11,8 +11,14 @@ import { InvitationsList } from "@/components/invitations-list";
 import { ModuleCard } from "@/components/shell/module-card";
 import { isSubscriptionError } from "@/components/subscription-required";
 import { CreateInstituteModule } from "@/components/create-institute-module";
+import { ROLE_LABELS } from "@/lib/roles";
 
-export default async function InstitutesPage() {
+export default async function InstitutesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ stay?: string }>;
+}) {
+  const query = await searchParams;
   const session = await auth();
   if (!session?.accessToken) redirect("/login");
 
@@ -25,7 +31,12 @@ export default async function InstitutesPage() {
   institutes = result.institutes;
   error = result.error || "";
 
-  if (institutes.length === 1 && pendingInvites.length === 0 && pendingJoinRequests.length === 0) {
+  if (
+    institutes.length === 1 &&
+    pendingInvites.length === 0 &&
+    pendingJoinRequests.length === 0 &&
+    query.stay !== "1"
+  ) {
     redirect(`/institutes/${institutes[0].id}`);
   }
 
@@ -39,8 +50,8 @@ export default async function InstitutesPage() {
           title={institutes.length === 0 ? "Dashboard" : "Your institutes"}
           subtitle={
             institutes.length === 0
-              ? "Overview of Education — create an institute or join with a code."
-              : "Choose an institute, or manage create / join / delete."
+              ? "Create an institute or join with a code to get started."
+              : "Pick one to open it as owner, teacher, student, or parent. One account can hold several roles."
           }
         />
 
@@ -118,7 +129,7 @@ function MultipleInstitutes({ institutes }: { institutes: Institute[] }) {
           href={`/institutes/${inst.id}`}
           icon={<Building2 className="h-6 w-6" />}
           title={inst.name}
-          description={`Your role: ${inst.role}`}
+          description={`Your role: ${ROLE_LABELS[inst.role] || inst.role}`}
         />
       ))}
       <ModuleCard

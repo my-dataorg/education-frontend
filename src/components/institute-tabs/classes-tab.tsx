@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useState } from "react";
-import type { InstituteSummary, Section, Subject } from "@/lib/api";
+import type { InstituteSummary, Section, SectionSubject, Subject } from "@/lib/api";
 
 type Props = { instituteId: string; branches: InstituteSummary["branches"] };
 type Activity = { id: string; name: string };
@@ -15,6 +15,10 @@ export function ClassesTab({ instituteId, branches }: Props) {
   const [activityName, setActivityName] = useState("");
   const [sectionName, setSectionName] = useState("");
   const [className, setClassName] = useState("");
+  const [linkSectionId, setLinkSectionId] = useState("");
+  const [linkSubjectId, setLinkSubjectId] = useState("");
+  const [linkWeeklyPeriods, setLinkWeeklyPeriods] = useState("5");
+  const [sectionSubjects, setSectionSubjects] = useState<SectionSubject[]>([]);
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
@@ -31,7 +35,17 @@ export function ClassesTab({ instituteId, branches }: Props) {
     setSections(nextSections);
     setSubjects(nextSubjects);
     setActivities(nextActivities);
+    setLinkSectionId((current) => current || nextSections[0]?.id || "");
   }, [instituteId]);
+
+  const loadSectionSubjects = useCallback(async (sectionId: string) => {
+    if (!sectionId) {
+      setSectionSubjects([]);
+      return;
+    }
+    const res = await fetch(`/api/sections/${sectionId}/subjects`, { credentials: "include" });
+    setSectionSubjects(res.ok ? await res.json() : []);
+  }, []);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -39,6 +53,12 @@ export function ClassesTab({ instituteId, branches }: Props) {
     }, 0);
     return () => window.clearTimeout(timer);
   }, [load]);
+
+  useEffect(() => {
+    loadSectionSubjects(linkSectionId).catch((e) =>
+      setError(e instanceof Error ? e.message : "Could not load section subjects")
+    );
+  }, [linkSectionId, loadSectionSubjects]);
 
   async function change(path: string, options: RequestInit = {}) {
     const res = await fetch(path, { ...options, headers: { "Content-Type": "application/json", ...options.headers } });
@@ -92,6 +112,59 @@ export function ClassesTab({ instituteId, branches }: Props) {
       setError(e instanceof Error ? e.message : "Could not delete class");
     }
   }
+
+  async function linkSubjectToSection() {
+    if (!linkSectionId || !linkSubjectId) return;
+    const periods = Number(linkWeeklyPeriods);
+    if (!Number.isFinite(periods) || periods < 1 || periods > 40) {
+      setError("Weekly periods must be between 1 and 40");
+      return;
+    }
+    try {
+      await change(`/api/sections/${linkSectionId}/subjects`, {
+        method: "POST",
+        body: JSON.stringify({ subjectId: linkSubjectId }),
+      });
+      await change(`/api/sections/${linkSectionId}/subjects/${linkSubjectId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ weeklyPeriods: periods }),
+      });
+      setLinkSubjectId("");
+      await loadSectionSubjects(linkSectionId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not link subject");
+    }
+  }
+
+  async function saveWeeklyPeriods(sectionId: string, subjectId: string, raw: string) {
+    const periods = raw.trim() === "" ? null : Number(raw);
+    if (periods !== null && (!Number.isFinite(periods) || periods < 1 || periods > 40)) {
+      setError("Weekly periods must be between 1 and 40");
+      return;
+    }
+    try {
+      await change(`/api/sections/${sectionId}/subjects/${subjectId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ weeklyPeriods: periods }),
+      });
+      await loadSectionSubjects(sectionId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not update weekly periods");
+    }
+  }
+
+  async function unlinkSectionSubject(sectionId: string, subjectId: string) {
+    try {
+      await change(`/api/sections/${sectionId}/subjects/${subjectId}`, { method: "DELETE" });
+      await loadSectionSubjects(sectionId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not unlink subject");
+    }
+  }
+
+  const availableLinkSubjects = subjects.filter(
+    (subject) => !sectionSubjects.some((linked) => linked.id === subject.id)
+  );
 
   return (
     <div className="space-y-6">
@@ -159,6 +232,90 @@ export function ClassesTab({ instituteId, branches }: Props) {
               </li>
             ))}
           </ul>
+        </FormCard>
+        <FormCard title="Subjects per class">
+          <p className="text-xs text-muted-foreground">
+            Link institute subjects to a section and set how many periods per week each needs for the timetable.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <select
+              value={linkSectionId}
+              onChange={(e) => setLinkSectionId(e.target.value)}
+              className="min-w-40 flex-1 rounded-lg border border-border px-3 py-2 text-sm"
+            >
+              <option value="">Select section</option>
+              {sections.map((section) => (
+                <option key={section.id} value={section.id}>
+                  {section.className ? `${section.className}-${section.name}` : section.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          {linkSectionId && (
+            <>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <select
+                  value={linkSubjectId}
+                  onChange={(e) => setLinkSubjectId(e.target.value)}
+                  className="min-w-40 flex-1 rounded-lg border border-border px-3 py-2 text-sm"
+                >
+                  <option value="">Add subject…</option>
+                  {availableLinkSubjects.map((subject) => (
+                    <option key={subject.id} value={subject.id}>{subject.name}</option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  min={1}
+                  max={40}
+                  value={linkWeeklyPeriods}
+                  onChange={(e) => setLinkWeeklyPeriods(e.target.value)}
+                  placeholder="Periods / week"
+                  className="w-28 rounded-lg border border-border px-3 py-2 text-sm"
+                  aria-label="Weekly periods"
+                />
+                <button
+                  type="button"
+                  onClick={linkSubjectToSection}
+                  disabled={!linkSubjectId}
+                  className="rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground disabled:opacity-50"
+                >
+                  Link
+                </button>
+              </div>
+              <ul className="mt-3 space-y-2 text-sm">
+                {sectionSubjects.map((subject) => (
+                  <li key={subject.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/40 px-3 py-2">
+                    <span className="font-medium">{subject.name}</span>
+                    <div className="flex items-center gap-2">
+                      <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        Periods / week
+                        <input
+                          type="number"
+                          min={1}
+                          max={40}
+                          defaultValue={subject.weeklyPeriods ?? ""}
+                          key={`${subject.id}-${subject.weeklyPeriods ?? "empty"}`}
+                          onBlur={(e) => saveWeeklyPeriods(linkSectionId, subject.id, e.target.value)}
+                          className="w-16 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground"
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => unlinkSectionSubject(linkSectionId, subject.id)}
+                        className="text-xs text-destructive"
+                      >
+                        Unlink
+                      </button>
+                    </div>
+                  </li>
+                ))}
+                {!sectionSubjects.length && (
+                  <p className="text-xs text-muted-foreground">No subjects linked to this section yet.</p>
+                )}
+              </ul>
+            </>
+          )}
         </FormCard>
       </div>
     </div>

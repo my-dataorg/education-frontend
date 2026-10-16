@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
+import { TimetableOwnerView } from "@/components/institute-tabs/timetable-owner-view";
 
 type Section = { id: string; name: string; className: string };
 type Subject = { id: string; name: string; teachers: { userId: string }[]; linked?: boolean };
@@ -284,6 +285,13 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
 
   return (
     <div className="space-y-5">
+      <TimetableOwnerView instituteId={instituteId} />
+      <details
+        id="advanced-slot-layout"
+        className="rounded-xl border border-border bg-card p-4 shadow-sm [&_summary]:cursor-pointer [&_summary]:text-sm [&_summary]:font-semibold"
+      >
+        <summary>Advanced slot layout</summary>
+        <div className="mt-4 space-y-5">
       {error && <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
       <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -524,6 +532,8 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
         </div>
         {!sections.length && <p className="mt-5 rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">Create a class and section before setting a schedule.</p>}
       </section>
+        </div>
+      </details>
       {detailSection && (
         <SectionScheduleDialog
           section={detailSection}
