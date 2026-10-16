@@ -206,14 +206,14 @@ export function OverviewTab({
           label="Students"
           value={loading ? "…" : overview?.stats.students ?? "—"}
           hint="at this campus"
-          href={instituteHref({ tab: "members", memberTab: "students" })}
+          href={instituteHref({ tab: "associates", memberTab: "students" })}
         />
         <MetricCard
           icon={<Users className="h-4 w-4" />}
           label="Staff"
           value={loading ? "…" : overview?.stats.staff ?? "—"}
           hint="teaching here"
-          href={instituteHref({ tab: "members", memberTab: "staff" })}
+          href={instituteHref({ tab: "associates", memberTab: "staff" })}
         />
         <MetricCard
           icon={<ClipboardList className="h-4 w-4" />}
@@ -235,7 +235,7 @@ export function OverviewTab({
           label="Pending approvals"
           value={overview?.stats.pendingApprovals ?? pendingInvitations}
           hint="requests, leave"
-          href={instituteHref({ tab: "members", memberTab: "requests" })}
+          href={instituteHref({ tab: "associates", memberTab: "requests" })}
         />
       </div>
 
@@ -249,7 +249,7 @@ export function OverviewTab({
               <Link
                 href={
                   item.kind === "join_requests"
-                    ? instituteHref({ tab: "members", memberTab: "requests" })
+                    ? instituteHref({ tab: "associates", memberTab: "requests" })
                     : instituteHref({ tab: "attendance", register: "unmarked" })
                 }
                 className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted"

@@ -2,40 +2,46 @@
 
 import Link from "next/link";
 import {
-  BookOpen,
   BarChart3,
+  BookOpen,
   CalendarDays,
-  CalendarRange,
   CheckSquare,
   ClipboardList,
   GraduationCap,
   LayoutDashboard,
   MapPin,
   Megaphone,
-  ShieldCheck,
+  NotebookPen,
+  School,
+  Settings2,
+  UserRound,
   Users,
   WalletCards,
 } from "lucide-react";
 import type { InstituteSummary } from "@/lib/api";
 import { buildInstitutePathFromSearch } from "@/lib/embed-href";
-import type { InstituteTab, InstituteTabId } from "@/lib/institute-tabs";
+import {
+  INSTITUTE_TAB_GROUP_LABELS,
+  type InstituteTab,
+  type InstituteTabGroup,
+  type InstituteTabId,
+} from "@/lib/institute-tabs";
 import { cn } from "@/lib/utils";
 
 const TAB_ICONS: Record<InstituteTabId, React.ComponentType<{ className?: string }>> = {
   overview: LayoutDashboard,
-  members: Users,
-  "academic-year": CalendarRange,
-  enrollment: ClipboardList,
-  "subject-teachers": Users,
-  campuses: MapPin,
-  classes: BookOpen,
-  schedule: CalendarDays,
-  attendance: CheckSquare,
-  exams: GraduationCap,
+  profile: School,
+  configure: Settings2,
+  calendar: Megaphone,
+  associates: Users,
+  "teachers-classes": UserRound,
+  "students-classes": GraduationCap,
+  "daily-notes": NotebookPen,
   fees: WalletCards,
-  notices: Megaphone,
+  exams: BookOpen,
   reports: BarChart3,
-  "roles-settings": ShieldCheck,
+  attendance: CheckSquare,
+  timetable: CalendarDays,
 };
 
 type Props = {
@@ -58,6 +64,8 @@ export function InstituteShell({
   tabHref,
   children,
 }: Props & { children: React.ReactNode }) {
+  const groups: InstituteTabGroup[] = ["setup", "people", "operations", "outcomes"];
+
   return (
     <div className="institute-shell flex min-h-0 flex-1 w-full overflow-hidden bg-background">
       <aside
@@ -65,28 +73,41 @@ export function InstituteShell({
       >
         <div className="p-3 pt-4">
           {sectionTabs.length > 0 && tabHref && (
-            <ul className="space-y-0.5">
-              {sectionTabs.map((tab) => {
-                const Icon = TAB_ICONS[tab.id];
-                const active = activeTab === tab.id;
+            <div className="space-y-4">
+              {groups.map((group) => {
+                const items = sectionTabs.filter((tab) => tab.group === group);
+                if (!items.length) return null;
                 return (
-                  <li key={tab.id}>
-                    <Link
-                      href={tabHref(tab.id)}
-                      className={cn(
-                        "flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm transition",
-                        active
-                          ? "bg-sidebar-active font-medium text-primary-foreground"
-                          : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-                      )}
-                    >
-                      <Icon className="h-3.5 w-3.5 shrink-0" />
-                      {tab.label}
-                    </Link>
-                  </li>
+                  <div key={group}>
+                    <p className="mb-1 px-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      {INSTITUTE_TAB_GROUP_LABELS[group]}
+                    </p>
+                    <ul className="space-y-0.5">
+                      {items.map((tab) => {
+                        const Icon = TAB_ICONS[tab.id];
+                        const active = activeTab === tab.id;
+                        return (
+                          <li key={tab.id}>
+                            <Link
+                              href={tabHref(tab.id)}
+                              className={cn(
+                                "flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm transition",
+                                active
+                                  ? "bg-sidebar-active font-medium text-primary-foreground"
+                                  : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                              )}
+                            >
+                              <Icon className="h-3.5 w-3.5 shrink-0" />
+                              <span className="truncate">{tab.label}</span>
+                            </Link>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
                 );
               })}
-            </ul>
+            </div>
           )}
 
           {branches.length > 1 && (
@@ -126,7 +147,7 @@ export function InstituteShell({
         </div>
       </aside>
 
-      <div className="education-content min-h-0 min-w-0 flex-1">{children}</div>
+      <div className="education-content min-h-0 min-w-0 flex-1 overflow-y-auto">{children}</div>
     </div>
   );
 }

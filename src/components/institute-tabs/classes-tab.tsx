@@ -9,20 +9,28 @@ import { buildInstitutePathFromSearch } from "@/lib/embed-href";
 const CLASSES_TABS = ["sections", "subjects", "activities", "section-subjects"] as const;
 type ClassesTabId = (typeof CLASSES_TABS)[number];
 
-type Props = { instituteId: string; branches: InstituteSummary["branches"] };
+type Props = {
+  instituteId: string;
+  branches: InstituteSummary["branches"];
+  configureTab?: ClassesTabId;
+};
+
 type Activity = { id: string; name: string };
 
-export function ClassesTab({ instituteId, branches }: Props) {
+export function ClassesTab({ instituteId, branches, configureTab }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const tabParam = searchParams.get("classesTab");
+  const tabParam = configureTab ?? searchParams.get("configureTab") ?? searchParams.get("classesTab");
   const activeTab: ClassesTabId = CLASSES_TABS.includes(tabParam as ClassesTabId)
     ? (tabParam as ClassesTabId)
     : "sections";
 
   function selectTab(tab: ClassesTabId) {
     router.replace(
-      buildInstitutePathFromSearch(instituteId, searchParams, { tab: "classes", classesTab: tab })
+      buildInstitutePathFromSearch(instituteId, searchParams, {
+        tab: "configure",
+        configureTab: tab,
+      })
     );
   }
   const [sections, setSections] = useState<Section[]>([]);
@@ -185,23 +193,27 @@ export function ClassesTab({ instituteId, branches }: Props) {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-semibold">Classes & subjects</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Set up classes, institute subjects, activities, and weekly period links for the timetable.
-        </p>
-      </div>
+      {!configureTab && (
+        <>
+          <div>
+            <h1 className="text-2xl font-semibold">Classes & subjects</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Set up classes, institute subjects, activities, and weekly period links for the timetable.
+            </p>
+          </div>
 
-      <div className="flex flex-wrap gap-5 border-b border-border px-1 text-xs">
-        <ClassesSubTab label="Classes" active={activeTab === "sections"} onClick={() => selectTab("sections")} />
-        <ClassesSubTab label="Subjects" active={activeTab === "subjects"} onClick={() => selectTab("subjects")} />
-        <ClassesSubTab label="Activities" active={activeTab === "activities"} onClick={() => selectTab("activities")} />
-        <ClassesSubTab
-          label="Subjects per class"
-          active={activeTab === "section-subjects"}
-          onClick={() => selectTab("section-subjects")}
-        />
-      </div>
+          <div className="flex flex-wrap gap-5 border-b border-border px-1 text-xs">
+            <ClassesSubTab label="Classes" active={activeTab === "sections"} onClick={() => selectTab("sections")} />
+            <ClassesSubTab label="Subjects" active={activeTab === "subjects"} onClick={() => selectTab("subjects")} />
+            <ClassesSubTab label="Activities" active={activeTab === "activities"} onClick={() => selectTab("activities")} />
+            <ClassesSubTab
+              label="Subjects per class"
+              active={activeTab === "section-subjects"}
+              onClick={() => selectTab("section-subjects")}
+            />
+          </div>
+        </>
+      )}
 
       {error && <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
 

@@ -19,10 +19,14 @@ export function EnrollmentManager({
   instituteId,
   refreshKey = 0,
   onChanged,
+  fixedModule,
+  listTab = "teachers-classes",
 }: {
   instituteId: string;
   refreshKey?: number;
   onChanged?: () => void;
+  fixedModule?: EnrollmentModule;
+  listTab?: "teachers-classes" | "students-classes";
 }) {
   const [sections, setSections] = useState<Section[]>([]);
   const [staff, setStaff] = useState<Member[]>([]);
@@ -31,8 +35,8 @@ export function EnrollmentManager({
   const [message, setMessage] = useState("");
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [module, setModule] = useState<EnrollmentModule>(() =>
-    rosterModuleFromUrl(searchParams.get("enrollmentModule"))
+  const [module, setModule] = useState<EnrollmentModule>(
+    () => fixedModule ?? rosterModuleFromUrl(searchParams.get("enrollmentModule"))
   );
   const [selectedSectionId, setSelectedSectionId] = useState(searchParams.get("section") || "");
   const [personSearch, setPersonSearch] = useState(searchParams.get("q") || "");
@@ -44,12 +48,13 @@ export function EnrollmentManager({
     (patch: Record<string, string | undefined>) => {
       router.replace(
         buildInstitutePathFromSearch(instituteId, searchParams, {
-          tab: "enrollment",
+          tab: listTab,
+          enrollmentModule: fixedModule ?? module,
           ...patch,
         })
       );
     },
-    [instituteId, router, searchParams]
+    [fixedModule, instituteId, listTab, module, router, searchParams]
   );
 
   const load = useCallback(async () => {
@@ -101,7 +106,11 @@ export function EnrollmentManager({
       enrollmentModule: module,
       q: personSearch.trim() || undefined,
     });
-  }, [module, personSearch, replaceEnrollmentQuery, selectedSectionId]);
+  }, [fixedModule, module, personSearch, replaceEnrollmentQuery, selectedSectionId]);
+
+  useEffect(() => {
+    if (fixedModule) setModule(fixedModule);
+  }, [fixedModule]);
 
   useEffect(() => {
     setSelectedUserIds([]);
@@ -144,6 +153,7 @@ export function EnrollmentManager({
         setSelectedSectionId={setSelectedSectionId}
         module={module}
         setModule={setModule}
+        hideModuleToggle={Boolean(fixedModule)}
         update={update}
         canManage={canManage}
         personSearch={personSearch}
@@ -191,6 +201,7 @@ function SectionFirstWorkspace({
   setSelectedSectionId,
   module,
   setModule,
+  hideModuleToggle = false,
   update,
   canManage,
   personSearch,
@@ -208,6 +219,7 @@ function SectionFirstWorkspace({
   setSelectedSectionId: (id: string) => void;
   module: EnrollmentModule;
   setModule: (module: EnrollmentModule) => void;
+  hideModuleToggle?: boolean;
   update: (path: string, body?: object) => void;
   canManage: boolean;
   personSearch: string;
@@ -346,6 +358,7 @@ function SectionFirstWorkspace({
 
         {canManage && (
           <div>
+            {!hideModuleToggle && (
             <div className="flex flex-wrap gap-5 border-b border-border px-1 text-xs">
               <ModuleTab
                 label="Teachers"
@@ -358,6 +371,7 @@ function SectionFirstWorkspace({
                 onClick={() => setModule("students")}
               />
             </div>
+            )}
             <input
               type="search"
               value={personSearch}

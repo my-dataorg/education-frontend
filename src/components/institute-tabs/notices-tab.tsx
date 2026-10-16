@@ -1,6 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { buildInstitutePathFromSearch } from "@/lib/embed-href";
+import {
+  CalendarDayView,
+  CalendarWeekView,
+  CalendarYearView,
+} from "@/components/institute-tabs/calendar-extra-views";
 import { Paperclip, X } from "lucide-react";
 import type { InstitutePost, Section } from "@/lib/api";
 import { Panel } from "@/components/institute-tabs/module-tab-ui";
@@ -77,6 +84,9 @@ function readBadgeColor(pct: number) {
   return "bg-amber-100 text-amber-800";
 }
 
+const CALENDAR_VIEWS = ["month", "week", "day", "year"] as const;
+type CalendarViewId = (typeof CALENDAR_VIEWS)[number];
+
 export function NoticesTab({
   instituteId,
   branchId,
@@ -84,6 +94,21 @@ export function NoticesTab({
   instituteId: string;
   branchId?: string | null;
 }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const viewParam = searchParams.get("calendarView");
+  const calendarView: CalendarViewId = CALENDAR_VIEWS.includes(viewParam as CalendarViewId)
+    ? (viewParam as CalendarViewId)
+    : "month";
+
+  function setCalendarView(view: CalendarViewId) {
+    router.replace(
+      buildInstitutePathFromSearch(instituteId, searchParams, {
+        tab: "calendar",
+        calendarView: view,
+      })
+    );
+  }
   const [posts, setPosts] = useState<PostRow[]>([]);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [sections, setSections] = useState<Section[]>([]);
@@ -230,7 +255,7 @@ export function NoticesTab({
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">Notices &amp; calendar</h1>
+        <h1 className="text-2xl font-semibold">Holidays, events &amp; notices</h1>
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
@@ -473,12 +498,39 @@ export function NoticesTab({
         </Panel>
 
         <Panel title="Calendar">
-          <NoticesCalendarMonth
-            events={monthEvents}
-            month={calendarMonth}
-            onMonthChange={setCalendarMonth}
-            onAddEvent={() => setShowAddEvent(true)}
-          />
+          <div className="mb-3 flex flex-wrap gap-1 text-xs">
+            {CALENDAR_VIEWS.map((view) => (
+              <button
+                key={view}
+                type="button"
+                onClick={() => setCalendarView(view)}
+                className={`rounded-full border px-2.5 py-1 capitalize ${
+                  calendarView === view
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border text-muted-foreground"
+                }`}
+              >
+                {view}
+              </button>
+            ))}
+          </div>
+          {calendarView === "month" && (
+            <NoticesCalendarMonth
+              events={monthEvents}
+              month={calendarMonth}
+              onMonthChange={setCalendarMonth}
+              onAddEvent={() => setShowAddEvent(true)}
+            />
+          )}
+          {calendarView === "week" && (
+            <CalendarWeekView events={events} anchor={calendarMonth} />
+          )}
+          {calendarView === "day" && (
+            <CalendarDayView events={events} day={calendarMonth} />
+          )}
+          {calendarView === "year" && (
+            <CalendarYearView events={events} year={calendarMonth.getFullYear()} />
+          )}
         </Panel>
       </div>
 

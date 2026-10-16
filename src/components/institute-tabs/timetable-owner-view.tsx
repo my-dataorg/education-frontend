@@ -174,7 +174,7 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
     (patch: Record<string, string | null | undefined>) => {
       router.replace(
         buildInstitutePathFromSearch(instituteId, searchParams, {
-          tab: "schedule",
+          tab: "timetable",
           ...patch,
         })
       );

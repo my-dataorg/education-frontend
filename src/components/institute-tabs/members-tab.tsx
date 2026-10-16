@@ -98,7 +98,7 @@ export function MembersTab({
     (patch: Record<string, string | undefined>) => {
       router.replace(
         buildInstitutePathFromSearch(instituteId, searchParams, {
-          tab: "members",
+          tab: "associates",
           ...patch,
         })
       );
@@ -159,7 +159,7 @@ export function MembersTab({
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <h1 className="text-2xl font-semibold">Members</h1>
+        <h1 className="text-2xl font-semibold">Associates</h1>
         <div className="flex flex-wrap gap-2">
           <button
             type="button"

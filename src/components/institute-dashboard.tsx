@@ -3,25 +3,29 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { CampusesTab } from "@/components/institute-tabs/campuses-tab";
-import { ClassesTab } from "@/components/institute-tabs/classes-tab";
-import { EnrollmentTab } from "@/components/institute-tabs/enrollment-tab";
-import { SubjectTeachersTab } from "@/components/institute-tabs/subject-teachers-tab";
+import { ConfigureTab } from "@/components/institute-tabs/configure-tab";
+import { ProfileTab } from "@/components/institute-tabs/profile-tab";
+import { TeachersClassesTab } from "@/components/institute-tabs/teachers-classes-tab";
+import { StudentsClassesTab } from "@/components/institute-tabs/students-classes-tab";
+import { DailyNotesTab } from "@/components/institute-tabs/daily-notes-tab";
 import { MembersTab } from "@/components/institute-tabs/members-tab";
 import { OverviewTab } from "@/components/institute-tabs/overview-tab";
 import { ScheduleTab } from "@/components/institute-tabs/schedule-tab";
 import { AttendanceTab } from "@/components/institute-tabs/attendance-tab";
-import { AcademicYearTab } from "@/components/institute-tabs/academic-year-tab";
 import { ExamsTab } from "@/components/institute-tabs/exams-tab";
 import { FeesTab } from "@/components/institute-tabs/fees-tab";
 import { NoticesTab } from "@/components/institute-tabs/notices-tab";
 import { ReportsTab } from "@/components/institute-tabs/reports-tab";
-import { RolesSettingsTab } from "@/components/institute-tabs/roles-settings-tab";
 import { BranchPills, InstituteShell } from "@/components/institute-shell";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { InstituteSummary } from "@/lib/api";
 import { buildInstitutePathFromSearch } from "@/lib/embed-href";
-import { getInstituteTabs, resolveInstituteTab, type InstituteTabId } from "@/lib/institute-tabs";
+import {
+  getInstituteTabs,
+  legacyTabQueryOverrides,
+  resolveInstituteTab,
+  type InstituteTabId,
+} from "@/lib/institute-tabs";
 import { INSTITUTE_ADMIN_ROLES, ROLE_LABELS } from "@/lib/roles";
 import { EducationContextReporter } from "@/components/education-context-reporter";
 
@@ -68,7 +72,12 @@ export function InstituteDashboard({
   const [joinCode, setJoinCode] = useState(detail.joinCode);
 
   const tabs = getInstituteTabs(detail.role);
-  const activeTab = resolveInstituteTab(detail.role, searchParams.get("tab"));
+  const tabParam = searchParams.get("tab");
+  const activeTab = resolveInstituteTab(
+    detail.role,
+    tabParam,
+    searchParams.get("enrollmentModule")
+  );
 
   const branches = summary?.branches ?? [];
   const branchParam = searchParams.get("branch");
@@ -107,15 +116,20 @@ export function InstituteDashboard({
   }, [initialSummary, refreshSummary]);
 
   useEffect(() => {
-    const tabParam = searchParams.get("tab");
-    if (tabParam && tabParam === activeTab) return;
-    if (!tabParam && activeTab === "overview") return;
-    if (tabParam && !tabs.some((t) => t.id === tabParam)) {
+    const legacy = legacyTabQueryOverrides(tabParam, searchParams);
+    if (!legacy) return;
+    router.replace(buildInstitutePathFromSearch(instituteId, searchParams, legacy));
+  }, [instituteId, router, searchParams, tabParam]);
+
+  useEffect(() => {
+    if (!tabParam) return;
+    if (tabParam === activeTab) return;
+    if (!tabs.some((t) => t.id === tabParam)) {
       router.replace(
         buildInstitutePathFromSearch(instituteId, searchParams, { tab: activeTab })
       );
     }
-  }, [activeTab, instituteId, router, searchParams, tabs]);
+  }, [activeTab, instituteId, router, searchParams, tabParam, tabs]);
 
   function onChanged() {
     setInviteRefreshKey((k) => k + 1);
@@ -135,6 +149,7 @@ export function InstituteDashboard({
 
   const canAdminWorkspace = INSTITUTE_ADMIN_ROLES.has(detail.role);
   const isOwner = detail.role === "owner";
+  const showOwnerSetup = isOwner || detail.role === "principal";
 
   return (
     <>
@@ -154,7 +169,7 @@ export function InstituteDashboard({
       activeTab={activeTab}
       tabHref={tabHref}
     >
-      <div className="px-4 pt-3 pb-5 sm:px-6">
+      <div className="px-3 pt-2 pb-4 sm:px-4">
         <div>
           <BranchPills
             instituteId={instituteId}
@@ -172,7 +187,7 @@ export function InstituteDashboard({
             {error}
           </p>
         ) : (
-          <Tabs value={activeTab} className={`${activeTab === "overview" ? "mt-3" : "mt-6"} w-full min-w-0`}>
+          <Tabs value={activeTab} className={`${activeTab === "overview" ? "mt-1" : "mt-4"} w-full min-w-0`}>
             {tabs.length > 1 && (
               <TabsList aria-label="Institute sections" className="mb-2 md:hidden">
                 {tabs.map((tab) => (
@@ -201,12 +216,28 @@ export function InstituteDashboard({
 
             {canAdminWorkspace && (
               <>
-                {getInstituteTabs(detail.role).some((t) => t.id === "classes") && (
-                  <TabsContent value="classes" className="w-full">
-                    <ClassesTab instituteId={instituteId} branches={branches} />
+                {showOwnerSetup && (
+                  <TabsContent value="profile" className="w-full">
+                    <ProfileTab
+                      instituteId={instituteId}
+                      instituteName={detail.name}
+                      joinCode={joinCode}
+                      branches={branches}
+                      onChanged={onChanged}
+                      onJoinCodeChange={setJoinCode}
+                    />
                   </TabsContent>
                 )}
-                <TabsContent value="members" className="w-full">
+                {showOwnerSetup && (
+                  <TabsContent value="configure" className="w-full">
+                    <ConfigureTab
+                      instituteId={instituteId}
+                      branches={branches}
+                      showRoles={isOwner}
+                    />
+                  </TabsContent>
+                )}
+                <TabsContent value="associates" className="w-full">
                   <MembersTab
                     instituteId={instituteId}
                     joinCode={joinCode}
@@ -217,54 +248,47 @@ export function InstituteDashboard({
                     onChanged={onChanged}
                   />
                 </TabsContent>
-
-                <TabsContent value="enrollment" className="w-full">
-                  <EnrollmentTab
-                    instituteId={instituteId}
-                    inviteRefreshKey={inviteRefreshKey}
-                    onChanged={onChanged}
-                  />
+                {showOwnerSetup && (
+                  <TabsContent value="teachers-classes" className="w-full">
+                    <TeachersClassesTab
+                      instituteId={instituteId}
+                      branchId={selectedBranchId}
+                      inviteRefreshKey={inviteRefreshKey}
+                      onChanged={onChanged}
+                    />
+                  </TabsContent>
+                )}
+                {showOwnerSetup && (
+                  <TabsContent value="students-classes" className="w-full">
+                    <StudentsClassesTab
+                      instituteId={instituteId}
+                      inviteRefreshKey={inviteRefreshKey}
+                      onChanged={onChanged}
+                    />
+                  </TabsContent>
+                )}
+                <TabsContent value="calendar" className="w-full">
+                  <NoticesTab instituteId={instituteId} branchId={selectedBranchId} />
                 </TabsContent>
-
-                <TabsContent value="subject-teachers" className="w-full">
-                  <SubjectTeachersTab instituteId={instituteId} branchId={selectedBranchId} />
-                </TabsContent>
-
-                <TabsContent value="schedule" className="w-full">
-                  <ScheduleTab instituteId={instituteId} />
-                </TabsContent>
-
                 <TabsContent value="attendance" className="w-full">
                   <AttendanceTab instituteId={instituteId} branchId={selectedBranchId} />
                 </TabsContent>
-
-                <TabsContent value="academic-year" className="w-full">
-                  <AcademicYearTab instituteId={instituteId} />
+                <TabsContent value="timetable" className="w-full">
+                  <ScheduleTab instituteId={instituteId} />
                 </TabsContent>
+                {showOwnerSetup && (
+                  <TabsContent value="daily-notes" className="w-full">
+                    <DailyNotesTab instituteId={instituteId} />
+                  </TabsContent>
+                )}
                 <TabsContent value="exams" className="w-full">
                   <ExamsTab instituteId={instituteId} />
                 </TabsContent>
                 <TabsContent value="fees" className="w-full">
                   <FeesTab instituteId={instituteId} />
                 </TabsContent>
-                <TabsContent value="notices" className="w-full">
-                  <NoticesTab instituteId={instituteId} branchId={selectedBranchId} />
-                </TabsContent>
                 <TabsContent value="reports" className="w-full">
                   <ReportsTab instituteId={instituteId} branchId={selectedBranchId} />
-                </TabsContent>
-                {isOwner && (
-                  <TabsContent value="roles-settings" className="w-full">
-                    <RolesSettingsTab instituteId={instituteId} />
-                  </TabsContent>
-                )}
-
-                <TabsContent value="campuses" className="w-full">
-                  <CampusesTab
-                    instituteId={instituteId}
-                    branches={branches}
-                    onChanged={onChanged}
-                  />
                 </TabsContent>
               </>
             )}
@@ -276,4 +300,3 @@ export function InstituteDashboard({
     </>
   );
 }
-
