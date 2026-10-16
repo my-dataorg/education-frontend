@@ -12,7 +12,6 @@ import {
   LayoutDashboard,
   MapPin,
   Megaphone,
-  Plus,
   ShieldCheck,
   Users,
   WalletCards,
@@ -44,8 +43,6 @@ type Props = {
   instituteName: string;
   branches: InstituteSummary["branches"];
   selectedBranchId: string | null;
-  canManage: boolean;
-  campusesTabHref?: string;
   searchParams?: URLSearchParams;
   sectionTabs?: InstituteTab[];
   activeTab?: InstituteTabId;
@@ -57,8 +54,6 @@ export function InstituteShell({
   instituteName,
   branches,
   selectedBranchId,
-  canManage,
-  campusesTabHref,
   searchParams,
   sectionTabs = [],
   activeTab,
@@ -132,16 +127,6 @@ export function InstituteShell({
                 );
               })}
             </ul>
-          )}
-
-          {canManage && campusesTabHref && (
-            <Link
-              href={campusesTabHref}
-              className="mt-3 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-muted-foreground transition hover:bg-muted/80 hover:text-foreground"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Add campus
-            </Link>
           )}
         </div>
       </aside>

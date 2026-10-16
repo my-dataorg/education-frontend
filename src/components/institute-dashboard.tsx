@@ -151,8 +151,6 @@ export function InstituteDashboard({
       instituteId={instituteId}
       branches={branches}
       selectedBranchId={selectedBranchId}
-      canManage={canAdminWorkspace}
-      campusesTabHref={canAdminWorkspace ? tabHref("campuses") : undefined}
       searchParams={searchParams}
       sectionTabs={tabs}
       activeTab={activeTab}
