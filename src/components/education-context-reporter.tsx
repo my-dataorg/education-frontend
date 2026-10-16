@@ -6,17 +6,19 @@ export function EducationContextReporter({
   instituteName,
   subtitle,
   role,
+  showManageInstitutes = false,
 }: {
   instituteName: string;
   subtitle?: string;
   role?: string;
+  showManageInstitutes?: boolean;
 }) {
   useEffect(() => {
     window.parent.postMessage(
-      { type: "app-context", name: instituteName, subtitle, role },
+      { type: "app-context", name: instituteName, subtitle, role, showManageInstitutes },
       "*"
     );
-  }, [instituteName, role, subtitle]);
+  }, [instituteName, role, showManageInstitutes, subtitle]);
 
   return null;
 }

@@ -29,12 +29,10 @@ export type TeacherTab =
   | "student-progress";
 
 export function TeacherShell({
-  instituteName,
   activeTab,
   onTabChange,
   children,
 }: {
-  instituteName: string;
   activeTab: TeacherTab;
   onTabChange: (tab: TeacherTab) => void;
   children: React.ReactNode;
@@ -56,10 +54,8 @@ export function TeacherShell({
   return (
     <div className="institute-shell flex min-h-0 flex-1 w-full overflow-hidden bg-background">
       <aside className="hidden h-full min-h-0 w-56 shrink-0 overflow-y-auto overscroll-y-contain border-r border-border bg-card md:flex md:flex-col">
-        <div className="p-4">
-          <p className="font-serif text-base font-semibold">Education</p>
-          <p className="mt-1 truncate text-[11px] text-muted-foreground">{instituteName}</p>
-          <nav className="mt-6 space-y-1">
+        <div className="p-3 pt-4">
+          <nav className="space-y-1">
             {items.map(({ id, label, icon: Icon }) => (
               <button
                 key={id}

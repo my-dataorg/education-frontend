@@ -40,7 +40,6 @@ const TAB_ICONS: Record<InstituteTabId, React.ComponentType<{ className?: string
 
 type Props = {
   instituteId: string;
-  instituteName: string;
   branches: InstituteSummary["branches"];
   selectedBranchId: string | null;
   searchParams?: URLSearchParams;
@@ -51,7 +50,6 @@ type Props = {
 
 export function InstituteShell({
   instituteId,
-  instituteName,
   branches,
   selectedBranchId,
   searchParams,
@@ -65,12 +63,9 @@ export function InstituteShell({
       <aside
         className="hidden h-full min-h-0 w-56 shrink-0 overflow-y-auto overscroll-y-contain border-r border-border bg-card md:flex md:flex-col"
       >
-        <div className="p-4">
-          <p className="font-serif text-base font-semibold">Education</p>
-          <p className="mt-1 truncate text-[11px] text-muted-foreground">{instituteName}</p>
-
+        <div className="p-3 pt-4">
           {sectionTabs.length > 0 && tabHref && (
-            <ul className="mt-5 space-y-0.5">
+            <ul className="space-y-0.5">
               {sectionTabs.map((tab) => {
                 const Icon = TAB_ICONS[tab.id];
                 const active = activeTab === tab.id;

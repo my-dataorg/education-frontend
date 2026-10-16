@@ -139,7 +139,6 @@ export function TeacherWorkspace({
 
   return (
     <TeacherShell
-      instituteName={instituteName}
       activeTab={tab}
       onTabChange={(nextTab) => {
         setTab(nextTab);

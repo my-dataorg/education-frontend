@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { JoinCodeChip } from "@/components/join-code-chip";
 import { CampusesTab } from "@/components/institute-tabs/campuses-tab";
 import { ClassesTab } from "@/components/institute-tabs/classes-tab";
 import { EnrollmentTab } from "@/components/institute-tabs/enrollment-tab";
@@ -19,7 +18,6 @@ import { NoticesTab } from "@/components/institute-tabs/notices-tab";
 import { ReportsTab } from "@/components/institute-tabs/reports-tab";
 import { RolesSettingsTab } from "@/components/institute-tabs/roles-settings-tab";
 import { BranchPills, InstituteShell } from "@/components/institute-shell";
-import { ManageInstitutesDropdown } from "@/components/manage-institutes-dropdown";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { InstituteSummary } from "@/lib/api";
 import { buildInstitutePathFromSearch } from "@/lib/embed-href";
@@ -144,10 +142,10 @@ export function InstituteDashboard({
       instituteName={detail.name}
       subtitle={branches.length > 1 ? selectedBranch?.name : undefined}
       role={ROLE_LABELS[detail.role] || detail.role}
+      showManageInstitutes={canAdminWorkspace}
     />
     <div className="flex min-h-0 flex-1 flex-col">
     <InstituteShell
-      instituteName={detail.name}
       instituteId={instituteId}
       branches={branches}
       selectedBranchId={selectedBranchId}
@@ -157,19 +155,7 @@ export function InstituteDashboard({
       tabHref={tabHref}
     >
       <div className="px-4 py-5 sm:px-6">
-        <div className="flex flex-wrap justify-end gap-2">
-          <ManageInstitutesDropdown />
-          {canAdminWorkspace && (
-            <JoinCodeChip
-              code={joinCode}
-              instituteId={instituteId}
-              canRegenerate={isOwner}
-              onCodeChange={setJoinCode}
-            />
-          )}
-        </div>
-
-        <div className="mt-4">
+        <div>
           <BranchPills
             instituteId={instituteId}
             branches={branches}
