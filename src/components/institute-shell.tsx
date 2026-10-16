@@ -4,7 +4,6 @@ import Link from "next/link";
 import {
   BookOpen,
   BarChart3,
-  Building2,
   CalendarDays,
   CalendarRange,
   CheckSquare,
@@ -18,11 +17,9 @@ import {
   Users,
   WalletCards,
 } from "lucide-react";
-import type { Institute } from "@/lib/api";
 import type { InstituteSummary } from "@/lib/api";
 import { buildInstitutePathFromSearch } from "@/lib/embed-href";
 import type { InstituteTab, InstituteTabId } from "@/lib/institute-tabs";
-import { ROLE_LABELS } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 
 const TAB_ICONS: Record<InstituteTabId, React.ComponentType<{ className?: string }>> = {
@@ -43,8 +40,8 @@ const TAB_ICONS: Record<InstituteTabId, React.ComponentType<{ className?: string
 };
 
 type Props = {
-  institutes: Institute[];
   instituteId: string;
+  instituteName: string;
   branches: InstituteSummary["branches"];
   selectedBranchId: string | null;
   canManage: boolean;
@@ -56,8 +53,8 @@ type Props = {
 };
 
 export function InstituteShell({
-  institutes,
   instituteId,
+  instituteName,
   branches,
   selectedBranchId,
   canManage,
@@ -69,119 +66,72 @@ export function InstituteShell({
   children,
 }: Props & { children: React.ReactNode }) {
   return (
-    <div className="institute-shell flex min-h-0 h-[calc(100vh-3.5rem)] w-full overflow-hidden bg-background md:pl-56">
-      <aside className="fixed inset-y-14 left-0 z-20 hidden h-[calc(100vh-3.5rem)] min-h-0 w-56 overscroll-y-contain overflow-y-auto border-r border-border bg-card md:block">
+    <div className="institute-shell flex min-h-0 flex-1 w-full overflow-hidden bg-background">
+      <aside
+        className="hidden h-full min-h-0 w-56 shrink-0 overflow-y-auto overscroll-y-contain border-r border-border bg-card md:flex md:flex-col"
+      >
         <div className="p-4">
-          <p className="mb-1 font-serif text-base font-semibold">Education</p>
-          <p className="mb-4 text-[11px] text-muted-foreground">Institute workspace</p>
-
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Institutes
-          </p>
-          <ul className="space-y-0.5">
-            {institutes.map((inst) => {
-              const active = inst.id === instituteId;
-              return (
-                <li key={inst.id}>
-                  <Link
-                    href={
-                      searchParams
-                        ? buildInstitutePathFromSearch(inst.id, searchParams)
-                        : `/institutes/${inst.id}`
-                    }
-                    className={cn(
-                      "flex items-start gap-2 rounded-lg px-2.5 py-2 text-sm transition",
-                      active
-                        ? "bg-sidebar-active font-medium text-primary-foreground"
-                        : "text-foreground hover:bg-muted/80"
-                    )}
-                  >
-                    <Building2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                    <span className="min-w-0">
-                      <span className="block truncate">{inst.name}</span>
-                      <span
-                        className={cn(
-                          "text-[11px] font-normal",
-                          active ? "text-primary-foreground/80" : "text-muted-foreground"
-                        )}
-                      >
-                        {ROLE_LABELS[inst.role] || inst.role}
-                      </span>
-                    </span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+          <p className="font-serif text-base font-semibold">Education</p>
+          <p className="mt-1 truncate text-[11px] text-muted-foreground">{instituteName}</p>
 
           {sectionTabs.length > 0 && tabHref && (
-            <>
-              <p className="mb-2 mt-6 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Sections
-              </p>
-              <ul className="space-y-0.5">
-                {sectionTabs.map((tab) => {
-                  const Icon = TAB_ICONS[tab.id];
-                  const active = activeTab === tab.id;
-                  return (
-                    <li key={tab.id}>
-                      <Link
-                        href={tabHref(tab.id)}
-                        className={cn(
-                          "flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm transition",
-                          active
-                            ? "bg-sidebar-active font-medium text-primary-foreground"
-                            : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-                        )}
-                      >
-                        <Icon className="h-3.5 w-3.5 shrink-0" />
-                        {tab.label}
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            </>
+            <ul className="mt-5 space-y-0.5">
+              {sectionTabs.map((tab) => {
+                const Icon = TAB_ICONS[tab.id];
+                const active = activeTab === tab.id;
+                return (
+                  <li key={tab.id}>
+                    <Link
+                      href={tabHref(tab.id)}
+                      className={cn(
+                        "flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm transition",
+                        active
+                          ? "bg-sidebar-active font-medium text-primary-foreground"
+                          : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                      )}
+                    >
+                      <Icon className="h-3.5 w-3.5 shrink-0" />
+                      {tab.label}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
           )}
 
           {branches.length > 1 && (
-            <>
-              <p className="mb-2 mt-6 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Campuses
-              </p>
-              <ul className="space-y-0.5">
-                {branches.map((branch) => {
-                  const active = branch.id === selectedBranchId;
-                  const href = searchParams
-                    ? buildInstitutePathFromSearch(instituteId, searchParams, {
-                        branch: branch.id,
-                      })
-                    : `/institutes/${instituteId}?branch=${branch.id}`;
-                  return (
-                    <li key={branch.id}>
-                      <Link
-                        href={href}
-                        className={cn(
-                          "flex items-start gap-2 rounded-lg px-2.5 py-2 text-sm transition",
-                          active
-                            ? "bg-muted font-medium text-foreground"
-                            : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-                        )}
-                      >
-                        <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                        <span className="min-w-0">
-                          <span className="block truncate">{branch.name}</span>
-                          <span className="text-[11px] font-normal">
-                            {branch.teacherCount + branch.studentCount} people
-                            {branch.isPrimary && " · Main"}
-                          </span>
+            <ul className="mt-6 space-y-0.5 border-t border-border pt-4">
+              {branches.map((branch) => {
+                const active = branch.id === selectedBranchId;
+                const href = searchParams
+                  ? buildInstitutePathFromSearch(instituteId, searchParams, {
+                      branch: branch.id,
+                    })
+                  : `/institutes/${instituteId}?branch=${branch.id}`;
+                return (
+                  <li key={branch.id}>
+                    <Link
+                      href={href}
+                      className={cn(
+                        "flex items-start gap-2 rounded-lg px-2.5 py-2 text-sm transition",
+                        active
+                          ? "bg-muted font-medium text-foreground"
+                          : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                      )}
+                    >
+                      <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      <span className="min-w-0">
+                        <span className="block truncate">{branch.name}</span>
+                        <span className="text-[11px] font-normal">
+                          {branch.teacherCount + branch.studentCount} people
+                          {branch.isPrimary && " · Main"}
                         </span>
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            </>
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
           )}
 
           {canManage && campusesTabHref && (
@@ -196,7 +146,7 @@ export function InstituteShell({
         </div>
       </aside>
 
-      <div className="education-content min-h-0 min-w-0 w-full flex-1 overscroll-y-contain overflow-y-auto">{children}</div>
+      <div className="education-content min-h-0 min-w-0 flex-1">{children}</div>
     </div>
   );
 }

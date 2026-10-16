@@ -54,8 +54,8 @@ export function TeacherShell({
   ];
 
   return (
-    <div className="institute-shell flex min-h-0 h-[calc(100vh-3.5rem)] w-full overflow-hidden bg-background md:pl-56">
-      <aside className="fixed inset-y-14 left-0 z-20 hidden h-[calc(100vh-3.5rem)] min-h-0 w-56 overscroll-y-contain overflow-y-auto border-r border-border bg-card md:block">
+    <div className="institute-shell flex min-h-0 flex-1 w-full overflow-hidden bg-background">
+      <aside className="hidden h-full min-h-0 w-56 shrink-0 overflow-y-auto overscroll-y-contain border-r border-border bg-card md:flex md:flex-col">
         <div className="p-4">
           <p className="font-serif text-base font-semibold">Education</p>
           <p className="mt-1 truncate text-[11px] text-muted-foreground">{instituteName}</p>

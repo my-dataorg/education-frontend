@@ -21,7 +21,7 @@ import { RolesSettingsTab } from "@/components/institute-tabs/roles-settings-tab
 import { BranchPills, InstituteShell } from "@/components/institute-shell";
 import { ManageInstitutesDropdown } from "@/components/manage-institutes-dropdown";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { Institute, InstituteSummary } from "@/lib/api";
+import type { InstituteSummary } from "@/lib/api";
 import { buildInstitutePathFromSearch } from "@/lib/embed-href";
 import { getInstituteTabs, resolveInstituteTab, type InstituteTabId } from "@/lib/institute-tabs";
 import { INSTITUTE_ADMIN_ROLES, ROLE_LABELS } from "@/lib/roles";
@@ -48,7 +48,6 @@ function defaultBranchId(branches: InstituteSummary["branches"]): string | null 
 
 export function InstituteDashboard({
   instituteId,
-  institutes,
   detail,
   summary: initialSummary,
   canManage,
@@ -56,7 +55,6 @@ export function InstituteDashboard({
   currentUserName,
 }: {
   instituteId: string;
-  institutes: Institute[];
   detail: InstituteDetail;
   summary: InstituteSummary | null;
   canManage: boolean;
@@ -148,7 +146,7 @@ export function InstituteDashboard({
       role={ROLE_LABELS[detail.role] || detail.role}
     />
     <InstituteShell
-      institutes={institutes}
+      instituteName={detail.name}
       instituteId={instituteId}
       branches={branches}
       selectedBranchId={selectedBranchId}

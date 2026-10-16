@@ -84,12 +84,11 @@ export default async function InstitutePage({
     }
 
     return (
-      <>
+      <div className="education-app-root">
         <EduNavGate />
         <Suspense fallback={<div className="p-8 text-sm text-muted-foreground">Loading...</div>}>
           <InstituteDashboard
             instituteId={id}
-            institutes={institutes}
             detail={detail}
             summary={summary}
             canManage={canManage}
@@ -97,7 +96,7 @@ export default async function InstitutePage({
             currentUserName={session.user?.name || session.user?.email || "Owner"}
           />
         </Suspense>
-      </>
+      </div>
     );
   }
 
@@ -133,7 +132,7 @@ export default async function InstitutePage({
       ? (query.tab as TeacherTab)
       : "overview";
     return (
-      <>
+      <div className="education-app-root">
         <EduNavGate />
         {sectionsError ? (
           <main className="px-6 py-8">
@@ -151,18 +150,18 @@ export default async function InstitutePage({
             initialTab={initialTeacherTab}
           />
         )}
-      </>
+      </div>
     );
   }
 
   if (institute.role === "parent") {
     return (
-      <>
+      <div className="education-app-root">
         <EduNavGate />
         <Suspense fallback={<div className="p-8 text-sm text-muted-foreground">Loading...</div>}>
           <ParentWorkspace instituteId={id} instituteName={institute.name} />
         </Suspense>
-      </>
+      </div>
     );
   }
 
@@ -180,7 +179,7 @@ export default async function InstitutePage({
   }
 
   return (
-    <>
+    <div className="education-app-root">
       <EduNavGate />
       {sectionsError ? (
         <main className="mx-auto max-w-5xl px-6 py-8">
@@ -210,6 +209,6 @@ export default async function InstitutePage({
           }
         />
       )}
-    </>
+    </div>
   );
 }

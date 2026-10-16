@@ -65,11 +65,25 @@ html[data-embed="1"] .institute-shell {
 
 @media (min-width: 768px) {
   .institute-shell {
-    padding-left: 224px;
+    padding-left: 14rem;
   }
 
   .institute-shell .education-content {
     width: 100%;
-    flex: none;
+    min-height: 0;
+    flex: 1 1 0%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
+
+  .institute-shell > aside {
+    overscroll-behavior: contain;
+  }
+}
+
+.education-app-root {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
