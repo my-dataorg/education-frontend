@@ -64,10 +64,6 @@ html[data-embed="1"] .institute-shell {
 }
 
 @media (min-width: 768px) {
-  .institute-shell {
-    padding-left: 14rem;
-  }
-
   .institute-shell .education-content {
     width: 100%;
     min-height: 0;
@@ -86,4 +82,11 @@ html[data-embed="1"] .institute-shell {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.education-app-body {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 0%;
+  flex-direction: column;
 }

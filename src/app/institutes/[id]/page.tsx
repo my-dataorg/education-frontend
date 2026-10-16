@@ -86,16 +86,18 @@ export default async function InstitutePage({
     return (
       <div className="education-app-root">
         <EduNavGate />
-        <Suspense fallback={<div className="p-8 text-sm text-muted-foreground">Loading...</div>}>
-          <InstituteDashboard
+        <div className="education-app-body">
+          <Suspense fallback={<div className="p-8 text-sm text-muted-foreground">Loading...</div>}>
+            <InstituteDashboard
             instituteId={id}
             detail={detail}
             summary={summary}
             canManage={canManage}
             currentUserId={session.user?.id || ""}
             currentUserName={session.user?.name || session.user?.email || "Owner"}
-          />
-        </Suspense>
+            />
+          </Suspense>
+        </div>
       </div>
     );
   }
@@ -134,22 +136,24 @@ export default async function InstitutePage({
     return (
       <div className="education-app-root">
         <EduNavGate />
-        {sectionsError ? (
-          <main className="px-6 py-8">
-            <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {sectionsError}
-            </p>
-          </main>
-        ) : (
-          <TeacherWorkspace
+        <div className="education-app-body">
+          {sectionsError ? (
+            <main className="px-6 py-8">
+              <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {sectionsError}
+              </p>
+            </main>
+          ) : (
+            <TeacherWorkspace
             instituteId={id}
             instituteName={institute.name}
             sections={sections}
             currentUserId={session.user?.id || ""}
             role={institute.role}
-            initialTab={initialTeacherTab}
-          />
-        )}
+              initialTab={initialTeacherTab}
+            />
+          )}
+        </div>
       </div>
     );
   }
@@ -158,9 +162,11 @@ export default async function InstitutePage({
     return (
       <div className="education-app-root">
         <EduNavGate />
-        <Suspense fallback={<div className="p-8 text-sm text-muted-foreground">Loading...</div>}>
-          <ParentWorkspace instituteId={id} instituteName={institute.name} />
-        </Suspense>
+        <div className="education-app-body">
+          <Suspense fallback={<div className="p-8 text-sm text-muted-foreground">Loading...</div>}>
+            <ParentWorkspace instituteId={id} instituteName={institute.name} />
+          </Suspense>
+        </div>
       </div>
     );
   }
@@ -181,14 +187,15 @@ export default async function InstitutePage({
   return (
     <div className="education-app-root">
       <EduNavGate />
-      {sectionsError ? (
-        <main className="mx-auto max-w-5xl px-6 py-8">
-          <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {sectionsError}
-          </p>
-        </main>
-      ) : (
-        <StudentWorkspace
+      <div className="education-app-body">
+        {sectionsError ? (
+          <main className="mx-auto max-w-5xl px-6 py-8">
+            <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {sectionsError}
+            </p>
+          </main>
+        ) : (
+          <StudentWorkspace
           instituteId={id}
           instituteName={institute.name}
           sections={sections}
@@ -206,9 +213,10 @@ export default async function InstitutePage({
             ].includes(query.tab || "")
               ? (query.tab as StudentTab)
               : "overview"
-          }
-        />
-      )}
+            }
+          />
+        )}
+      </div>
     </div>
   );
 }

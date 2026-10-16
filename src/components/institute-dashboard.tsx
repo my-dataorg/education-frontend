@@ -145,6 +145,7 @@ export function InstituteDashboard({
       subtitle={branches.length > 1 ? selectedBranch?.name : undefined}
       role={ROLE_LABELS[detail.role] || detail.role}
     />
+    <div className="flex min-h-0 flex-1 flex-col">
     <InstituteShell
       instituteName={detail.name}
       instituteId={instituteId}
@@ -287,6 +288,7 @@ export function InstituteDashboard({
         )}
       </div>
     </InstituteShell>
+    </div>
     </>
   );
 }
