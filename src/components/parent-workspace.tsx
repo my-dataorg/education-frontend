@@ -2,20 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Bell, CalendarDays, CircleDollarSign, FileText, Home, MessageSquare, UserRound } from "lucide-react";
+import { EducationNavSidebar } from "@/components/education-nav-sidebar";
 import { EducationContextReporter } from "@/components/education-context-reporter";
 import type { Assignment, Attendance, InstitutePost } from "@/lib/api";
+import {
+  getEducationNavItems,
+  resolveEducationNavTab,
+  type EducationNavId,
+} from "@/lib/education-nav";
 import { cn } from "@/lib/utils";
-
-const ITEMS = [
-  ["home", "Home", Home],
-  ["academics", "Academics", FileText],
-  ["attendance", "Attendance & leave", CalendarDays],
-  ["fees", "Fees & receipts", CircleDollarSign],
-  ["notices", "Notices & PTM", Bell],
-  ["messages", "Messages", MessageSquare],
-  ["profile", "Profile & children", UserRound],
-] as const;
 
 type GuardianChild = { studentId: string; instituteIds: string[] };
 type ChildProfile = {
@@ -43,7 +38,10 @@ export function ParentWorkspace({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [tab, setTab] = useState<(typeof ITEMS)[number][0]>("home");
+  const navItems = getEducationNavItems("parent");
+  const [tab, setTab] = useState<EducationNavId>(() =>
+    resolveEducationNavTab("parent", searchParams.get("tab"))
+  );
   const [children, setChildren] = useState<GuardianChild[]>([]);
   const [childId, setChildId] = useState("");
   const [profiles, setProfiles] = useState<Record<string, ChildProfile>>({});
@@ -60,7 +58,18 @@ export function ParentWorkspace({
   const [messageBody, setMessageBody] = useState("");
   const [messageStatus, setMessageStatus] = useState("");
 
-  const label = ITEMS.find(([id]) => id === tab)?.[1] || "Home";
+  const label = navItems.find((item) => item.id === tab)?.label || "Home";
+
+  function changeTab(next: EducationNavId) {
+    setTab(next);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", next);
+    router.replace(`/institutes/${instituteId}?${params.toString()}`, { scroll: false });
+  }
+
+  useEffect(() => {
+    setTab(resolveEducationNavTab("parent", searchParams.get("tab")));
+  }, [searchParams]);
   const activeChild = children.find((c) => c.studentId === childId);
   const profile = childId ? profiles[childId] : undefined;
   const sectionId = profile?.sections[0]?.sectionId;
@@ -182,29 +191,7 @@ export function ParentWorkspace({
   return (
     <>
       <EducationContextReporter instituteName={instituteName} role="parent" />
-      <div className="flex min-h-[calc(100vh-3.5rem)] w-full bg-background">
-        <aside className="hidden w-64 shrink-0 border-r border-border bg-card md:block">
-          <div className="p-4">
-            <p className="font-serif text-base font-semibold">Education</p>
-            <p className="mt-1 truncate text-[11px] text-muted-foreground">{instituteName}</p>
-            <nav className="mt-6 space-y-1">
-              {ITEMS.map(([id, itemLabel, Icon]) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setTab(id)}
-                  className={cn(
-                    "flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm",
-                    tab === id ? "bg-sidebar-active font-medium text-primary-foreground" : "text-muted-foreground hover:bg-muted/60"
-                  )}
-                >
-                  <Icon className="h-3.5 w-3.5" /> {itemLabel}
-                </button>
-              ))}
-            </nav>
-          </div>
-        </aside>
-        <main className="min-w-0 flex-1 px-4 py-6 sm:px-6">
+      <EducationNavSidebar items={navItems} activeTab={tab} onTabChange={changeTab}>
           <p className="text-xs font-semibold uppercase tracking-wider text-primary">Parent / guardian</p>
           <h1 className="mt-1 text-2xl font-semibold">{label}</h1>
 
@@ -249,7 +236,7 @@ export function ParentWorkspace({
                 <p className="mt-3 text-sm text-muted-foreground">{classLabel}</p>
               )}
 
-              {tab === "home" && activeChild && (
+              {tab === "overview" && activeChild && (
                 <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <StatCard label="Attendance today" value={attendance ? attendance.status : "Not marked"} />
                   <StatCard label="Fees due" value={feeBalance ? formatInr(feeBalance) : "—"} />
@@ -258,7 +245,7 @@ export function ParentWorkspace({
                 </div>
               )}
 
-              {tab === "home" && (
+              {tab === "overview" && (
                 <div className="mt-6 grid gap-5 lg:grid-cols-2">
                   <Panel title="Today’s timetable">
                     {!schedule?.publishedAt && (
@@ -288,7 +275,7 @@ export function ParentWorkspace({
                 </div>
               )}
 
-              {tab === "academics" && <Panel title="Assignments"><AssignmentList items={assignments} /></Panel>}
+              {tab === "exams" && <Panel title="Assignments"><AssignmentList items={assignments} /></Panel>}
 
               {tab === "attendance" && (
                 <Panel title="Attendance">
@@ -315,7 +302,7 @@ export function ParentWorkspace({
                 </Panel>
               )}
 
-              {tab === "notices" && (
+              {tab === "calendar" && (
                 <Panel title="Notices">
                   {posts.map((post) => (
                     <article key={post.id} className="mt-2 rounded-lg bg-muted/40 px-3 py-2 text-sm">
@@ -379,8 +366,7 @@ export function ParentWorkspace({
               )}
             </>
           )}
-        </main>
-      </div>
+      </EducationNavSidebar>
     </>
   );
 }

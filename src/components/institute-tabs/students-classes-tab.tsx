@@ -15,7 +15,9 @@ export function StudentsClassesTab({ instituteId, inviteRefreshKey, onChanged }:
       refreshKey={inviteRefreshKey}
       onChanged={onChanged}
       fixedModule="students"
-      listTab="students-classes"
+      listTab="association"
+      instituteTab="association"
+      associationPanel="students"
     />
   );
 }

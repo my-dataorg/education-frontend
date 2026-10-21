@@ -1,14 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { ConfigureTab } from "@/components/institute-tabs/configure-tab";
 import { ProfileTab } from "@/components/institute-tabs/profile-tab";
-import { TeachersClassesTab } from "@/components/institute-tabs/teachers-classes-tab";
-import { StudentsClassesTab } from "@/components/institute-tabs/students-classes-tab";
+import { AssociationTab } from "@/components/institute-tabs/association-tab";
+import { ClassesMenuTab } from "@/components/institute-tabs/classes-menu-tab";
 import { DailyNotesTab } from "@/components/institute-tabs/daily-notes-tab";
-import { MembersTab } from "@/components/institute-tabs/members-tab";
 import { OverviewTab } from "@/components/institute-tabs/overview-tab";
 import { ScheduleTab } from "@/components/institute-tabs/schedule-tab";
 import { AttendanceTab } from "@/components/institute-tabs/attendance-tab";
@@ -17,7 +15,8 @@ import { FeesTab } from "@/components/institute-tabs/fees-tab";
 import { NoticesTab } from "@/components/institute-tabs/notices-tab";
 import { ReportsTab } from "@/components/institute-tabs/reports-tab";
 import { BranchPills, InstituteShell } from "@/components/institute-shell";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { educationNavActiveId } from "@/lib/education-nav";
 import type { InstituteSummary } from "@/lib/api";
 import { buildInstitutePathFromSearch } from "@/lib/embed-href";
 import {
@@ -187,17 +186,7 @@ export function InstituteDashboard({
             {error}
           </p>
         ) : (
-          <Tabs value={activeTab} className={`${activeTab === "overview" ? "mt-1" : "mt-4"} w-full min-w-0`}>
-            {tabs.length > 1 && (
-              <TabsList aria-label="Institute sections" className="mb-2 md:hidden">
-                {tabs.map((tab) => (
-                  <TabsTrigger key={tab.id} value={tab.id} asChild>
-                    <Link href={tabHref(tab.id)}>{tab.label}</Link>
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            )}
-
+          <Tabs value={educationNavActiveId(activeTab)} className={`${activeTab === "overview" ? "mt-1" : "mt-4"} w-full min-w-0`}>
             <TabsContent value="overview" className="w-full">
               <OverviewTab
                 instituteId={instituteId}
@@ -237,8 +226,8 @@ export function InstituteDashboard({
                     />
                   </TabsContent>
                 )}
-                <TabsContent value="associates" className="w-full">
-                  <MembersTab
+                <TabsContent value="association" className="w-full">
+                  <AssociationTab
                     instituteId={instituteId}
                     joinCode={joinCode}
                     branches={branches}
@@ -246,25 +235,12 @@ export function InstituteDashboard({
                     currentUserId={currentUserId}
                     inviteRefreshKey={inviteRefreshKey}
                     onChanged={onChanged}
+                    showEnrollment={showOwnerSetup}
                   />
                 </TabsContent>
                 {showOwnerSetup && (
-                  <TabsContent value="teachers-classes" className="w-full">
-                    <TeachersClassesTab
-                      instituteId={instituteId}
-                      branchId={selectedBranchId}
-                      inviteRefreshKey={inviteRefreshKey}
-                      onChanged={onChanged}
-                    />
-                  </TabsContent>
-                )}
-                {showOwnerSetup && (
-                  <TabsContent value="students-classes" className="w-full">
-                    <StudentsClassesTab
-                      instituteId={instituteId}
-                      inviteRefreshKey={inviteRefreshKey}
-                      onChanged={onChanged}
-                    />
+                  <TabsContent value="classes" className="w-full">
+                    <ClassesMenuTab instituteId={instituteId} branches={branches} />
                   </TabsContent>
                 )}
                 <TabsContent value="calendar" className="w-full">
@@ -273,14 +249,12 @@ export function InstituteDashboard({
                 <TabsContent value="attendance" className="w-full">
                   <AttendanceTab instituteId={instituteId} branchId={selectedBranchId} />
                 </TabsContent>
+                <TabsContent value="daily-notes" className="w-full">
+                  <DailyNotesTab instituteId={instituteId} />
+                </TabsContent>
                 <TabsContent value="timetable" className="w-full">
                   <ScheduleTab instituteId={instituteId} />
                 </TabsContent>
-                {showOwnerSetup && (
-                  <TabsContent value="daily-notes" className="w-full">
-                    <DailyNotesTab instituteId={instituteId} />
-                  </TabsContent>
-                )}
                 <TabsContent value="exams" className="w-full">
                   <ExamsTab instituteId={instituteId} />
                 </TabsContent>

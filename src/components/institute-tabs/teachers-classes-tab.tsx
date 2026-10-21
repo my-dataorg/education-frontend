@@ -20,7 +20,8 @@ export function TeachersClassesTab({ instituteId, branchId, inviteRefreshKey, on
   function selectSub(id: "section-roster" | "subject-teachers") {
     router.replace(
       buildInstitutePathFromSearch(instituteId, searchParams, {
-        tab: "teachers-classes",
+        tab: "association",
+        associationPanel: "teachers",
         classAssignTab: id === "subject-teachers" ? "subject-teachers" : undefined,
         enrollmentModule: "teachers",
       })
@@ -61,7 +62,9 @@ export function TeachersClassesTab({ instituteId, branchId, inviteRefreshKey, on
           refreshKey={inviteRefreshKey}
           onChanged={onChanged}
           fixedModule="teachers"
-          listTab="teachers-classes"
+          listTab="association"
+          instituteTab="association"
+          associationPanel="teachers"
         />
       )}
     </div>

@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SectionWorkspace } from "@/components/section-workspace";
-import { TeacherShell, type TeacherTab } from "@/components/teacher-shell";
+import { TeacherShell } from "@/components/teacher-shell";
+import type { EducationNavId } from "@/lib/education-nav";
 import { TeacherModuleTab } from "@/components/teacher-module-tab";
 import { EducationContextReporter } from "@/components/education-context-reporter";
 import type { Assignment, InstitutePost, Member, Note, Section } from "@/lib/api";
@@ -67,10 +68,10 @@ export function TeacherWorkspace({
   sections: Section[];
   currentUserId: string;
   role: string;
-  initialTab?: TeacherTab;
+  initialTab?: EducationNavId;
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState<TeacherTab>(initialTab);
+  const [tab, setTab] = useState<EducationNavId>(initialTab);
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [allSections, setAllSections] = useState<Section[]>(sections);
   const [staff, setStaff] = useState<Member[]>([]);
@@ -106,7 +107,7 @@ export function TeacherWorkspace({
   }, [instituteId, sections]);
 
   useEffect(() => {
-    if (tab !== "student-progress" || !sections.length) return;
+    if (tab !== "reports" || !sections.length) return;
     Promise.all(
       sections.map((section) =>
         fetch(`/api/sections/${section.id}/student-insights`, { credentials: "include", cache: "no-store" }).then(
@@ -139,6 +140,7 @@ export function TeacherWorkspace({
 
   return (
     <TeacherShell
+      role={role}
       activeTab={tab}
       onTabChange={(nextTab) => {
         setTab(nextTab);
@@ -171,14 +173,14 @@ export function TeacherWorkspace({
               currentUserId={currentUserId}
               onSelectSection={(sectionId) => {
                 setSelectedSectionId(sectionId);
-                setTab("classes");
+                setTab("teachers-classes");
               }}
             />
           </div>
         </div>
       )}
 
-      {tab === "schedule" && (
+      {tab === "timetable" && (
         <div className="mt-6">
           <h2 className="text-xl font-semibold">My schedule</h2>
           <p className="mt-1 text-sm text-muted-foreground">Published timetable for your classes.</p>
@@ -195,13 +197,13 @@ export function TeacherWorkspace({
             expanded
             onSelectSection={(sectionId) => {
               setSelectedSectionId(sectionId);
-              setTab("classes");
+              setTab("teachers-classes");
             }}
           />
         </div>
       )}
 
-      {["classes", "assignments", "attendance", "daily-notes"].includes(tab) && (
+      {["teachers-classes", "assignments", "attendance"].includes(tab) && (
         <div className="mt-6 grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
           <section>
             <h2 className="text-xl font-semibold">My classes</h2>
@@ -237,9 +239,7 @@ export function TeacherWorkspace({
                   ? "assignments"
                   : tab === "attendance"
                     ? "students"
-                    : tab === "daily-notes"
-                      ? "notes"
-                      : "overview"
+                    : "overview"
               }
               overview={selectedOverview}
               assignments={selectedOverview.assignments}
@@ -253,7 +253,7 @@ export function TeacherWorkspace({
         </div>
       )}
 
-      {tab === "student-progress" && (
+      {tab === "reports" && (
         <div className="mt-6 space-y-6">
           <div>
             <h2 className="text-xl font-semibold">Student progress</h2>
@@ -302,10 +302,18 @@ export function TeacherWorkspace({
         </div>
       )}
 
-      {(["marks", "class-teacher", "leave", "notices"] as const).includes(tab as "marks" | "class-teacher" | "leave" | "notices") && (
+      {(["exams", "class-teacher", "leave", "calendar"] as const).includes(
+        tab as "exams" | "class-teacher" | "leave" | "calendar"
+      ) && (
         <TeacherModuleTab
-          module={tab as "marks" | "class-teacher" | "leave" | "notices"}
-          posts={tab === "notices" ? posts : []}
+          module={
+            tab === "exams"
+              ? "marks"
+              : tab === "calendar"
+                ? "notices"
+                : (tab as "class-teacher" | "leave")
+          }
+          posts={tab === "calendar" ? posts : []}
         />
       )}
     </TeacherShell>

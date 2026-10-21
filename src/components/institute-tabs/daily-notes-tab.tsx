@@ -64,7 +64,8 @@ export function DailyNotesTab({ instituteId }: Props) {
       <div>
         <h1 className="text-2xl font-semibold">Daily notes</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Notes shared with each class — read-only for owners and principals.
+          Class teachers post notes from <strong>My classes → Daily notes</strong>. Owners and admins can
+          review every class here in read-only mode.
         </p>
       </div>
       {error && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}

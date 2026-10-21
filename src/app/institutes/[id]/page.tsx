@@ -7,9 +7,9 @@ import { InstituteDashboard } from "@/components/institute-dashboard";
 import { isSubscriptionError, SubscriptionRequired } from "@/components/subscription-required";
 import { Suspense } from "react";
 import { TeacherWorkspace } from "@/components/teacher-workspace";
-import { StudentWorkspace, type StudentTab } from "@/components/student-workspace";
+import { StudentWorkspace } from "@/components/student-workspace";
 import { ParentWorkspace } from "@/components/parent-workspace";
-import type { TeacherTab } from "@/components/teacher-shell";
+import { resolveEducationNavTab } from "@/lib/education-nav";
 
 export default async function InstitutePage({
   params,
@@ -117,22 +117,7 @@ export default async function InstitutePage({
   }
 
   if (["teacher", "lecturer", "professor"].includes(institute.role)) {
-    const teacherTabs: TeacherTab[] = [
-      "overview",
-      "classes",
-      "schedule",
-      "attendance",
-      "assignments",
-      "marks",
-      "daily-notes",
-      "class-teacher",
-      "leave",
-      "notices",
-      "student-progress",
-    ];
-    const initialTeacherTab = teacherTabs.includes(query.tab as TeacherTab)
-      ? (query.tab as TeacherTab)
-      : "overview";
+    const initialTeacherTab = resolveEducationNavTab(institute.role, query.tab ?? null);
     return (
       <div className="education-app-root">
         <EduNavGate />
@@ -201,19 +186,7 @@ export default async function InstitutePage({
           sections={sections}
           studentId={session.user?.id || ""}
           studentName={session.user?.name || session.user?.email || "Student"}
-          initialTab={
-            [
-              "overview",
-              "timetable",
-              "assignments",
-              "results",
-              "attendance",
-              "notices",
-              "profile",
-            ].includes(query.tab || "")
-              ? (query.tab as StudentTab)
-              : "overview"
-            }
+          initialTab={resolveEducationNavTab("student", query.tab ?? null)}
           />
         )}
       </div>

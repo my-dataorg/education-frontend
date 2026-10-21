@@ -122,6 +122,7 @@ export function NoticesTab({
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const [showAddEvent, setShowAddEvent] = useState(false);
+  const [showNewNoticeDialog, setShowNewNoticeDialog] = useState(false);
   const [eventTitle, setEventTitle] = useState("");
   const [eventDate, setEventDate] = useState(new Date().toISOString().slice(0, 10));
   const [calendarMonth, setCalendarMonth] = useState(() => new Date());
@@ -192,6 +193,7 @@ export function NoticesTab({
     if (!title.trim() || !body.trim()) return;
     if (scheduleMode === "later") {
       setMessage(`Notice queued for ${scheduledAt || "later"} (in-app delivery when scheduled sending is enabled).`);
+      setShowNewNoticeDialog(false);
       return;
     }
     const response = await fetch(`/api/institutes/${instituteId}/posts`, {
@@ -214,6 +216,7 @@ export function NoticesTab({
     setTargeting(emptyTargeting());
     setMessage("Notice sent");
     setError("");
+    setShowNewNoticeDialog(false);
     await load();
   }
 
@@ -249,8 +252,197 @@ export function NoticesTab({
       targetUserIds: list.targetUserIds,
     });
     setShowTemplates(false);
+    setShowNewNoticeDialog(true);
     setMessage(`Template “${list.name}” applied to Send to`);
   }
+
+  const newNoticeForm = (
+    <div className="space-y-3 text-sm">
+      <label className="block text-xs text-muted-foreground">
+        Title
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="e.g. PTM on Saturday"
+          className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm"
+        />
+      </label>
+      <label className="block text-xs text-muted-foreground">
+        Message
+        <textarea
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          rows={5}
+          placeholder="Write in English, Telugu or Hindi"
+          className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm"
+        />
+      </label>
+
+      <div>
+        <p className="text-xs text-muted-foreground">Send to</p>
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          {SEND_TO_CHIPS.map((chip) => {
+            const active = targeting.audience === chip.value;
+            return (
+              <button
+                key={chip.value}
+                type="button"
+                onClick={() => setTargeting((t) => ({ ...t, audience: chip.value }))}
+                className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
+                  active
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-background text-muted-foreground hover:border-primary/40"
+                }`}
+              >
+                {chip.label}
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => setShowAdvanced((v) => !v)}
+            className="rounded-full border border-dashed border-border px-2.5 py-1 text-[11px] text-muted-foreground"
+          >
+            More
+          </button>
+        </div>
+      </div>
+
+      {(targeting.audience === "class" ||
+        targeting.audience === "students" ||
+        targeting.selectedSectionIds.length > 0) && (
+        <div>
+          <p className="text-xs text-muted-foreground">Classes</p>
+          <p className="mt-1 text-xs font-medium">{classSummary}</p>
+          <ul className="mt-2 max-h-28 space-y-1 overflow-y-auto rounded-lg border border-border bg-muted/10 p-2 text-xs">
+            {sortedSections.map((section) => (
+              <li key={section.id}>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={targeting.selectedSectionIds.includes(section.id)}
+                    onChange={() => toggleSection(section.id)}
+                  />
+                  {section.className}-{section.name}
+                </label>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {showAdvanced && (
+        <div className="space-y-2 rounded-lg border border-border bg-muted/10 p-3 text-xs">
+          <label className="block">
+            Advanced audience
+            <select
+              value={targeting.audience}
+              onChange={(e) => setTargeting((t) => ({ ...t, audience: e.target.value }))}
+              className="mt-1 w-full rounded-lg border border-border bg-background px-2 py-1.5"
+            >
+              <option value="everyone">Everyone</option>
+              <option value="teachers">Teachers</option>
+              <option value="boys">Boys</option>
+              <option value="girls">Girls</option>
+              <option value="custom">Specific people</option>
+              <option value="distribution_list">Saved list</option>
+            </select>
+          </label>
+          {targeting.audience === "distribution_list" && (
+            <select
+              value={targeting.distributionListId}
+              onChange={(e) => setTargeting((t) => ({ ...t, distributionListId: e.target.value }))}
+              className="w-full rounded-lg border border-border bg-background px-2 py-1.5"
+            >
+              <option value="">Choose template</option>
+              {lists.map((list) => (
+                <option key={list.id} value={list.id}>{list.name}</option>
+              ))}
+            </select>
+          )}
+          {targeting.audience === "custom" && (
+            <MemberAudiencePicker
+              instituteId={instituteId}
+              branchId={branchId}
+              selectedUserIds={targeting.targetUserIds}
+              onChange={(ids) => setTargeting((t) => ({ ...t, targetUserIds: ids }))}
+            />
+          )}
+        </div>
+      )}
+
+      <div>
+        <p className="text-xs text-muted-foreground">Channels</p>
+        <div className="mt-1.5 flex flex-wrap gap-3 text-xs">
+          {(
+            [
+              ["inApp", "In-app"],
+              ["email", "Email"],
+              ["sms", "SMS"],
+              ["whatsapp", "WhatsApp"],
+            ] as const
+          ).map(([key, label]) => (
+            <label key={key} className="inline-flex items-center gap-1.5">
+              <input
+                type="checkbox"
+                checked={channels[key]}
+                onChange={() => toggleChannel(key)}
+                disabled={key !== "inApp"}
+                title={key !== "inApp" ? "Channel coming soon" : undefined}
+              />
+              {label}
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <p className="text-xs text-muted-foreground">When</p>
+        <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs">
+          <button
+            type="button"
+            onClick={() => setScheduleMode("now")}
+            className={`rounded-full px-3 py-1 ${scheduleMode === "now" ? "bg-primary text-primary-foreground" : "border border-border"}`}
+          >
+            Now
+          </button>
+          <button
+            type="button"
+            onClick={() => setScheduleMode("later")}
+            className={`rounded-full px-3 py-1 ${scheduleMode === "later" ? "bg-primary text-primary-foreground" : "border border-border"}`}
+          >
+            Schedule for later
+          </button>
+          {scheduleMode === "later" && (
+            <input
+              type="datetime-local"
+              value={scheduledAt}
+              onChange={(e) => setScheduledAt(e.target.value)}
+              className="rounded-lg border border-border px-2 py-1"
+            />
+          )}
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between gap-2 border-t border-border pt-3">
+        <button
+          type="button"
+          disabled
+          title="Attachments coming soon"
+          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground opacity-60"
+        >
+          <Paperclip className="h-3.5 w-3.5" /> Attach file
+        </button>
+        <button
+          type="button"
+          onClick={() => void sendNotice()}
+          className="rounded-lg bg-primary px-4 py-2 text-xs font-medium text-primary-foreground"
+        >
+          Send notice
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <section className="space-y-4">
@@ -280,194 +472,18 @@ export function NoticesTab({
         <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{message}</p>
       )}
 
+      <button
+        type="button"
+        onClick={() => setShowNewNoticeDialog(true)}
+        className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground md:hidden"
+      >
+        New notice
+      </button>
+
       <div className="grid gap-4 xl:grid-cols-3">
-        <Panel title="New notice">
-          <div className="space-y-3 text-sm">
-            <label className="block text-xs text-muted-foreground">
-              Title
-              <input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g. PTM on Saturday"
-                className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm"
-              />
-            </label>
-            <label className="block text-xs text-muted-foreground">
-              Message
-              <textarea
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                rows={5}
-                placeholder="Write in English, Telugu or Hindi"
-                className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm"
-              />
-            </label>
-
-            <div>
-              <p className="text-xs text-muted-foreground">Send to</p>
-              <div className="mt-1.5 flex flex-wrap gap-1.5">
-                {SEND_TO_CHIPS.map((chip) => {
-                  const active = targeting.audience === chip.value;
-                  return (
-                    <button
-                      key={chip.value}
-                      type="button"
-                      onClick={() => setTargeting((t) => ({ ...t, audience: chip.value }))}
-                      className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
-                        active
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "border-border bg-background text-muted-foreground hover:border-primary/40"
-                      }`}
-                    >
-                      {chip.label}
-                    </button>
-                  );
-                })}
-                <button
-                  type="button"
-                  onClick={() => setShowAdvanced((v) => !v)}
-                  className="rounded-full border border-dashed border-border px-2.5 py-1 text-[11px] text-muted-foreground"
-                >
-                  More
-                </button>
-              </div>
-            </div>
-
-            {(targeting.audience === "class" ||
-              targeting.audience === "students" ||
-              targeting.selectedSectionIds.length > 0) && (
-              <div>
-                <p className="text-xs text-muted-foreground">Classes</p>
-                <p className="mt-1 text-xs font-medium">{classSummary}</p>
-                <ul className="mt-2 max-h-28 space-y-1 overflow-y-auto rounded-lg border border-border bg-muted/10 p-2 text-xs">
-                  {sortedSections.map((section) => (
-                    <li key={section.id}>
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={targeting.selectedSectionIds.includes(section.id)}
-                          onChange={() => toggleSection(section.id)}
-                        />
-                        {section.className}-{section.name}
-                      </label>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {showAdvanced && (
-              <div className="space-y-2 rounded-lg border border-border bg-muted/10 p-3 text-xs">
-                <label className="block">
-                  Advanced audience
-                  <select
-                    value={targeting.audience}
-                    onChange={(e) => setTargeting((t) => ({ ...t, audience: e.target.value }))}
-                    className="mt-1 w-full rounded-lg border border-border bg-background px-2 py-1.5"
-                  >
-                    <option value="everyone">Everyone</option>
-                    <option value="teachers">Teachers</option>
-                    <option value="boys">Boys</option>
-                    <option value="girls">Girls</option>
-                    <option value="custom">Specific people</option>
-                    <option value="distribution_list">Saved list</option>
-                  </select>
-                </label>
-                {targeting.audience === "distribution_list" && (
-                  <select
-                    value={targeting.distributionListId}
-                    onChange={(e) => setTargeting((t) => ({ ...t, distributionListId: e.target.value }))}
-                    className="w-full rounded-lg border border-border bg-background px-2 py-1.5"
-                  >
-                    <option value="">Choose template</option>
-                    {lists.map((list) => (
-                      <option key={list.id} value={list.id}>{list.name}</option>
-                    ))}
-                  </select>
-                )}
-                {targeting.audience === "custom" && (
-                  <MemberAudiencePicker
-                    instituteId={instituteId}
-                    branchId={branchId}
-                    selectedUserIds={targeting.targetUserIds}
-                    onChange={(ids) => setTargeting((t) => ({ ...t, targetUserIds: ids }))}
-                  />
-                )}
-              </div>
-            )}
-
-            <div>
-              <p className="text-xs text-muted-foreground">Channels</p>
-              <div className="mt-1.5 flex flex-wrap gap-3 text-xs">
-                {(
-                  [
-                    ["inApp", "In-app"],
-                    ["email", "Email"],
-                    ["sms", "SMS"],
-                    ["whatsapp", "WhatsApp"],
-                  ] as const
-                ).map(([key, label]) => (
-                  <label key={key} className="inline-flex items-center gap-1.5">
-                    <input
-                      type="checkbox"
-                      checked={channels[key]}
-                      onChange={() => toggleChannel(key)}
-                      disabled={key !== "inApp"}
-                      title={key !== "inApp" ? "Channel coming soon" : undefined}
-                    />
-                    {label}
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <p className="text-xs text-muted-foreground">When</p>
-              <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setScheduleMode("now")}
-                  className={`rounded-full px-3 py-1 ${scheduleMode === "now" ? "bg-primary text-primary-foreground" : "border border-border"}`}
-                >
-                  Now
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setScheduleMode("later")}
-                  className={`rounded-full px-3 py-1 ${scheduleMode === "later" ? "bg-primary text-primary-foreground" : "border border-border"}`}
-                >
-                  Schedule for later
-                </button>
-                {scheduleMode === "later" && (
-                  <input
-                    type="datetime-local"
-                    value={scheduledAt}
-                    onChange={(e) => setScheduledAt(e.target.value)}
-                    className="rounded-lg border border-border px-2 py-1"
-                  />
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between gap-2 border-t border-border pt-3">
-              <button
-                type="button"
-                disabled
-                title="Attachments coming soon"
-                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground opacity-60"
-              >
-                <Paperclip className="h-3.5 w-3.5" /> Attach file
-              </button>
-              <button
-                type="button"
-                onClick={() => void sendNotice()}
-                className="rounded-lg bg-primary px-4 py-2 text-xs font-medium text-primary-foreground"
-              >
-                Send notice
-              </button>
-            </div>
-          </div>
-        </Panel>
+        <div className="hidden md:block">
+          <Panel title="New notice">{newNoticeForm}</Panel>
+        </div>
 
         <Panel title="Sent notices">
           <ul className="max-h-[520px] space-y-3 overflow-y-auto text-sm">
@@ -533,6 +549,31 @@ export function NoticesTab({
           )}
         </Panel>
       </div>
+
+      {showNewNoticeDialog && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4 md:hidden">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setShowNewNoticeDialog(false)}
+            aria-label="Close"
+          />
+          <div className="relative flex max-h-[min(92vh,640px)] w-full flex-col rounded-t-2xl border border-border bg-card shadow-lg sm:max-w-md sm:rounded-xl">
+            <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
+              <h2 className="font-semibold">New notice</h2>
+              <button
+                type="button"
+                onClick={() => setShowNewNoticeDialog(false)}
+                className="rounded-lg p-1 text-muted-foreground hover:bg-muted"
+                aria-label="Close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">{newNoticeForm}</div>
+          </div>
+        </div>
+      )}
 
       {showTemplates && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">

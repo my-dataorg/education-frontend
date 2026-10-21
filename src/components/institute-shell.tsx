@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import {
   BarChart3,
   BookOpen,
@@ -9,29 +10,29 @@ import {
   ClipboardList,
   GraduationCap,
   LayoutDashboard,
+  Link2,
   MapPin,
   Megaphone,
+  Menu,
   NotebookPen,
   School,
   Settings2,
   UserRound,
   Users,
   WalletCards,
+  X,
 } from "lucide-react";
 import type { InstituteSummary } from "@/lib/api";
 import { buildInstitutePathFromSearch } from "@/lib/embed-href";
-import {
-  INSTITUTE_TAB_GROUP_LABELS,
-  type InstituteTab,
-  type InstituteTabGroup,
-  type InstituteTabId,
-} from "@/lib/institute-tabs";
+import { educationNavActiveId } from "@/lib/education-nav";
+import type { InstituteTab, InstituteTabId } from "@/lib/institute-tabs";
 import { cn } from "@/lib/utils";
 
-const TAB_ICONS: Record<InstituteTabId, React.ComponentType<{ className?: string }>> = {
+const TAB_ICONS: Partial<Record<InstituteTabId, React.ComponentType<{ className?: string }>>> = {
   overview: LayoutDashboard,
   profile: School,
   configure: Settings2,
+  association: Link2,
   calendar: Megaphone,
   associates: Users,
   "teachers-classes": UserRound,
@@ -42,6 +43,11 @@ const TAB_ICONS: Record<InstituteTabId, React.ComponentType<{ className?: string
   reports: BarChart3,
   attendance: CheckSquare,
   timetable: CalendarDays,
+  classes: GraduationCap,
+  assignments: ClipboardList,
+  messages: Megaphone,
+  "class-teacher": UserRound,
+  leave: BookOpen,
 };
 
 type Props = {
@@ -54,6 +60,45 @@ type Props = {
   tabHref?: (tab: InstituteTabId) => string;
 };
 
+function NavList({
+  items,
+  activeTab,
+  tabHref,
+  onNavigate,
+}: {
+  items: InstituteTab[];
+  activeTab?: InstituteTabId;
+  tabHref: (tab: InstituteTabId) => string;
+  onNavigate?: () => void;
+}) {
+  const highlighted = activeTab ? educationNavActiveId(activeTab) : undefined;
+  return (
+    <ul className="space-y-0.5">
+      {items.map((tab) => {
+        const Icon = TAB_ICONS[tab.id] ?? LayoutDashboard;
+        const active = highlighted === tab.id;
+        return (
+          <li key={tab.id}>
+            <Link
+              href={tabHref(tab.id)}
+              onClick={onNavigate}
+              className={cn(
+                "flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm transition",
+                active
+                  ? "bg-sidebar-active font-medium text-primary-foreground"
+                  : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+              )}
+            >
+              <Icon className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{tab.label}</span>
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 export function InstituteShell({
   instituteId,
   branches,
@@ -64,50 +109,14 @@ export function InstituteShell({
   tabHref,
   children,
 }: Props & { children: React.ReactNode }) {
-  const groups: InstituteTabGroup[] = ["setup", "people", "operations", "outcomes"];
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
     <div className="institute-shell flex min-h-0 flex-1 w-full overflow-hidden bg-background">
-      <aside
-        className="hidden h-full min-h-0 w-56 shrink-0 overflow-y-auto overscroll-y-contain border-r border-border bg-card md:flex md:flex-col"
-      >
+      <aside className="hidden h-full min-h-0 w-56 shrink-0 overflow-y-auto overscroll-y-contain border-r border-border bg-card md:flex md:flex-col">
         <div className="p-3 pt-4">
           {sectionTabs.length > 0 && tabHref && (
-            <div className="space-y-4">
-              {groups.map((group) => {
-                const items = sectionTabs.filter((tab) => tab.group === group);
-                if (!items.length) return null;
-                return (
-                  <div key={group}>
-                    <p className="mb-1 px-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      {INSTITUTE_TAB_GROUP_LABELS[group]}
-                    </p>
-                    <ul className="space-y-0.5">
-                      {items.map((tab) => {
-                        const Icon = TAB_ICONS[tab.id];
-                        const active = activeTab === tab.id;
-                        return (
-                          <li key={tab.id}>
-                            <Link
-                              href={tabHref(tab.id)}
-                              className={cn(
-                                "flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm transition",
-                                active
-                                  ? "bg-sidebar-active font-medium text-primary-foreground"
-                                  : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-                              )}
-                            >
-                              <Icon className="h-3.5 w-3.5 shrink-0" />
-                              <span className="truncate">{tab.label}</span>
-                            </Link>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                );
-              })}
-            </div>
+            <NavList items={sectionTabs} activeTab={activeTab} tabHref={tabHref} />
           )}
 
           {branches.length > 1 && (
@@ -147,7 +156,53 @@ export function InstituteShell({
         </div>
       </aside>
 
-      <div className="education-content min-h-0 min-w-0 flex-1 overflow-y-auto">{children}</div>
+      <div className="education-content flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        {sectionTabs.length > 0 && tabHref && (
+          <div className="flex shrink-0 items-center gap-2 border-b border-border bg-card px-3 py-2 md:hidden">
+            <button
+              type="button"
+              onClick={() => setMobileOpen(true)}
+              className="inline-flex items-center gap-2 rounded-lg border border-border px-2.5 py-1.5 text-sm font-medium"
+              aria-label="Open menu"
+            >
+              <Menu className="h-4 w-4" />
+              Menu
+            </button>
+            <span className="truncate text-sm text-muted-foreground">
+              {sectionTabs.find((t) => t.id === educationNavActiveId(activeTab ?? "overview"))?.label}
+            </span>
+          </div>
+        )}
+
+        {mobileOpen && tabHref && (
+          <div className="fixed inset-0 z-50 md:hidden">
+            <button
+              type="button"
+              className="absolute inset-0 bg-black/40"
+              aria-label="Close menu"
+              onClick={() => setMobileOpen(false)}
+            />
+            <div className="absolute left-0 top-0 flex h-full w-[min(100%,16rem)] flex-col bg-card shadow-xl">
+              <div className="flex items-center justify-between border-b border-border px-3 py-3">
+                <span className="text-sm font-semibold">Institute</span>
+                <button type="button" onClick={() => setMobileOpen(false)} aria-label="Close">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-3">
+                <NavList
+                  items={sectionTabs}
+                  activeTab={activeTab}
+                  tabHref={tabHref}
+                  onNavigate={() => setMobileOpen(false)}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+      </div>
     </div>
   );
 }

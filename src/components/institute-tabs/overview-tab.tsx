@@ -49,25 +49,39 @@ type Props = {
 function MetricCard({
   icon,
   label,
+  shortLabel,
   value,
   hint,
   href,
 }: {
   icon: React.ReactNode;
   label: string;
+  shortLabel?: string;
   value: number | string;
   hint: string;
   href?: string;
 }) {
-  const card = (
-    <div className="rounded-xl border border-border bg-card p-4 shadow-sm transition hover:border-primary/50">
-      <div className="flex items-center gap-2 text-muted-foreground">{icon}</div>
-      <p className="mt-2 text-2xl font-semibold tabular-nums tracking-tight">{value}</p>
-      <p className="text-xs font-medium text-foreground">{label}</p>
-      <p className="text-[11px] text-muted-foreground">{hint}</p>
-    </div>
+  const mobileLabel = shortLabel ?? label;
+  const inner = (
+    <>
+      <div className="flex min-h-[2.75rem] min-w-0 flex-col items-center justify-center rounded-md border border-border bg-card px-0.5 py-1 text-center shadow-sm transition hover:border-primary/40 sm:hidden">
+        <p className="text-[11px] font-semibold tabular-nums leading-none text-foreground">{value}</p>
+        <p className="mt-0.5 line-clamp-2 text-[7px] font-medium leading-[1.15] text-muted-foreground">
+          {mobileLabel}
+        </p>
+      </div>
+      <div className="hidden rounded-xl border border-border bg-card p-4 shadow-sm transition hover:border-primary/50 sm:block">
+        <div className="flex items-center gap-2 text-muted-foreground">{icon}</div>
+        <p className="mt-2 text-2xl font-semibold tabular-nums tracking-tight">{value}</p>
+        <p className="text-xs font-medium text-foreground">{label}</p>
+        <p className="text-[11px] text-muted-foreground">{hint}</p>
+      </div>
+    </>
   );
-  return href ? <Link href={href}>{card}</Link> : card;
+  if (href) {
+    return <Link href={href} className="block min-w-0">{inner}</Link>;
+  }
+  return <div className="min-w-0">{inner}</div>;
 }
 
 function AttendanceByClass({
@@ -200,32 +214,43 @@ export function OverviewTab({
       </div>
       {error && <div className="flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700"><span>{error}</span><button type="button" onClick={() => window.location.reload()} className="font-medium underline">Retry</button></div>}
 
-      <div className="grid grid-cols-6 gap-3">
+      <div className="grid grid-cols-6 gap-0.5 sm:grid-cols-3 sm:gap-3 lg:grid-cols-6">
         <MetricCard
           icon={<GraduationCap className="h-4 w-4" />}
           label="Students"
+          shortLabel="Students"
           value={loading ? "…" : overview?.stats.students ?? "—"}
           hint="at this campus"
-          href={instituteHref({ tab: "associates", memberTab: "students" })}
+          href={instituteHref({ tab: "association", associationPanel: "roster", memberTab: "students" })}
         />
         <MetricCard
           icon={<Users className="h-4 w-4" />}
           label="Staff"
+          shortLabel="Staff"
           value={loading ? "…" : overview?.stats.staff ?? "—"}
           hint="teaching here"
-          href={instituteHref({ tab: "associates", memberTab: "staff" })}
+          href={instituteHref({ tab: "association", associationPanel: "roster", memberTab: "staff" })}
         />
         <MetricCard
           icon={<ClipboardList className="h-4 w-4" />}
           label="Attendance today"
+          shortLabel="Attend."
           value={overview?.stats.attendancePercent != null ? `${overview.stats.attendancePercent}%` : "—"}
           hint={`${overview?.stats.unmarkedClasses ?? "—"} classes unmarked`}
           href={instituteHref({ tab: "attendance", register: "unmarked" })}
         />
-        <MetricCard icon={<ClipboardList className="h-4 w-4" />} label="Fees this month" value="—" hint="Set up a fee plan" href={instituteHref({ tab: "fees" })} />
+        <MetricCard
+          icon={<ClipboardList className="h-4 w-4" />}
+          label="Fees this month"
+          shortLabel="Fees"
+          value="—"
+          hint="Set up a fee plan"
+          href={instituteHref({ tab: "fees" })}
+        />
         <MetricCard
           icon={<TrendingUp className="h-4 w-4" />}
           label="Avg completion"
+          shortLabel="Avg %"
           value={overview?.stats.assignmentCompletionPercent != null ? `${overview.stats.assignmentCompletionPercent}%` : "—"}
           hint="assignment submissions"
           href={instituteHref({ tab: "reports", report: "assignments" })}
@@ -233,9 +258,10 @@ export function OverviewTab({
         <MetricCard
           icon={<ClipboardList className="h-4 w-4" />}
           label="Pending approvals"
+          shortLabel="Pending"
           value={overview?.stats.pendingApprovals ?? pendingInvitations}
           hint="requests, leave"
-          href={instituteHref({ tab: "associates", memberTab: "requests" })}
+          href={instituteHref({ tab: "association", associationPanel: "roster", memberTab: "requests" })}
         />
       </div>
 
@@ -249,7 +275,7 @@ export function OverviewTab({
               <Link
                 href={
                   item.kind === "join_requests"
-                    ? instituteHref({ tab: "associates", memberTab: "requests" })
+                    ? instituteHref({ tab: "association", associationPanel: "roster", memberTab: "requests" })
                     : instituteHref({ tab: "attendance", register: "unmarked" })
                 }
                 className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted"

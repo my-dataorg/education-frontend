@@ -3,18 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Assignment, Attendance, InstitutePost, Member, Section } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { EducationNavSidebar } from "@/components/education-nav-sidebar";
 import { EducationContextReporter } from "@/components/education-context-reporter";
 import { StudentModuleTab, type CalendarEvent, type Exam } from "@/components/student-module-tab";
+import { getEducationNavItems, type EducationNavId } from "@/lib/education-nav";
 
-export type StudentTab =
-  | "overview"
-  | "timetable"
-  | "assignments"
-  | "results"
-  | "attendance"
-  | "notices"
-  | "profile";
+export type StudentTab = EducationNavId;
 
 type Schedule = {
   publishedAt?: string | null;
@@ -30,16 +24,6 @@ type SectionData = {
 };
 
 const DAYS = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-
-const NAV: Array<[StudentTab, string]> = [
-  ["overview", "Overview"],
-  ["timetable", "Timetable"],
-  ["assignments", "Assignments"],
-  ["results", "Results & report card"],
-  ["attendance", "Attendance"],
-  ["notices", "Notices & calendar"],
-  ["profile", "Profile & documents"],
-];
 
 export function StudentWorkspace({
   instituteId,
@@ -57,7 +41,8 @@ export function StudentWorkspace({
   initialTab?: StudentTab;
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState<StudentTab>(initialTab);
+  const [tab, setTab] = useState<EducationNavId>(initialTab);
+  const navItems = getEducationNavItems("student");
   const [selectedSectionId, setSelectedSectionId] = useState(sections[0]?.id || "");
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [subjects, setSubjects] = useState<Record<string, string>>({});
@@ -77,7 +62,7 @@ export function StudentWorkspace({
     setTab(initialTab);
   }, [initialTab]);
 
-  function changeTab(next: StudentTab) {
+  function changeTab(next: EducationNavId) {
     setTab(next);
     const params = new URLSearchParams(window.location.search);
     params.set("tab", next);
@@ -157,45 +142,8 @@ export function StudentWorkspace({
   return (
     <>
       <EducationContextReporter instituteName={instituteName} role="student" />
-      <div className="flex min-h-[calc(100vh-3.5rem)] w-full bg-background">
-        <aside className="hidden w-64 shrink-0 border-r border-border bg-card md:block">
-          <div className="sticky top-0 p-4">
-            <p className="font-serif text-base font-semibold">Education</p>
-            <p className="mt-1 truncate text-[11px] text-muted-foreground">{instituteName}</p>
-            <nav className="mt-6 space-y-1">
-              {NAV.map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => changeTab(id)}
-                  aria-current={tab === id ? "page" : undefined}
-                  className={cn(
-                    "w-full rounded-lg px-3 py-2 text-left text-sm",
-                    tab === id ? "bg-sidebar-active font-medium text-primary-foreground" : "text-muted-foreground hover:bg-muted/60"
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </nav>
-          </div>
-        </aside>
-
-        <main className="min-w-0 flex-1 px-4 py-6 sm:px-6">
-          <div className="md:hidden">
-            <label className="sr-only" htmlFor="student-tab">Student workspace section</label>
-            <select
-              id="student-tab"
-              value={tab}
-              onChange={(event) => changeTab(event.target.value as StudentTab)}
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-            >
-              {NAV.map(([id, label]) => (
-                <option key={id} value={id}>{label}</option>
-              ))}
-            </select>
-          </div>
-          <header className="mt-5">
+      <EducationNavSidebar items={navItems} activeTab={tab} onTabChange={changeTab}>
+          <header className="mt-0 md:mt-0">
             <p className="text-sm text-muted-foreground">Welcome back, {studentName}</p>
             <h1 className="mt-1 text-2xl font-semibold">{instituteName}</h1>
           </header>
@@ -321,9 +269,19 @@ export function StudentWorkspace({
             </Card>
           )}
 
-          {(["results", "notices", "profile"] as const).includes(tab as "results" | "notices" | "profile") && (
+          {tab === "fees" && (
+            <Card title="Fees">
+              <p className="text-sm text-muted-foreground">
+                Fee balances and receipts will appear here when your school enables online fee viewing.
+              </p>
+            </Card>
+          )}
+
+          {(["exams", "calendar", "profile"] as const).includes(tab as "exams" | "calendar" | "profile") && (
             <StudentModuleTab
-              module={tab as "results" | "notices" | "profile"}
+              module={
+                tab === "exams" ? "results" : tab === "calendar" ? "notices" : "profile"
+              }
               exams={exams}
               posts={posts}
               events={events}
@@ -332,8 +290,7 @@ export function StudentWorkspace({
               teachers={teachers}
             />
           )}
-        </main>
-      </div>
+      </EducationNavSidebar>
     </>
   );
 }

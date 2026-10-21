@@ -7,7 +7,7 @@ import { formatUserName } from "@/components/user-identity";
 import type { Member } from "@/lib/api";
 import { buildInstitutePathFromSearch } from "@/lib/embed-href";
 
-type Section = { id: string; name: string; className?: string };
+type Section = { id: string; name: string; className?: string; classTeacherUserId?: string | null };
 type SectionMapping = { teachers: Member[]; students: Member[] };
 type EnrollmentModule = "teachers" | "students";
 
@@ -21,12 +21,16 @@ export function EnrollmentManager({
   onChanged,
   fixedModule,
   listTab = "teachers-classes",
+  instituteTab,
+  associationPanel,
 }: {
   instituteId: string;
   refreshKey?: number;
   onChanged?: () => void;
   fixedModule?: EnrollmentModule;
-  listTab?: "teachers-classes" | "students-classes";
+  listTab?: "teachers-classes" | "students-classes" | "association";
+  instituteTab?: "association";
+  associationPanel?: "teachers" | "students";
 }) {
   const [sections, setSections] = useState<Section[]>([]);
   const [staff, setStaff] = useState<Member[]>([]);
@@ -48,13 +52,14 @@ export function EnrollmentManager({
     (patch: Record<string, string | undefined>) => {
       router.replace(
         buildInstitutePathFromSearch(instituteId, searchParams, {
-          tab: listTab,
+          tab: instituteTab ?? listTab,
+          associationPanel: instituteTab === "association" ? associationPanel : undefined,
           enrollmentModule: fixedModule ?? module,
           ...patch,
         })
       );
     },
-    [fixedModule, instituteId, listTab, module, router, searchParams]
+    [associationPanel, fixedModule, instituteId, instituteTab, listTab, module, router, searchParams]
   );
 
   const load = useCallback(async () => {
@@ -66,7 +71,7 @@ export function EnrollmentManager({
     ]);
     if (instituteRes.ok) {
       const institute = await instituteRes.json();
-      setCanManage(["owner", "admin"].includes(institute.role));
+      setCanManage(["owner", "admin", "principal"].includes(institute.role));
     }
     const nextSections = sectionRes.ok ? await sectionRes.json() : [];
     setSections(nextSections);
@@ -145,6 +150,7 @@ export function EnrollmentManager({
         <p className="mt-1 text-sm text-muted-foreground">Assign teachers and students to each class.</p>
       </div>
       <SectionFirstWorkspace
+        instituteId={instituteId}
         sections={sections}
         staff={staff}
         students={students}
@@ -155,6 +161,7 @@ export function EnrollmentManager({
         setModule={setModule}
         hideModuleToggle={Boolean(fixedModule)}
         update={update}
+        onReload={load}
         canManage={canManage}
         personSearch={personSearch}
         setPersonSearch={setPersonSearch}
@@ -193,6 +200,7 @@ export function EnrollmentManager({
 }
 
 function SectionFirstWorkspace({
+  instituteId,
   sections,
   staff,
   students,
@@ -203,6 +211,7 @@ function SectionFirstWorkspace({
   setModule,
   hideModuleToggle = false,
   update,
+  onReload,
   canManage,
   personSearch,
   setPersonSearch,
@@ -211,6 +220,7 @@ function SectionFirstWorkspace({
   bulkLoading,
   onBulkAssign,
 }: {
+  instituteId: string;
   sections: Section[];
   staff: Member[];
   students: Member[];
@@ -221,6 +231,7 @@ function SectionFirstWorkspace({
   setModule: (module: EnrollmentModule) => void;
   hideModuleToggle?: boolean;
   update: (path: string, body?: object) => void;
+  onReload: () => Promise<void>;
   canManage: boolean;
   personSearch: string;
   setPersonSearch: (value: string) => void;
@@ -341,6 +352,16 @@ function SectionFirstWorkspace({
                 {section.className || "Class"} · {section.name}
               </h2>
               {canManage && <p className="mt-1 text-sm text-muted-foreground">{dropHint}</p>}
+              {module === "teachers" && (
+                <ClassTeacherPicker
+                  instituteId={instituteId}
+                  sectionId={section.id}
+                  teachers={mapping.teachers}
+                  classTeacherUserId={section.classTeacherUserId}
+                  canManage={canManage}
+                  onSaved={() => onReload().catch(() => undefined)}
+                />
+              )}
               <AssignedGroup
                 label={moduleLabel}
                 members={assigned}
@@ -461,6 +482,72 @@ function SectionFirstWorkspace({
         )}
       </div>
     </section>
+  );
+}
+
+function ClassTeacherPicker({
+  instituteId,
+  sectionId,
+  teachers,
+  classTeacherUserId,
+  canManage,
+  onSaved,
+}: {
+  instituteId: string;
+  sectionId: string;
+  teachers: Member[];
+  classTeacherUserId?: string | null;
+  canManage: boolean;
+  onSaved: () => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function onChange(userId: string) {
+    if (!canManage) return;
+    setSaving(true);
+    setError("");
+    const res = await fetch(`/api/institutes/${instituteId}/sections/${sectionId}/class-teacher`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ userId: userId || null }),
+    });
+    setSaving(false);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setError(typeof body.detail === "string" ? body.detail : "Could not update class teacher");
+      return;
+    }
+    onSaved();
+  }
+
+  return (
+    <div className="mt-4 rounded-lg border border-border bg-muted/30 px-3 py-3">
+      <label className="text-xs font-semibold text-muted-foreground" htmlFor={`ct-${sectionId}`}>
+        Class teacher
+      </label>
+      <p className="mt-0.5 text-[11px] text-muted-foreground">
+        Only the class teacher can post daily notes. Assign teachers below first, then pick one here.
+      </p>
+      <select
+        id={`ct-${sectionId}`}
+        disabled={!canManage || saving || !teachers.length}
+        value={classTeacherUserId || ""}
+        onChange={(e) => onChange(e.target.value)}
+        className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm disabled:opacity-60"
+      >
+        <option value="">
+          {teachers.length ? "Not set — any assigned teacher may post notes" : "Assign a teacher first"}
+        </option>
+        {teachers.map((teacher) => (
+          <option key={teacher.userId} value={teacher.userId}>
+            {formatUserName(teacher)}
+          </option>
+        ))}
+      </select>
+      {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+    </div>
   );
 }
 

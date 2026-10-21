@@ -11,6 +11,8 @@ type Tab = "overview" | "students" | "assignments" | "notes" | "progress";
 type Overview = {
   sectionName: string;
   className: string;
+  classTeacherUserId?: string | null;
+  canEditDailyNotes?: boolean;
   studentCount: number;
   teacherCount: number;
   notesCount: number;
@@ -86,6 +88,7 @@ export function SectionWorkspace({
   const [dialogStudent, setDialogStudent] = useState<Member | null>(null);
   const isTeacher = ["owner", "admin", "principal", "teacher", "lecturer", "professor"].includes(role);
   const isStudent = role === "student";
+  const canEditNotes = overview.canEditDailyNotes === true;
 
   useEffect(() => {
     if (!isTeacher) return;
@@ -377,12 +380,12 @@ export function SectionWorkspace({
                 </li>
               ))}
             </ul>
-            {isTeacher && (
+            {canEditNotes && (
               <div className="mt-4 space-y-2">
                 <textarea
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
-                  placeholder="Today's note"
+                  placeholder="Today's note for parents and staff"
                   className="w-full rounded-lg border border-border px-3 py-2 text-sm"
                   rows={3}
                 />
@@ -390,6 +393,11 @@ export function SectionWorkspace({
                   Post note
                 </button>
               </div>
+            )}
+            {isTeacher && !canEditNotes && (
+              <p className="mt-4 text-sm text-muted-foreground">
+                Daily notes are read-only here. Only the class teacher can post updates for this class.
+              </p>
             )}
           </div>
         )}
