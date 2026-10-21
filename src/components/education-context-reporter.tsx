@@ -2,6 +2,20 @@
 
 import { useEffect } from "react";
 
+function clearShellContext() {
+  window.parent.postMessage(
+    {
+      type: "app-context",
+      name: "",
+      subtitle: "",
+      role: "",
+      showManageInstitutes: false,
+      showManageBusinesses: false,
+    },
+    "*"
+  );
+}
+
 export function EducationContextReporter({
   instituteName,
   subtitle,
@@ -18,6 +32,7 @@ export function EducationContextReporter({
       { type: "app-context", name: instituteName, subtitle, role, showManageInstitutes },
       "*"
     );
+    return clearShellContext;
   }, [instituteName, role, showManageInstitutes, subtitle]);
 
   return null;
