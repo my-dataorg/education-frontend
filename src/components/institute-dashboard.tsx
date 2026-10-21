@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ConfigureTab } from "@/components/institute-tabs/configure-tab";
 import { ProfileTab } from "@/components/institute-tabs/profile-tab";
 import { AssociationTab } from "@/components/institute-tabs/association-tab";
+import { ClassesBrowseTab } from "@/components/classes-browse-tab";
 import { ClassesMenuTab } from "@/components/institute-tabs/classes-menu-tab";
 import { DailyNotesTab } from "@/components/institute-tabs/daily-notes-tab";
 import { OverviewTab } from "@/components/institute-tabs/overview-tab";
@@ -238,11 +239,25 @@ export function InstituteDashboard({
                     showEnrollment={showOwnerSetup}
                   />
                 </TabsContent>
-                {showOwnerSetup && (
-                  <TabsContent value="classes" className="w-full">
-                    <ClassesMenuTab instituteId={instituteId} branches={branches} />
-                  </TabsContent>
-                )}
+                <TabsContent value="classes" className="w-full">
+                  <ClassesBrowseTab
+                    instituteId={instituteId}
+                    sections={[]}
+                    workspaceRole="owner"
+                    loadAllSections
+                  />
+                  {showOwnerSetup && (
+                    <div className="mt-10 border-t border-border pt-8">
+                      <h2 className="text-lg font-semibold">Manage class structure</h2>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Create sections, subjects, and map subjects to classes.
+                      </p>
+                      <div className="mt-4">
+                        <ClassesMenuTab instituteId={instituteId} branches={branches} />
+                      </div>
+                    </div>
+                  )}
+                </TabsContent>
                 <TabsContent value="calendar" className="w-full">
                   <NoticesTab instituteId={instituteId} branchId={selectedBranchId} />
                 </TabsContent>

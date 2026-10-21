@@ -56,7 +56,10 @@ export function legacyTabQueryOverrides(
       memberTab: memberTab || undefined,
     };
   }
-  if (tabParam === "teachers-classes" || tabParam === "subject-teachers") {
+  if (tabParam === "teachers-classes" || tabParam === "my-classes") {
+    return { tab: "classes" };
+  }
+  if (tabParam === "subject-teachers") {
     return { tab: "association", associationPanel: "teachers" };
   }
   if (tabParam === "students-classes") {

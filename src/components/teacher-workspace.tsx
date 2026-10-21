@@ -2,12 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { SectionWorkspace } from "@/components/section-workspace";
+import { ClassesBrowseTab } from "@/components/classes-browse-tab";
 import { TeacherShell } from "@/components/teacher-shell";
 import type { EducationNavId } from "@/lib/education-nav";
 import { TeacherModuleTab } from "@/components/teacher-module-tab";
 import { EducationContextReporter } from "@/components/education-context-reporter";
-import type { Assignment, InstitutePost, Member, Note, Section } from "@/lib/api";
+import type { Assignment, InstitutePost, Member, Section } from "@/lib/api";
 
 type SectionOverview = {
   sectionId: string;
@@ -123,8 +123,6 @@ export function TeacherWorkspace({
       .catch(() => setProgressBySection({}));
   }, [tab, sections]);
 
-  const selectedSection = sections.find((section) => section.id === selectedSectionId);
-  const selectedOverview = selectedSectionId ? overviews[selectedSectionId] : undefined;
   const totalStudents = Object.values(overviews).reduce((total, item) => total + item.studentCount, 0);
   const completionValues = Object.values(overviews)
     .map((item) => item.averageCompletionPercent)
@@ -173,7 +171,7 @@ export function TeacherWorkspace({
               currentUserId={currentUserId}
               onSelectSection={(sectionId) => {
                 setSelectedSectionId(sectionId);
-                setTab("teachers-classes");
+                setTab("classes");
               }}
             />
           </div>
@@ -197,60 +195,27 @@ export function TeacherWorkspace({
             expanded
             onSelectSection={(sectionId) => {
               setSelectedSectionId(sectionId);
-              setTab("teachers-classes");
+              setTab("classes");
             }}
           />
         </div>
       )}
 
-      {["teachers-classes", "assignments", "attendance"].includes(tab) && (
-        <div className="mt-6 grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
-          <section>
-            <h2 className="text-xl font-semibold">My classes</h2>
-            <div className="mt-3 space-y-2">
-              {sections.map((section) => (
-                <button
-                  key={section.id}
-                  type="button"
-                  onClick={() => setSelectedSectionId(section.id)}
-                  className={`w-full rounded-xl border p-4 text-left transition ${
-                    selectedSectionId === section.id
-                      ? "border-primary bg-primary/5"
-                      : "border-border bg-card hover:border-primary/40"
-                  }`}
-                >
-                  <p className="font-medium">{section.className || "Class"} · {section.name}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {overviews[section.id]?.studentCount ?? "—"} students
-                  </p>
-                </button>
-              ))}
-              {!sections.length && <p className="text-sm text-muted-foreground">No classes assigned.</p>}
-            </div>
-          </section>
-          {selectedSection && selectedOverview ? (
-            <SectionWorkspace
-              key={`${selectedSection.id}-${tab}`}
-              instituteId={instituteId}
-              sectionId={selectedSection.id}
-              role="teacher"
-              initialTab={
-                tab === "assignments"
-                  ? "assignments"
-                  : tab === "attendance"
-                    ? "students"
-                    : "overview"
-              }
-              overview={selectedOverview}
-              assignments={selectedOverview.assignments}
-              notes={[] as Note[]}
-            />
-          ) : (
-            <div className="rounded-xl border border-dashed border-border p-8 text-sm text-muted-foreground">
-              Select a class to view its workspace.
-            </div>
-          )}
-        </div>
+      {tab === "classes" && (
+        <ClassesBrowseTab
+          instituteId={instituteId}
+          sections={sections}
+          workspaceRole="teacher"
+        />
+      )}
+
+      {["assignments", "attendance"].includes(tab) && (
+        <ClassesBrowseTab
+          instituteId={instituteId}
+          sections={sections}
+          workspaceRole="teacher"
+          sectionWorkspaceTab={tab === "assignments" ? "assignments" : "students"}
+        />
       )}
 
       {tab === "reports" && (

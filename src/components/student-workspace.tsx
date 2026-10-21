@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { Assignment, Attendance, InstitutePost, Member, Section } from "@/lib/api";
 import { EducationNavSidebar } from "@/components/education-nav-sidebar";
 import { EducationContextReporter } from "@/components/education-context-reporter";
+import { ClassesBrowseTab } from "@/components/classes-browse-tab";
 import { StudentModuleTab, type CalendarEvent, type Exam } from "@/components/student-module-tab";
 import { getEducationNavItems, type EducationNavId } from "@/lib/education-nav";
 
@@ -150,6 +151,14 @@ export function StudentWorkspace({
 
           {error && (
             <p className="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>
+          )}
+
+          {tab === "classes" && (
+            <ClassesBrowseTab
+              instituteId={instituteId}
+              sections={sections}
+              workspaceRole="student"
+            />
           )}
 
           {tab === "overview" && (

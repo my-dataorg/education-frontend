@@ -71,6 +71,7 @@ const LABELS: Record<EducationNavId, string> = {
 
 const OWNER_ORDER: EducationNavId[] = [
   "overview",
+  "classes",
   "profile",
   "configure",
   "association",
@@ -81,24 +82,20 @@ const OWNER_ORDER: EducationNavId[] = [
   "exams",
   "fees",
   "reports",
-  "classes",
 ];
 
 const ROLE_LABEL_OVERRIDES: Partial<Record<RoleKey, Partial<Record<EducationNavId, string>>>> = {
   teacher: {
-    "teachers-classes": "My classes",
     exams: "Marks & gradebook",
     reports: "Student progress",
     calendar: "Notices & events",
   },
   lecturer: {
-    "teachers-classes": "My classes",
     exams: "Marks & gradebook",
     reports: "Student progress",
     calendar: "Notices & events",
   },
   professor: {
-    "teachers-classes": "My classes",
     exams: "Marks & gradebook",
     reports: "Student progress",
     calendar: "Notices & events",
@@ -123,6 +120,7 @@ const ROLE_ORDER: Record<RoleKey, EducationNavId[]> = {
   principal: OWNER_ORDER,
   admin: [
     "overview",
+    "classes",
     "association",
     "calendar",
     "timetable",
@@ -134,7 +132,7 @@ const ROLE_ORDER: Record<RoleKey, EducationNavId[]> = {
   ],
   teacher: [
     "overview",
-    "teachers-classes",
+    "classes",
     "calendar",
     "timetable",
     "attendance",
@@ -146,7 +144,7 @@ const ROLE_ORDER: Record<RoleKey, EducationNavId[]> = {
   ],
   lecturer: [
     "overview",
-    "teachers-classes",
+    "classes",
     "calendar",
     "timetable",
     "attendance",
@@ -158,7 +156,7 @@ const ROLE_ORDER: Record<RoleKey, EducationNavId[]> = {
   ],
   professor: [
     "overview",
-    "teachers-classes",
+    "classes",
     "calendar",
     "timetable",
     "attendance",
@@ -170,6 +168,7 @@ const ROLE_ORDER: Record<RoleKey, EducationNavId[]> = {
   ],
   student: [
     "overview",
+    "classes",
     "timetable",
     "assignments",
     "exams",
@@ -206,7 +205,8 @@ const LEGACY_TAB_ALIASES: Record<string, EducationNavId | "enrollment-split"> = 
   campuses: "profile",
   notices: "calendar",
   schedule: "timetable",
-  "my-classes": "teachers-classes",
+  "my-classes": "classes",
+  "teachers-classes": "classes",
   marks: "exams",
   "student-progress": "reports",
   results: "exams",
@@ -216,9 +216,10 @@ const LEGACY_TAB_ALIASES: Record<string, EducationNavId | "enrollment-split"> = 
 
 /** Map legacy tab ids to the sidebar item that should appear selected. */
 export function educationNavActiveId(tabId: EducationNavId): EducationNavId {
-  if (tabId === "associates" || tabId === "teachers-classes" || tabId === "students-classes") {
+  if (tabId === "associates" || tabId === "students-classes") {
     return "association";
   }
+  if (tabId === "teachers-classes") return "classes";
   return tabId;
 }
 
@@ -249,7 +250,9 @@ export function getEducationNavScope(role: string, tabId: EducationNavId): Educa
   if (key === "parent") return "children";
   if (key === "student") return "self";
   if (
-    ["teachers-classes", "attendance", "daily-notes", "assignments", "exams", "reports"].includes(tabId)
+    ["classes", "teachers-classes", "attendance", "daily-notes", "assignments", "exams", "reports"].includes(
+      tabId
+    )
   ) {
     return "assigned-sections";
   }
@@ -264,9 +267,10 @@ export function resolveLegacyEducationTab(
   if (!tabParam) return null;
   if (EDUCATION_NAV_IDS.includes(tabParam as EducationNavId)) {
     const id = tabParam as EducationNavId;
-    if (id === "associates" || id === "teachers-classes" || id === "students-classes") {
+    if (id === "associates" || id === "students-classes") {
       return "association";
     }
+    if (id === "teachers-classes") return "classes";
     if (tabParam === "classes") return "classes";
     return id;
   }
