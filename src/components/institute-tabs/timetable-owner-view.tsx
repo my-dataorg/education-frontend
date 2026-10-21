@@ -50,6 +50,12 @@ type ClashItem = {
   message: string;
 };
 
+type PeriodLimitWarning = {
+  warning_id: string;
+  message: string;
+  section_ids?: string[];
+};
+
 type TeacherLoadItem = {
   teacher_id: string;
   name: string;
@@ -143,6 +149,7 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
   const [error, setError] = useState("");
   const [timetable, setTimetable] = useState<TimetablePayload | null>(null);
   const [clashes, setClashes] = useState<ClashItem[]>([]);
+  const [periodWarnings, setPeriodWarnings] = useState<PeriodLimitWarning[]>([]);
   const [teacherLoad, setTeacherLoad] = useState<TeacherLoadItem[]>([]);
   const [sections, setSections] = useState<Section[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -213,6 +220,7 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
       if (!activeId) {
         setTimetable(null);
         setClashes([]);
+        setPeriodWarnings([]);
         setTeacherLoad([]);
         setLoading(false);
         return;
@@ -220,9 +228,12 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
       setLoading(true);
       setError("");
       const qs = queryString(campusId, { view: activeView, id: activeId, state: "draft" });
-      const [timetableRes, clashesRes, loadRes] = await Promise.all([
+      const [timetableRes, clashesRes, warningsRes, loadRes] = await Promise.all([
         fetch(`/api/institutes/${instituteId}/timetable${qs}`),
         fetch(`/api/institutes/${instituteId}/timetable/clashes${campusId ? `?campus_id=${campusId}` : ""}`),
+        fetch(
+          `/api/institutes/${instituteId}/timetable/period-limit-warnings${campusId ? `?campus_id=${campusId}` : ""}`
+        ),
         fetch(
           `/api/institutes/${instituteId}/timetable/teacher-load${queryString(campusId, {
             view: activeView,
@@ -245,6 +256,12 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
         setClashes(clashPayload.items ?? []);
       } else {
         setClashes([]);
+      }
+      if (warningsRes.ok) {
+        const warningPayload = await warningsRes.json();
+        setPeriodWarnings(warningPayload.items ?? []);
+      } else {
+        setPeriodWarnings([]);
       }
       if (loadRes.ok) {
         const loadPayload = await loadRes.json();
@@ -302,7 +319,9 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
     itemOptions.find((item) => item.id === itemId)?.label || "Select item";
 
   const emptyCount = timetable?.cells.filter((cell) => cell.status === "empty").length ?? 0;
-  const clashCount = clashes.length > 0 ? clashes.length : timetable?.cells.filter((c) => c.status === "clash").length ?? 0;
+  const clashCount =
+    clashes.length > 0 ? clashes.length : timetable?.cells.filter((c) => c.status === "clash").length ?? 0;
+  const periodWarningCount = periodWarnings.length;
 
   const workingDays = useMemo(
     () => (timetable?.days ?? []).filter((day) => day.is_working),
@@ -490,7 +509,7 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
           <button
             type="button"
             disabled={clashCount > 0 || publishing}
-            title={clashCount > 0 ? `Fix ${clashCount} clashes before you publish.` : undefined}
+            title={clashCount > 0 ? `Fix ${clashCount} scheduling clash(es) before you publish.` : undefined}
             onClick={() => setPublishOpen(true)}
             className="rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground disabled:opacity-50"
           >
@@ -501,8 +520,9 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
 
       {!timetable?.published_at && (
         <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          Staff and students only see this timetable after you tap <strong>Publish</strong>. Fix clashes first
-          (for example subject period limits).
+          Staff and students only see this timetable after you tap <strong>Publish</strong>. You must fix
+          scheduling clashes (same teacher, room, or class at the same time) before publishing. Weekly period
+          limits are shown as warnings and do not block publish.
         </p>
       )}
 
@@ -542,8 +562,13 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
             onClick={() => setClashPanelOpen((open) => !open)}
             className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700"
           >
-            {clashCount} clash{clashCount === 1 ? "" : "es"}
+            {clashCount} scheduling clash{clashCount === 1 ? "" : "es"}
           </button>
+        )}
+        {periodWarningCount > 0 && (
+          <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800">
+            {periodWarningCount} period limit warning{periodWarningCount === 1 ? "" : "s"}
+          </span>
         )}
         {emptyCount > 0 && (
           <button
@@ -699,10 +724,10 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
             <div className="rounded-lg border border-red-200 bg-red-50/50 p-3">
               <h3 className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-red-800">
                 <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
-                Clashes
+                Scheduling clashes
               </h3>
               {clashes.length === 0 ? (
-                <p className="mt-2 text-xs text-muted-foreground">No clashes reported.</p>
+                <p className="mt-2 text-xs text-muted-foreground">No scheduling clashes.</p>
               ) : (
                 <ul className="mt-2 space-y-2">
                   {clashes.map((clash) => (
@@ -721,6 +746,21 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
                   ))}
                 </ul>
               )}
+            </div>
+          )}
+
+          {periodWarnings.length > 0 && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-amber-900">
+                Period limits (warnings)
+              </h3>
+              <ul className="mt-2 space-y-2">
+                {periodWarnings.map((warning) => (
+                  <li key={warning.warning_id} className="text-xs text-amber-950">
+                    {warning.message}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 

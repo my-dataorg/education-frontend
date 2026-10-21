@@ -96,7 +96,7 @@ export function TeacherTimetableTab({
         <h2 className="text-xl font-semibold">My timetable</h2>
         <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           The weekly timetable has not been published yet. Owners see a draft while building the schedule; teachers
-          and students only see it after an owner publishes it (clashes must be resolved first).
+          and students only see it after an owner publishes it (scheduling clashes must be resolved first).
         </p>
       </div>
     );
