@@ -11,6 +11,7 @@ import { InvitationsList } from "@/components/invitations-list";
 import { ModuleCard } from "@/components/shell/module-card";
 import { isSubscriptionError } from "@/components/subscription-required";
 import { CreateInstituteModule } from "@/components/create-institute-module";
+import { isInvalidSessionError } from "@/lib/auth-errors";
 import { ROLE_LABELS } from "@/lib/roles";
 
 export default async function InstitutesPage({
@@ -30,6 +31,10 @@ export default async function InstitutesPage({
   const result = await eduApi.listInstitutesSafe(session.accessToken);
   institutes = result.institutes;
   error = result.error || "";
+
+  if (error && isInvalidSessionError(error)) {
+    redirect("/api/auth/signout?callbackUrl=" + encodeURIComponent("/login?reason=session"));
+  }
 
   if (
     institutes.length === 1 &&
@@ -81,7 +86,10 @@ export default async function InstitutesPage({
             {isSubscriptionError(error) && (
               <>
                 {" "}
-                <Link href="http://localhost:3000/marketplace" className="text-primary hover:underline">
+                <Link
+                  href={`${process.env.PLATFORM_URL || "http://localhost:3000"}/marketplace`}
+                  className="text-primary hover:underline"
+                >
                   Subscribe in the marketplace
                 </Link>
                 .

@@ -1,15 +1,19 @@
 import { auth } from "@/auth";
-import { federatedSignOut, signInFresh } from "@/lib/auth-actions";
-import { keycloakRegistrationUrl } from "@/lib/keycloak-urls";
+import { federatedSignOut } from "@/lib/auth-actions";
 import { fetchPendingInvitations } from "@/lib/fetch-invitations";
 import { InvitationsList } from "@/components/invitations-list";
 import { GraduationCap } from "lucide-react";
 import Link from "next/link";
 
-export default async function LoginPage() {
+const PLATFORM_URL = process.env.PLATFORM_URL || "http://localhost:3000";
+
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ reason?: string }>;
+}) {
+  const { reason } = await searchParams;
   const session = await auth();
-  const appUrl = process.env.AUTH_URL || "http://localhost:3010";
-  const registerUrl = keycloakRegistrationUrl(appUrl);
 
   if (session?.user && session.accessToken) {
     const pendingInvites = await fetchPendingInvitations(session);
@@ -62,30 +66,29 @@ export default async function LoginPage() {
         </div>
         <h1 className="text-2xl font-semibold">Education</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Sign in or create a MyData account. If an admin invited you as staff or student, sign in
-          with that email to accept the invitation.
+          Sign in on the MyData platform, then open Education from your dashboard. Use the same email
+          if an admin invited you as staff or student.
         </p>
-        <form
-          className="mt-8"
-          action={async () => {
-            "use server";
-            await signInFresh("/institutes");
-          }}
-        >
-          <button
-            type="submit"
-            className="w-full rounded-xl bg-primary py-3 text-sm font-medium text-primary-foreground hover:opacity-90"
-          >
-            Sign in
-          </button>
-        </form>
+        {reason === "session" && (
+          <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            Your previous sign-in expired. Please sign in on the platform again.
+          </p>
+        )}
         <Link
-          href={registerUrl}
+          href={`${PLATFORM_URL}/login`}
+          target="_top"
+          className="mt-8 block w-full rounded-xl bg-primary py-3 text-sm font-medium text-primary-foreground hover:opacity-90"
+        >
+          Sign in on Platform
+        </Link>
+        <Link
+          href={`${PLATFORM_URL}/signup`}
+          target="_top"
           className="mt-3 block w-full rounded-xl border border-border py-3 text-sm font-medium hover:bg-muted"
         >
           Create account
         </Link>
-        <Link href="http://localhost:3000" className="mt-6 block text-xs text-muted-foreground hover:foreground">
+        <Link href={PLATFORM_URL} target="_top" className="mt-6 block text-xs text-muted-foreground hover:text-foreground">
           ← Back to Platform
         </Link>
       </div>
