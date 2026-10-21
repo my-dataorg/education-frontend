@@ -499,6 +499,13 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
         </div>
       </div>
 
+      {!timetable?.published_at && (
+        <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          Staff and students only see this timetable after you tap <strong>Publish</strong>. Fix clashes first
+          (for example subject period limits).
+        </p>
+      )}
+
       {error && (
         <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
       )}

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ClassesBrowseTab } from "@/components/classes-browse-tab";
+import { TeacherTimetableTab } from "@/components/teacher-timetable-tab";
 import { TeacherShell } from "@/components/teacher-shell";
 import type { EducationNavId } from "@/lib/education-nav";
 import { TeacherModuleTab } from "@/components/teacher-module-tab";
@@ -179,26 +180,7 @@ export function TeacherWorkspace({
       )}
 
       {tab === "timetable" && (
-        <div className="mt-6">
-          <h2 className="text-xl font-semibold">My schedule</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Published timetable for your classes.</p>
-          {!schedule?.publishedAt && (
-            <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              The timetable has not been published yet.
-            </p>
-          )}
-          <ScheduleCard
-            schedule={schedule}
-            sections={allSections}
-            subjects={subjects}
-            currentUserId={currentUserId}
-            expanded
-            onSelectSection={(sectionId) => {
-              setSelectedSectionId(sectionId);
-              setTab("classes");
-            }}
-          />
-        </div>
+        <TeacherTimetableTab instituteId={instituteId} teacherId={currentUserId} />
       )}
 
       {tab === "classes" && (
