@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, Printer, Settings2 } from "lucide-react";
 import { buildInstitutePathFromSearch } from "@/lib/embed-href";
+import { parseOwnerTimetable, type OwnerTimetablePayload } from "@/lib/timetable-api";
 
 type TimetableView = "class" | "teacher" | "room";
 
@@ -33,15 +34,7 @@ type TimetableCell = {
   locked?: boolean;
 };
 
-type TimetablePayload = {
-  periods: TimetablePeriod[];
-  days: TimetableDay[];
-  cells: TimetableCell[];
-  draft_saved_at?: string | null;
-  published_at?: string | null;
-  changed_since_publish?: boolean;
-  settings_summary?: string | null;
-};
+type TimetablePayload = OwnerTimetablePayload;
 
 type ClashItem = {
   clash_id: string;
@@ -165,6 +158,7 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
   const [clashPanelOpen, setClashPanelOpen] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [publishMessage, setPublishMessage] = useState("");
   const [focusedCell, setFocusedCell] = useState<{ day: number; period_no: number } | null>(null);
   const [editor, setEditor] = useState<{
     day: number;
@@ -245,7 +239,7 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
         const body = await timetableRes.json().catch(() => ({}));
         throw new Error(body.detail || body.error || "Could not load timetable");
       }
-      const payload = (await timetableRes.json()) as TimetablePayload;
+      const payload = parseOwnerTimetable((await timetableRes.json()) as Record<string, unknown>);
       setTimetable(payload);
       const roomSet = new Set(
         payload.cells.map((cell) => cell.room).filter((room): room is string => Boolean(room?.trim()))
@@ -253,7 +247,15 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
       setRooms([...roomSet].sort());
       if (clashesRes.ok) {
         const clashPayload = await clashesRes.json();
-        setClashes(clashPayload.items ?? []);
+        const items = (clashPayload.items ?? []) as Record<string, unknown>[];
+        setClashes(
+          items.map((clash) => ({
+            clash_id: String(clash.clashId ?? clash.clash_id ?? ""),
+            day: Number(clash.day),
+            period_no: Number(clash.periodNo ?? clash.period_no ?? 0),
+            message: String(clash.message ?? ""),
+          }))
+        );
       } else {
         setClashes([]);
       }
@@ -334,9 +336,11 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
 
   const statusPill = timetable?.published_at && !timetable.changed_since_publish
     ? `Published · ${formatStatusTime(timetable.published_at)}`
-    : timetable?.draft_saved_at
-      ? `Draft saved · ${formatStatusTime(timetable.draft_saved_at)}`
-      : "Draft";
+    : timetable?.published_at && timetable.changed_since_publish
+      ? `Draft · unpublished changes`
+      : timetable?.draft_saved_at
+        ? `Draft saved · ${formatStatusTime(timetable.draft_saved_at)}`
+        : "Draft";
 
   async function previewAutoFill() {
     setAutoFillBusy(true);
@@ -407,6 +411,12 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
         return;
       }
       setPublishOpen(false);
+      const publishedAt = body.publishedAt ?? body.published_at;
+      setPublishMessage(
+        publishedAt
+          ? `Timetable published. Teachers and students now see this version (as of ${formatStatusTime(String(publishedAt))}).`
+          : "Timetable published. Teachers and students can see this version now."
+      );
       await loadTimetableBundle(view, itemId);
     } catch {
       setError("Could not publish timetable");
@@ -431,6 +441,7 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
     if (!editor || !itemId) return;
     setSavingCell(true);
     setCellMessage("");
+    setPublishMessage("");
     try {
       const res = await fetch(
         `/api/institutes/${instituteId}/timetable/cells${campusId ? `?campus_id=${campusId}` : ""}`,
@@ -523,6 +534,19 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
           Staff and students only see this timetable after you tap <strong>Publish</strong>. You must fix
           scheduling clashes (same teacher, room, or class at the same time) before publishing. Weekly period
           limits are shown as warnings and do not block publish.
+        </p>
+      )}
+
+      {timetable?.published_at && timetable.changed_since_publish && (
+        <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          You have <strong>unpublished changes</strong> in this draft. Teachers and students still see the last
+          published version until you publish again.
+        </p>
+      )}
+
+      {publishMessage && (
+        <p className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+          {publishMessage}
         </p>
       )}
 

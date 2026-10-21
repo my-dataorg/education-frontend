@@ -7,6 +7,7 @@ import { EducationNavSidebar } from "@/components/education-nav-sidebar";
 import { EducationContextReporter } from "@/components/education-context-reporter";
 import { ClassesBrowseTab } from "@/components/classes-browse-tab";
 import { StudentModuleTab, type CalendarEvent, type Exam } from "@/components/student-module-tab";
+import { StudentTimetableTab } from "@/components/student-timetable-tab";
 import { getEducationNavItems, type EducationNavId } from "@/lib/education-nav";
 
 export type StudentTab = EducationNavId;
@@ -183,26 +184,11 @@ export function StudentWorkspace({
           )}
 
           {tab === "timetable" && (
-            <Card title="Timetable">
-              {!schedulePublished && (
-                <p className="mb-3 text-sm text-muted-foreground">The timetable has not been published yet.</p>
-              )}
-              <div className="space-y-5">
-                {schedule?.settings.weekdays.map((day) => {
-                  const entries = (schedule.entries || [])
-                    .filter((entry) => entry.dayOfWeek === day && entry.sectionId === selectedSectionId)
-                    .map((entry) => ({ ...entry, slot: schedule.slots.find((slot) => slot.id === entry.slotId) }))
-                    .filter((entry): entry is typeof entry & { slot: NonNullable<typeof entry.slot> } => Boolean(entry.slot));
-                  return (
-                    <div key={day}>
-                      <h2 className="mb-2 text-sm font-semibold">{DAYS[day]}</h2>
-                      <ScheduleList entries={entries} subjects={subjects} />
-                    </div>
-                  );
-                })}
-                {!schedule && <p className="text-sm text-muted-foreground">Loading timetable…</p>}
-              </div>
-            </Card>
+            <StudentTimetableTab
+              instituteId={instituteId}
+              studentId={studentId}
+              enrolledSections={sections}
+            />
           )}
 
           {tab === "assignments" && (
