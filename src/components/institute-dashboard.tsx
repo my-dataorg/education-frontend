@@ -28,6 +28,7 @@ import {
 } from "@/lib/institute-tabs";
 import { INSTITUTE_ADMIN_ROLES, ROLE_LABELS } from "@/lib/roles";
 import { EducationContextReporter } from "@/components/education-context-reporter";
+import { ClassesMobileHeaderProvider } from "@/components/classes-mobile-header";
 
 export type InstituteDetail = {
   id: string;
@@ -160,6 +161,7 @@ export function InstituteDashboard({
       showManageInstitutes={canAdminWorkspace}
     />
     <div className="flex min-h-0 flex-1 flex-col">
+    <ClassesMobileHeaderProvider>
     <InstituteShell
       instituteId={instituteId}
       branches={branches}
@@ -169,7 +171,7 @@ export function InstituteDashboard({
       activeTab={activeTab}
       tabHref={tabHref}
     >
-      <div className="px-3 pt-2 pb-4 sm:px-4">
+      <div className={`px-2 pb-4 sm:px-4 ${activeTab === "classes" ? "pt-0 sm:pt-2" : "pt-1 sm:pt-2"}`}>
         <div>
           <BranchPills
             instituteId={instituteId}
@@ -187,7 +189,10 @@ export function InstituteDashboard({
             {error}
           </p>
         ) : (
-          <Tabs value={educationNavActiveId(activeTab)} className={`${activeTab === "overview" ? "mt-1" : "mt-4"} w-full min-w-0`}>
+          <Tabs
+            value={educationNavActiveId(activeTab)}
+            className={`w-full min-w-0 ${activeTab === "classes" ? "mt-0" : activeTab === "overview" ? "mt-1" : "mt-4"}`}
+          >
             <TabsContent value="overview" className="w-full">
               <OverviewTab
                 instituteId={instituteId}
@@ -239,7 +244,7 @@ export function InstituteDashboard({
                     showEnrollment={showOwnerSetup}
                   />
                 </TabsContent>
-                <TabsContent value="classes" className="w-full">
+                <TabsContent value="classes" className="mt-0 w-full sm:mt-2">
                   <ClassesBrowseTab
                     instituteId={instituteId}
                     sections={[]}
@@ -285,6 +290,7 @@ export function InstituteDashboard({
         )}
       </div>
     </InstituteShell>
+    </ClassesMobileHeaderProvider>
     </div>
     </>
   );

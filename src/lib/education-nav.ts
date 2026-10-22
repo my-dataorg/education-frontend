@@ -84,6 +84,16 @@ const OWNER_ORDER: EducationNavId[] = [
   "reports",
 ];
 
+/** Shown under Classes (section workspace), not in the teacher left sidebar. */
+export const TEACHER_CLASS_NAV_IDS: ReadonlySet<EducationNavId> = new Set([
+  "attendance",
+  "assignments",
+  "exams",
+  "reports",
+]);
+
+const TEACHING_ROLES: ReadonlySet<RoleKey> = new Set(["teacher", "lecturer", "professor"]);
+
 const ROLE_LABEL_OVERRIDES: Partial<Record<RoleKey, Partial<Record<EducationNavId, string>>>> = {
   teacher: {
     exams: "Marks & gradebook",
@@ -130,42 +140,9 @@ const ROLE_ORDER: Record<RoleKey, EducationNavId[]> = {
     "fees",
     "reports",
   ],
-  teacher: [
-    "overview",
-    "classes",
-    "calendar",
-    "timetable",
-    "attendance",
-    "assignments",
-    "exams",
-    "reports",
-    "class-teacher",
-    "leave",
-  ],
-  lecturer: [
-    "overview",
-    "classes",
-    "calendar",
-    "timetable",
-    "attendance",
-    "assignments",
-    "exams",
-    "reports",
-    "class-teacher",
-    "leave",
-  ],
-  professor: [
-    "overview",
-    "classes",
-    "calendar",
-    "timetable",
-    "attendance",
-    "assignments",
-    "exams",
-    "reports",
-    "class-teacher",
-    "leave",
-  ],
+  teacher: ["overview", "classes", "calendar", "timetable", "class-teacher", "leave"],
+  lecturer: ["overview", "classes", "calendar", "timetable", "class-teacher", "leave"],
+  professor: ["overview", "classes", "calendar", "timetable", "class-teacher", "leave"],
   student: [
     "overview",
     "classes",
@@ -220,6 +197,7 @@ export function educationNavActiveId(tabId: EducationNavId): EducationNavId {
     return "association";
   }
   if (tabId === "teachers-classes") return "classes";
+  if (TEACHER_CLASS_NAV_IDS.has(tabId)) return "classes";
   return tabId;
 }
 
@@ -291,6 +269,15 @@ export function resolveEducationNavTab(
   const items = getEducationNavItems(role);
   const fallback = items[0]?.id ?? "overview";
   const resolved = resolveLegacyEducationTab(tabParam, enrollmentModule) ?? tabParam;
+  const roleKey = normalizeEducationRole(role);
+  if (
+    roleKey &&
+    TEACHING_ROLES.has(roleKey) &&
+    resolved &&
+    TEACHER_CLASS_NAV_IDS.has(resolved as EducationNavId)
+  ) {
+    return resolved as EducationNavId;
+  }
   if (resolved && items.some((t) => t.id === resolved)) {
     return resolved as EducationNavId;
   }

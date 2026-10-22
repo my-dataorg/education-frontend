@@ -79,9 +79,16 @@ export function legacyTabQueryOverrides(
       activities: "activities",
       "section-subjects": "section-subjects",
     };
+    const desiredPanel = classesTab ? map[classesTab] ?? "sections" : "sections";
+    const currentPanel = searchParams.get("classesPanel") ?? "sections";
+    // Only rewrite the URL when migrating legacy `classesTab` or fixing a missing/wrong panel.
+    if (!classesTab && currentPanel === desiredPanel) {
+      return null;
+    }
     return {
       tab: "classes",
-      classesPanel: classesTab ? map[classesTab] ?? "sections" : "sections",
+      classesPanel: desiredPanel,
+      classesTab: undefined,
     };
   }
 

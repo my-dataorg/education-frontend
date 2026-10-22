@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { Member, Section } from "@/lib/api";
 import { SectionWorkspace } from "@/components/section-workspace";
+import { useRegisterClassesMobileHeader } from "@/components/classes-mobile-header";
 
 type SectionOverview = {
   sectionId: string;
@@ -30,6 +31,12 @@ function sectionLabel(section: Section, overview?: SectionOverview) {
   const students = overview?.studentCount;
   const base = `${section.className || "Class"} · ${section.name}`;
   return students != null ? `${base} (${students} students)` : base;
+}
+
+function sectionLabelShort(section: Section, overview?: SectionOverview) {
+  const n = overview?.studentCount;
+  const base = `${section.className || "Class"}-${section.name}`;
+  return n != null ? `${base} (${n})` : base;
 }
 
 export function ClassesBrowseTab({
@@ -101,9 +108,28 @@ export function ClassesBrowseTab({
   const selectedSection = sections.find((s) => s.id === selectedSectionId);
   const selectedOverview = selectedSectionId ? overviews[selectedSectionId] : undefined;
 
+  useRegisterClassesMobileHeader(
+    () =>
+      sections.length ? (
+        <select
+          value={selectedSectionId}
+          onChange={(e) => setSelectedSectionId(e.target.value)}
+          className="w-full min-w-0 truncate rounded-md border border-border bg-background px-2 py-1 text-xs font-medium"
+          aria-label="Select class"
+        >
+          {sections.map((section) => (
+            <option key={section.id} value={section.id}>
+              {sectionLabelShort(section, overviews[section.id])}
+            </option>
+          ))}
+        </select>
+      ) : null,
+    [sections, selectedSectionId, overviews]
+  );
+
   return (
-    <div className="mt-6 space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div className="mt-0 space-y-0 sm:mt-4 sm:space-y-4">
+      <div className="hidden md:flex md:flex-row md:items-start md:justify-between">
         <div>
           <h2 className="text-xl font-semibold">Classes</h2>
           <p className="mt-1 text-sm text-muted-foreground">

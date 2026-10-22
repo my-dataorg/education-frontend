@@ -12,14 +12,19 @@ import { ModuleCard } from "@/components/shell/module-card";
 import { isSubscriptionError } from "@/components/subscription-required";
 import { CreateInstituteModule } from "@/components/create-institute-module";
 import { isInvalidSessionError } from "@/lib/auth-errors";
+import { reauthAfterInvalidSession } from "@/lib/auth-actions";
+import { cookies } from "next/headers";
 import { ROLE_LABELS } from "@/lib/roles";
 
 export default async function InstitutesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ stay?: string }>;
+  searchParams: Promise<{ stay?: string; embed?: string }>;
 }) {
   const query = await searchParams;
+  const cookieStore = await cookies();
+  const embedded =
+    query.embed === "1" || cookieStore.get("edu-embed")?.value === "1";
   const session = await auth();
   if (!session?.accessToken) redirect("/login");
 
@@ -33,7 +38,7 @@ export default async function InstitutesPage({
   error = result.error || "";
 
   if (error && isInvalidSessionError(error)) {
-    redirect("/api/auth/signout?callbackUrl=" + encodeURIComponent("/login?reason=session"));
+    await reauthAfterInvalidSession(embedded);
   }
 
   if (

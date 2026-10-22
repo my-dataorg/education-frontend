@@ -1,6 +1,6 @@
 "use client";
 
-import { signIn } from "next-auth/react";
+import { signIn, signOut } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect } from "react";
 import { bridgeDestination, safeBridgePath } from "@/lib/auth-bridge";
@@ -19,7 +19,9 @@ function BridgeInner() {
       return;
     }
 
-    void signIn("platform-handoff", { code, returnPath: nextPath, callbackUrl: dest });
+    void signOut({ redirect: false }).then(() =>
+      signIn("platform-handoff", { code, returnPath: nextPath, callbackUrl: dest })
+    );
   }, [params]);
 
   return <p className="p-6 text-sm text-muted-foreground">Opening Education…</p>;
