@@ -81,13 +81,22 @@ function statusToMark(status: string | undefined): AttendanceMark {
   return "absent";
 }
 
-function statusDotTitle(status: string | undefined) {
+function statusDotTitle(status: string | undefined, publishState?: string) {
   const s = normalizeAttendanceStatus(status);
-  if (s === "present") return "Present";
-  if (s === "late") return "Late";
-  if (s === "excused") return "Excused";
-  if (s === "absent") return "Absent";
-  return "Not marked";
+  let label = "Not marked";
+  if (s === "present") label = "Present";
+  else if (s === "late") label = "Late";
+  else if (s === "excused") label = "Excused";
+  else if (s === "absent") label = "Absent";
+  if (publishState === "draft" && s) {
+    return `${label} · Saved, not submitted`;
+  }
+  return label;
+}
+
+function formatDraftDayLabel(iso: string) {
+  const { title, isToday } = dayHeader(iso);
+  return isToday ? "Today" : title;
 }
 
 function dayHeader(iso: string) {
@@ -138,6 +147,7 @@ export function SectionAttendanceTab({ sectionId }: { sectionId: string }) {
   const [gridDate, setGridDate] = useState(() => localDateIso());
   const [marks, setMarks] = useState<Record<string, AttendanceMark>>({});
   const [saving, setSaving] = useState(false);
+  const [submittingDraft, setSubmittingDraft] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
   const [detailStudent, setDetailStudent] = useState<Member | null>(null);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
@@ -191,6 +201,15 @@ export function SectionAttendanceTab({ sectionId }: { sectionId: string }) {
 
   const todayIso = useMemo(() => localDateIso(), []);
 
+  const draftDates = useMemo(() => {
+    if (!sheet) return [] as string[];
+    return sheet.dates
+      .filter((d) => sheet.publishStateByDate?.[d] === "draft")
+      .sort((a, b) => b.localeCompare(a));
+  }, [sheet]);
+
+  const todayIsDraft = sheet?.publishStateByDate?.[todayIso] === "draft";
+
   function canOpenGrid(forDate: string) {
     if (!sheet) return false;
     if (forDate === todayIso) return sheet.canTakeAttendanceToday !== false;
@@ -224,29 +243,40 @@ export function SectionAttendanceTab({ sectionId }: { sectionId: string }) {
     }));
   }
 
-  async function saveGrid(publishState: PublishState) {
-    setSaving(true);
-    setSaveMessage("");
+  async function syncAttendanceForDate(
+    attendanceDate: string,
+    publishState: PublishState,
+    source: Record<string, AttendanceMark> | "sheet"
+  ) {
     const presentStudentIds: string[] = [];
     const excusedStudentIds: string[] = [];
     for (const student of sheet?.students ?? []) {
-      const mark = marks[student.userId] ?? "absent";
+      const mark =
+        source === "sheet"
+          ? statusToMark(sheet?.statusByStudent[student.userId]?.[attendanceDate])
+          : (source[student.userId] ?? "absent");
       if (mark === "present") presentStudentIds.push(student.userId);
       else if (mark === "excused") excusedStudentIds.push(student.userId);
     }
+    const res = await fetch(`/api/sections/${sectionId}/attendance-present-sync`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        attendanceDate,
+        presentStudentIds,
+        excusedStudentIds,
+        publishState,
+      }),
+    });
+    if (!res.ok) throw new Error("Could not save attendance");
+  }
+
+  async function saveGrid(publishState: PublishState) {
+    setSaving(true);
+    setSaveMessage("");
     try {
-      const res = await fetch(`/api/sections/${sectionId}/attendance-present-sync`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          attendanceDate: gridDate,
-          presentStudentIds,
-          excusedStudentIds,
-          publishState,
-        }),
-      });
-      if (!res.ok) throw new Error("Could not save attendance");
+      await syncAttendanceForDate(gridDate, publishState, marks);
       setSaveMessage(publishState === "draft" ? "Draft saved" : "Submitted");
       setGridOpen(false);
       loadSheet();
@@ -254,6 +284,18 @@ export function SectionAttendanceTab({ sectionId }: { sectionId: string }) {
       setSaveMessage(e instanceof Error ? e.message : "Could not save");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function submitDraftForDate(attendanceDate: string) {
+    setSubmittingDraft(true);
+    try {
+      await syncAttendanceForDate(attendanceDate, "submitted", "sheet");
+      loadSheet();
+    } catch {
+      setError("Could not submit attendance");
+    } finally {
+      setSubmittingDraft(false);
     }
   }
 
@@ -272,10 +314,54 @@ export function SectionAttendanceTab({ sectionId }: { sectionId: string }) {
 
   return (
     <div className="space-y-4">
+      {draftDates.length > 0 && (
+        <div
+          className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 shadow-sm"
+          role="status"
+        >
+          <p className="font-semibold">Attendance saved but not submitted</p>
+          <p className="mt-1 text-amber-900/90">
+            Draft roll calls are visible only to you until you submit. Use <span className="font-medium">Save and submit</span>{" "}
+            when marking, or submit below.
+          </p>
+          <ul className="mt-2 space-y-1 text-xs text-amber-900">
+            {draftDates.map((d) => (
+              <li key={d} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-amber-100/80 px-2 py-1.5">
+                <span className="font-medium">{formatDraftDayLabel(d)}</span>
+                <span className="flex gap-2">
+                  {canOpenGrid(d) && (
+                    <button
+                      type="button"
+                      onClick={() => openGrid(d)}
+                      className="rounded-md border border-amber-400 bg-white px-2 py-1 text-[11px] font-medium hover:bg-amber-50"
+                    >
+                      Review
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    disabled={submittingDraft}
+                    onClick={() => void submitDraftForDate(d)}
+                    className="rounded-md bg-amber-800 px-2 py-1 text-[11px] font-medium text-amber-50 hover:bg-amber-900 disabled:opacity-60"
+                  >
+                    {submittingDraft ? "Submitting…" : "Submit now"}
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
           <h2 className="text-lg font-semibold">Attendance</h2>
-          <p className="text-sm text-muted-foreground">This week · tap a student for month view</p>
+          <p className="text-sm text-muted-foreground">
+            This week · tap a student for month view
+            {todayIsDraft && (
+              <span className="ml-1 font-medium text-amber-800">· Today is draft (not shared)</span>
+            )}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {sheet.canTakeAttendanceToday && (
@@ -284,7 +370,7 @@ export function SectionAttendanceTab({ sectionId }: { sectionId: string }) {
               onClick={() => openGrid(todayIso)}
               className="shrink-0 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-sm hover:opacity-90"
             >
-              Take attendance
+              {todayIsDraft ? "Review today’s draft" : "Take attendance"}
             </button>
           )}
         </div>
@@ -300,20 +386,25 @@ export function SectionAttendanceTab({ sectionId }: { sectionId: string }) {
           {sheet.dates.map((d) => {
             const editable = canOpenGrid(d);
             const h = dayHeader(d);
+            const isDraftDay = sheet.publishStateByDate?.[d] === "draft";
             const inner = (
               <span className="flex flex-col items-center leading-tight">
                 <span className={h.isToday ? "font-bold text-primary" : ""}>{h.weekday}</span>
                 <span className={`text-[10px] sm:text-xs ${h.isToday ? "text-primary" : ""}`}>{h.day}</span>
+                {isDraftDay && (
+                  <span className="mt-0.5 text-[8px] font-bold uppercase tracking-tight text-amber-700">Draft</span>
+                )}
               </span>
             );
+            const dayTitle = isDraftDay ? `${h.title} · Saved, not submitted` : h.title;
             return (
               <div key={d} className="flex justify-center">
                 {editable ? (
-                  <button type="button" onClick={() => openGrid(d)} className="hover:text-primary" title={h.title}>
+                  <button type="button" onClick={() => openGrid(d)} className="hover:text-primary" title={dayTitle}>
                     {inner}
                   </button>
                 ) : (
-                  <span title={h.title}>{inner}</span>
+                  <span title={dayTitle}>{inner}</span>
                 )}
               </div>
             );
@@ -381,11 +472,14 @@ export function SectionAttendanceTab({ sectionId }: { sectionId: string }) {
               </button>
               {sheet.dates.map((d) => {
                 const status = sheet.statusByStudent[student.userId]?.[d];
+                const dayPublish = sheet.publishStateByDate?.[d];
                 return (
                   <div key={d} className="flex justify-center">
                     <span
-                      className={`inline-block h-2.5 w-2.5 rounded-full sm:h-3 sm:w-3 ${statusCellClass(status)}`}
-                      title={statusDotTitle(status)}
+                      className={`inline-block h-2.5 w-2.5 rounded-full sm:h-3 sm:w-3 ${
+                        dayPublish === "draft" ? "ring-2 ring-amber-400 ring-offset-1" : ""
+                      } ${statusCellClass(status)}`}
+                      title={statusDotTitle(status, dayPublish)}
                     />
                   </div>
                 );

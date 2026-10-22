@@ -16,6 +16,7 @@ type Dashboard = {
       unmarked: number;
     };
     students: { userId: string; displayName?: string; status: string }[];
+    publishState?: string | null;
   };
   prolongedAbsence: { userId: string; displayName?: string; consecutiveAbsentDays: number }[];
   upcomingExams: { id: string; title: string; dueDate: string | null }[];
@@ -32,7 +33,13 @@ function formatDay(value: string) {
   });
 }
 
-export function SectionClassOverview({ sectionId }: { sectionId: string }) {
+export function SectionClassOverview({
+  sectionId,
+  onOpenAttendance,
+}: {
+  sectionId: string;
+  onOpenAttendance?: () => void;
+}) {
   const [data, setData] = useState<Dashboard | null>(null);
   const [error, setError] = useState("");
 
@@ -59,12 +66,38 @@ export function SectionClassOverview({ sectionId }: { sectionId: string }) {
 
   const att = data.todayAttendance;
   const notMarked = att.marked === 0;
+  const isDraft = att.publishState === "draft";
 
   return (
     <div className="space-y-5">
+      {isDraft && (
+        <div
+          className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 shadow-sm"
+          role="status"
+        >
+          <p className="font-semibold">Attendance saved — not submitted</p>
+          <p className="mt-1 text-amber-900/90">
+            You saved today&apos;s roll call as a draft. Only you (and admins) can see it until you submit.
+          </p>
+          {onOpenAttendance && (
+            <button
+              type="button"
+              onClick={onOpenAttendance}
+              className="mt-3 rounded-lg bg-amber-800 px-3 py-2 text-xs font-medium text-amber-50 hover:bg-amber-900"
+            >
+              Open Attendance to submit
+            </button>
+          )}
+        </div>
+      )}
       <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
         <h2 className="font-semibold">Today&apos;s attendance</h2>
-        <p className="mt-1 text-xs text-muted-foreground">{formatDay(att.date)}</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {formatDay(att.date)}
+          {isDraft && (
+            <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 font-medium text-amber-900">Draft</span>
+          )}
+        </p>
         {notMarked ? (
           <p className="mt-3 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
             Attendance has not been marked for this class today.

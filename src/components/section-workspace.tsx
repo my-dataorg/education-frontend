@@ -165,7 +165,9 @@ export function SectionWorkspace({
       <div className="mt-2 md:mt-6">
         {tab === "overview" && (
           <div className="space-y-5">
-            {isTeacher && <SectionClassOverview sectionId={sectionId} />}
+            {isTeacher && (
+              <SectionClassOverview sectionId={sectionId} onOpenAttendance={() => setTab("students")} />
+            )}
             <div className="grid gap-3 sm:grid-cols-3">
               <Stat label="Students" value={overview.studentCount} />
               <Stat label="Teachers" value={overview.teacherCount} />
