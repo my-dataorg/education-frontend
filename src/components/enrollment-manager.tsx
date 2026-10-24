@@ -23,14 +23,18 @@ export function EnrollmentManager({
   listTab = "teachers-classes",
   instituteTab,
   associationPanel,
+  embedded = false,
+  initialSectionId,
 }: {
   instituteId: string;
   refreshKey?: number;
   onChanged?: () => void;
   fixedModule?: EnrollmentModule;
-  listTab?: "teachers-classes" | "students-classes" | "association";
+  listTab?: "teachers-classes" | "students-classes" | "association" | "classes";
   instituteTab?: "association";
   associationPanel?: "teachers" | "students";
+  embedded?: boolean;
+  initialSectionId?: string;
 }) {
   const [sections, setSections] = useState<Section[]>([]);
   const [staff, setStaff] = useState<Member[]>([]);
@@ -42,7 +46,9 @@ export function EnrollmentManager({
   const [module, setModule] = useState<EnrollmentModule>(
     () => fixedModule ?? rosterModuleFromUrl(searchParams.get("enrollmentModule"))
   );
-  const [selectedSectionId, setSelectedSectionId] = useState(searchParams.get("section") || "");
+  const [selectedSectionId, setSelectedSectionId] = useState(
+    initialSectionId || searchParams.get("section") || ""
+  );
   const [personSearch, setPersonSearch] = useState(searchParams.get("q") || "");
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [bulkLoading, setBulkLoading] = useState(false);
@@ -50,6 +56,18 @@ export function EnrollmentManager({
 
   const replaceEnrollmentQuery = useCallback(
     (patch: Record<string, string | undefined>) => {
+      if (embedded) {
+        router.replace(
+          buildInstitutePathFromSearch(instituteId, searchParams, {
+            tab: "classes",
+            sectionId: patch.section ?? selectedSectionId,
+            sectionTab: "roster",
+            enrollmentModule: fixedModule ?? module,
+            ...patch,
+          })
+        );
+        return;
+      }
       router.replace(
         buildInstitutePathFromSearch(instituteId, searchParams, {
           tab: instituteTab ?? listTab,
@@ -59,7 +77,18 @@ export function EnrollmentManager({
         })
       );
     },
-    [associationPanel, fixedModule, instituteId, instituteTab, listTab, module, router, searchParams]
+    [
+      associationPanel,
+      embedded,
+      fixedModule,
+      instituteId,
+      instituteTab,
+      listTab,
+      module,
+      router,
+      searchParams,
+      selectedSectionId,
+    ]
   );
 
   const load = useCallback(async () => {
@@ -105,13 +134,17 @@ export function EnrollmentManager({
   }, [load, refreshKey]);
 
   useEffect(() => {
-    if (!selectedSectionId) return;
+    if (!selectedSectionId || embedded) return;
     replaceEnrollmentQuery({
       section: selectedSectionId,
       enrollmentModule: module,
       q: personSearch.trim() || undefined,
     });
-  }, [fixedModule, module, personSearch, replaceEnrollmentQuery, selectedSectionId]);
+  }, [embedded, fixedModule, module, personSearch, replaceEnrollmentQuery, selectedSectionId]);
+
+  useEffect(() => {
+    if (initialSectionId) setSelectedSectionId(initialSectionId);
+  }, [initialSectionId]);
 
   useEffect(() => {
     if (fixedModule) setModule(fixedModule);
@@ -145,11 +178,14 @@ export function EnrollmentManager({
 
   return (
     <section className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold">Enrollment</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Assign teachers and students to each class.</p>
-      </div>
+      {!embedded && (
+        <div>
+          <h1 className="text-2xl font-semibold">Enrollment</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Assign teachers and students to each class.</p>
+        </div>
+      )}
       <SectionFirstWorkspace
+        embedded={embedded}
         instituteId={instituteId}
         sections={sections}
         staff={staff}
@@ -210,6 +246,7 @@ function SectionFirstWorkspace({
   module,
   setModule,
   hideModuleToggle = false,
+  embedded = false,
   update,
   onReload,
   canManage,
@@ -227,6 +264,7 @@ function SectionFirstWorkspace({
   mappings: Record<string, SectionMapping>;
   selectedSectionId: string;
   setSelectedSectionId: (id: string) => void;
+  embedded?: boolean;
   module: EnrollmentModule;
   setModule: (module: EnrollmentModule) => void;
   hideModuleToggle?: boolean;
@@ -291,7 +329,14 @@ function SectionFirstWorkspace({
 
   return (
     <section className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-      <div className="grid gap-4 lg:grid-cols-[200px_minmax(280px,1fr)_300px]">
+      <div
+        className={
+          embedded
+            ? "grid gap-4 lg:grid-cols-[minmax(280px,1fr)_300px]"
+            : "grid gap-4 lg:grid-cols-[200px_minmax(280px,1fr)_300px]"
+        }
+      >
+        {!embedded && (
         <div className="lg:sticky lg:top-2 lg:self-start">
           <h2 className="px-1 text-sm font-semibold">Classes</h2>
           <input
@@ -329,6 +374,7 @@ function SectionFirstWorkspace({
             )}
           </div>
         </div>
+        )}
 
         <div
           onDragOver={(event) => {

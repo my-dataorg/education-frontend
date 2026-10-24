@@ -67,7 +67,13 @@ const DAYS = [
   ["7", "Sunday"],
 ] as const;
 
-export function ScheduleTab({ instituteId }: { instituteId: string }) {
+export function ScheduleTab({
+  instituteId,
+  canEditTimetable = true,
+}: {
+  instituteId: string;
+  canEditTimetable?: boolean;
+}) {
   const [schedule, setSchedule] = useState<Schedule>({
     revision: 1,
     settings: { timezone: "Asia/Kolkata", schoolStart: "08:00", schoolEnd: "15:00", weekdays: [1, 2, 3, 4, 5, 6] },
@@ -285,7 +291,7 @@ export function ScheduleTab({ instituteId }: { instituteId: string }) {
 
   return (
     <div className="space-y-5">
-      <TimetableOwnerView instituteId={instituteId} />
+      <TimetableOwnerView instituteId={instituteId} canEdit={canEditTimetable} />
       <details
         id="advanced-slot-layout"
         className="rounded-xl border border-border bg-card p-4 shadow-sm [&_summary]:cursor-pointer [&_summary]:text-sm [&_summary]:font-semibold"

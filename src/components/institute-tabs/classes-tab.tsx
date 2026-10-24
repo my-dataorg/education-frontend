@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import type { InstituteSummary, Section, SectionSubject, Subject } from "@/lib/api";
 import { buildInstitutePathFromSearch } from "@/lib/embed-href";
 
-const CLASSES_TABS = ["sections", "subjects", "activities", "section-subjects"] as const;
+const CLASSES_TABS = ["sections", "subjects", "activities", "rooms", "section-subjects"] as const;
 type ClassesTabId = (typeof CLASSES_TABS)[number];
 
 type Props = {
@@ -16,6 +16,7 @@ type Props = {
 };
 
 type Activity = { id: string; name: string };
+type Room = { id: string; name: string };
 
 export function ClassesTab({ instituteId, branches, configureTab }: Props) {
   const router = useRouter();
@@ -36,8 +37,10 @@ export function ClassesTab({ instituteId, branches, configureTab }: Props) {
   const [sections, setSections] = useState<Section[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [rooms, setRooms] = useState<Room[]>([]);
   const [subjectName, setSubjectName] = useState("");
   const [activityName, setActivityName] = useState("");
+  const [roomName, setRoomName] = useState("");
   const [sectionName, setSectionName] = useState("");
   const [className, setClassName] = useState("");
   const [linkSectionId, setLinkSectionId] = useState("");
@@ -47,19 +50,22 @@ export function ClassesTab({ instituteId, branches, configureTab }: Props) {
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
-    const [sectionRes, subjectRes, activityRes] = await Promise.all([
+    const [sectionRes, subjectRes, activityRes, roomRes] = await Promise.all([
       fetch(`/api/institutes/${instituteId}/sections`),
       fetch(`/api/institutes/${instituteId}/subjects`),
       fetch(`/api/institutes/${instituteId}/activities`),
+      fetch(`/api/institutes/${instituteId}/rooms`),
     ]);
-    const [nextSections, nextSubjects, nextActivities] = await Promise.all([
+    const [nextSections, nextSubjects, nextActivities, nextRooms] = await Promise.all([
       sectionRes.json(),
       subjectRes.json(),
       activityRes.json(),
+      roomRes.ok ? roomRes.json() : [],
     ]);
     setSections(nextSections);
     setSubjects(nextSubjects);
     setActivities(nextActivities);
+    setRooms(nextRooms);
     setLinkSectionId((current) => current || nextSections[0]?.id || "");
   }, [instituteId]);
 
@@ -115,6 +121,20 @@ export function ClassesTab({ instituteId, branches, configureTab }: Props) {
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not create activity");
+    }
+  }
+
+  async function createRoom() {
+    if (!roomName.trim()) return;
+    try {
+      await change(`/api/institutes/${instituteId}/rooms`, {
+        method: "POST",
+        body: JSON.stringify({ name: roomName.trim() }),
+      });
+      setRoomName("");
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not create room");
     }
   }
 
@@ -260,6 +280,47 @@ export function ClassesTab({ instituteId, branches, configureTab }: Props) {
             ))}
           </ul>
           {!sections.length && <p className="mt-3 text-xs text-muted-foreground">No classes yet.</p>}
+        </FormCard>
+      )}
+
+      {activeTab === "rooms" && (
+        <FormCard title="Rooms">
+          <p className="text-xs text-muted-foreground">
+            Room names used when building the class timetable (e.g. 101, Lab-A, Hall).
+          </p>
+          <div className="mt-3 flex gap-2">
+            <input
+              value={roomName}
+              onChange={(e) => setRoomName(e.target.value)}
+              placeholder="Room name or number"
+              maxLength={30}
+              className="min-w-0 flex-1 rounded-lg border border-border px-3 py-2 text-sm"
+            />
+            <button
+              type="button"
+              onClick={() => void createRoom()}
+              className="rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground"
+            >
+              Add
+            </button>
+          </div>
+          <ul className="mt-3 space-y-1 text-sm">
+            {rooms.map((room) => (
+              <li key={room.id} className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
+                {room.name}
+                <button
+                  type="button"
+                  onClick={() => void deleteSubject(`/api/institutes/${instituteId}/rooms/${room.id}`)}
+                  className="text-xs text-destructive"
+                >
+                  Delete
+                </button>
+              </li>
+            ))}
+            {!rooms.length && (
+              <p className="text-xs text-muted-foreground">No rooms yet. Add rooms to use them in the timetable.</p>
+            )}
+          </ul>
         </FormCard>
       )}
 

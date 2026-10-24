@@ -3,11 +3,29 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SectionAttendanceTab } from "@/components/section-attendance-tab";
+import { SectionAssignmentsTab } from "@/components/section-assignments-tab";
 import { SectionClassOverview } from "@/components/section-class-overview";
+import { SectionRosterPanel } from "@/components/section-roster-panel";
+import { SectionSubjectsPanel } from "@/components/section-subjects-panel";
+import { SectionTimetablePanel } from "@/components/section-timetable-panel";
+import { formatUserName } from "@/components/user-identity";
 import type { Member } from "@/lib/api";
 import type { SectionSubject } from "@/lib/api";
+import { INSTITUTE_ADMIN_ROLES } from "@/lib/roles";
+import { teacherUserId } from "@/lib/section-subject-teachers";
 
-type Tab = "overview" | "students" | "assignments" | "notes" | "progress";
+export type SectionWorkspaceTab =
+  | "overview"
+  | "roster"
+  | "subjects"
+  | "timetable"
+  | "attendance"
+  | "assignments"
+  | "notes"
+  | "progress"
+  | "students";
+
+type Tab = SectionWorkspaceTab;
 
 type Overview = {
   sectionName: string;
@@ -38,11 +56,21 @@ export function SectionWorkspace({
   overview: initialOverview,
   assignments,
   notes,
+  onTabChange,
+  fillTimetable = false,
+  fillRoster = false,
+  fillAttendance = false,
+  fillSubjects = false,
 }: {
   instituteId: string;
   sectionId: string;
   role: string;
-  initialTab?: Tab;
+  initialTab?: SectionWorkspaceTab;
+  onTabChange?: (tab: SectionWorkspaceTab) => void;
+  fillTimetable?: boolean;
+  fillRoster?: boolean;
+  fillAttendance?: boolean;
+  fillSubjects?: boolean;
   overview: Overview;
   assignments: {
     id: string;
@@ -54,14 +82,19 @@ export function SectionWorkspace({
   notes: { id: string; content: string; noteDate: string }[];
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>(initialTab);
+  const normalizedInitial: Tab =
+    initialTab === "students" ? "attendance" : (initialTab as Tab);
+  const [tab, setTab] = useState<Tab>(normalizedInitial);
   const [overview, setOverview] = useState(initialOverview);
   const [subjects, setSubjects] = useState<SectionSubject[]>([]);
   const [sectionAssignments, setSectionAssignments] = useState(assignments);
   const [sectionNotes, setSectionNotes] = useState(notes);
   const isTeacher = ["owner", "admin", "principal", "teacher", "lecturer", "professor"].includes(role);
+  const canManage = INSTITUTE_ADMIN_ROLES.has(role);
+  const canViewRosterSubjects = isTeacher || role === "student";
   const isStudent = role === "student";
   const canEditNotes = overview.canEditDailyNotes === true;
+  const sectionLabel = `${overview.className || "Class"} · ${overview.sectionName}`;
 
   useEffect(() => {
     Promise.all([
@@ -79,37 +112,21 @@ export function SectionWorkspace({
 
   const tabs: { id: Tab; label: string; shortLabel: string; show: boolean }[] = [
     { id: "overview", label: "Overview", shortLabel: "Overview", show: true },
-    { id: "students", label: "Attendance", shortLabel: "Attend", show: isTeacher },
+    { id: "roster", label: "Teachers & students", shortLabel: "Roster", show: canViewRosterSubjects },
+    { id: "subjects", label: "Subjects", shortLabel: "Subjects", show: canViewRosterSubjects },
+    { id: "timetable", label: "Timetable", shortLabel: "Time", show: canManage },
+    { id: "attendance", label: "Attendance", shortLabel: "Attend", show: isTeacher },
     { id: "assignments", label: "Assignments", shortLabel: "Tasks", show: true },
     { id: "notes", label: "Daily notes", shortLabel: "Notes", show: true },
     { id: "progress", label: "Progress", shortLabel: "Prog.", show: true },
   ];
 
-  const [title, setTitle] = useState("");
-  const [assignmentType, setAssignmentType] = useState<"assignment" | "test">("assignment");
   const [note, setNote] = useState("");
-  const [submission, setSubmission] = useState("");
-  const [selectedAssignment, setSelectedAssignment] = useState("");
 
   async function refreshOverview() {
     const res = await fetch(`/api/sections/${sectionId}`, { credentials: "include" });
     if (res.ok) setOverview(await res.json());
     router.refresh();
-  }
-
-  async function createAssignment() {
-    const response = await fetch(`/api/institutes/${instituteId}/sections/${sectionId}/assignments`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, description: "", assignmentType }),
-    });
-    if (response.ok) {
-      const created = await response.json();
-      setSectionAssignments((current) => [...current, created]);
-    }
-    setTitle("");
-    setAssignmentType("assignment");
-    refreshOverview();
   }
 
   async function createNote() {
@@ -126,30 +143,31 @@ export function SectionWorkspace({
     router.refresh();
   }
 
-  async function submitWork() {
-    if (!selectedAssignment) return;
-    await fetch(`/api/assignments/${selectedAssignment}/submissions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: submission }),
-    });
-    setSubmission("");
-    refreshOverview();
-  }
-
   const visibleTabs = tabs.filter((t) => t.show);
+  const stretchTimetable = fillTimetable && tab === "timetable" && canManage;
+  const stretchRoster = fillRoster && tab === "roster" && canViewRosterSubjects;
+  const stretchAttendance = fillAttendance && tab === "attendance" && isTeacher;
+  const stretchSubjects = fillSubjects && tab === "subjects" && canViewRosterSubjects;
+  const stretchPanel = stretchTimetable || stretchRoster || stretchAttendance || stretchSubjects;
 
   return (
-    <div className="mt-0 md:mt-4">
+    <div
+      className={
+        stretchPanel ? "mt-0 flex min-h-0 flex-1 flex-col overflow-hidden md:mt-1" : "mt-0 md:mt-4"
+      }
+    >
       <div
-        className="grid w-full border-b border-border md:flex md:flex-nowrap md:gap-0"
+        className="grid w-full shrink-0 border-b border-border md:flex md:flex-nowrap md:gap-0"
         style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, minmax(0, 1fr))` }}
       >
         {visibleTabs.map((t) => (
           <button
             key={t.id}
             type="button"
-            onClick={() => setTab(t.id)}
+            onClick={() => {
+              setTab(t.id);
+              onTabChange?.(t.id);
+            }}
             className={`border-b-2 px-0.5 py-1 text-center text-[10px] font-medium leading-tight transition md:shrink-0 md:px-4 md:py-2 md:text-left md:text-sm ${
               tab === t.id
                 ? "border-primary text-foreground"
@@ -162,11 +180,11 @@ export function SectionWorkspace({
         ))}
       </div>
 
-      <div className="mt-2 md:mt-6">
+      <div className={stretchPanel ? "mt-2 flex min-h-0 flex-1 flex-col overflow-hidden" : "mt-2 md:mt-6"}>
         {tab === "overview" && (
           <div className="space-y-5">
             {isTeacher && (
-              <SectionClassOverview sectionId={sectionId} onOpenAttendance={() => setTab("students")} />
+              <SectionClassOverview sectionId={sectionId} onOpenAttendance={() => setTab("attendance")} />
             )}
             <div className="grid gap-3 sm:grid-cols-3">
               <Stat label="Students" value={overview.studentCount} />
@@ -182,8 +200,8 @@ export function SectionWorkspace({
                       <span className="font-medium">{subject.name}</span>
                       <span className="mt-1 block text-xs text-muted-foreground">
                         {subject.teachers.length
-                          ? `Teacher: ${subject.teachers.map((teacher) => teacherName(overview.teachers, teacher.userId)).join(", ")}`
-                          : "No teacher assigned"}
+                          ? `Teacher: ${subject.teachers.map((teacher) => teacherName(overview.teachers, teacherUserId(teacher))).join(", ")}`
+                          : "No teacher assigned yet"}
                       </span>
                     </li>
                   ))}
@@ -195,57 +213,38 @@ export function SectionWorkspace({
           </div>
         )}
 
-        {tab === "students" && isTeacher && <SectionAttendanceTab sectionId={sectionId} />}
+        {tab === "roster" && canViewRosterSubjects && (
+          <SectionRosterPanel
+            instituteId={instituteId}
+            sectionId={sectionId}
+            sectionLabel={sectionLabel}
+            canManage={canManage}
+            classTeacherUserId={overview.classTeacherUserId}
+            onRosterChanged={() => void refreshOverview()}
+            fillHeight={stretchRoster}
+          />
+        )}
+
+        {tab === "subjects" && canViewRosterSubjects && (
+          <SectionSubjectsPanel
+            instituteId={instituteId}
+            sectionId={sectionId}
+            sectionLabel={sectionLabel}
+            canManage={canManage}
+            fillHeight={stretchSubjects}
+          />
+        )}
+
+        {tab === "timetable" && canManage && (
+          <SectionTimetablePanel instituteId={instituteId} sectionId={sectionId} />
+        )}
+
+        {tab === "attendance" && isTeacher && (
+          <SectionAttendanceTab sectionId={sectionId} fillHeight={stretchAttendance} />
+        )}
 
         {tab === "assignments" && (
-          <div>
-            <ul className="space-y-2">
-              {sectionAssignments.map((a) => (
-                <li key={a.id} className="rounded-lg border border-border bg-card px-4 py-3 text-sm">
-                  <span className="font-medium">{a.title}</span>
-                  <span className="ml-2 text-xs text-muted-foreground">
-                    {a.assignmentType === "test" ? "Test" : "Assignment"}
-                  </span>
-                </li>
-              ))}
-            </ul>
-            {isTeacher && (
-              <div className="mt-4 flex gap-2">
-                <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="New assignment title" className="flex-1 rounded-lg border border-border px-3 py-2 text-sm" />
-                <select value={assignmentType} onChange={(e) => setAssignmentType(e.target.value as "assignment" | "test")} className="rounded-lg border border-border px-3 py-2 text-sm">
-                  <option value="assignment">Assignment</option>
-                  <option value="test">Test</option>
-                </select>
-                <button type="button" onClick={createAssignment} className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground">
-                  Add
-                </button>
-              </div>
-            )}
-            {isStudent && assignments.length > 0 && (
-              <div className="mt-4 space-y-2">
-                <select
-                  value={selectedAssignment}
-                  onChange={(e) => setSelectedAssignment(e.target.value)}
-                  className="w-full rounded-lg border border-border px-3 py-2 text-sm"
-                >
-                  <option value="">Select assignment</option>
-                  {sectionAssignments.map((a) => (
-                    <option key={a.id} value={a.id}>{a.title}</option>
-                  ))}
-                </select>
-                <textarea
-                  value={submission}
-                  onChange={(e) => setSubmission(e.target.value)}
-                  placeholder="Your submission"
-                  className="w-full rounded-lg border border-border px-3 py-2 text-sm"
-                  rows={3}
-                />
-                <button type="button" onClick={submitWork} className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground">
-                  Submit
-                </button>
-              </div>
-            )}
-          </div>
+          <SectionAssignmentsTab sectionId={sectionId} isTeacher={isTeacher} />
         )}
 
         {tab === "notes" && (
@@ -317,6 +316,6 @@ function Stat({ label, value }: { label: string; value: string | number }) {
 
 function teacherName(teachers: Member[] | undefined, userId: string) {
   const teacher = teachers?.find((item) => item.userId === userId);
-  return teacher?.displayName || teacher?.username || userId;
+  return teacher ? formatUserName(teacher) : userId;
 }
 

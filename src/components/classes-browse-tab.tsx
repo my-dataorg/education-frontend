@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { Member, Section } from "@/lib/api";
-import { SectionWorkspace } from "@/components/section-workspace";
+import { SectionWorkspace, type SectionWorkspaceTab } from "@/components/section-workspace";
 import { useRegisterClassesMobileHeader } from "@/components/classes-mobile-header";
+import { buildInstitutePathFromSearch } from "@/lib/embed-href";
 
 type SectionOverview = {
   sectionId: string;
@@ -45,15 +47,30 @@ export function ClassesBrowseTab({
   workspaceRole,
   loadAllSections = false,
   sectionWorkspaceTab = "overview",
+  fitTimetable = false,
+  fitRoster = false,
+  fitAttendance = false,
+  fitSubjects = false,
 }: {
   instituteId: string;
   sections: Section[];
-  workspaceRole: "teacher" | "student" | "owner";
+  workspaceRole: "teacher" | "student" | "owner" | "admin" | "principal";
   loadAllSections?: boolean;
-  sectionWorkspaceTab?: "overview" | "students" | "assignments";
+  sectionWorkspaceTab?: SectionWorkspaceTab;
+  fitTimetable?: boolean;
+  fitRoster?: boolean;
+  fitAttendance?: boolean;
+  fitSubjects?: boolean;
 }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlSectionId = searchParams.get("sectionId");
+  const urlSectionTab = (searchParams.get("sectionTab") as SectionWorkspaceTab | null) || sectionWorkspaceTab || "overview";
+
   const [sections, setSections] = useState<Section[]>(initialSections);
-  const [selectedSectionId, setSelectedSectionId] = useState(initialSections[0]?.id || "");
+  const [selectedSectionId, setSelectedSectionId] = useState(
+    urlSectionId || initialSections[0]?.id || ""
+  );
   const [overviews, setOverviews] = useState<Record<string, SectionOverview>>({});
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(loadAllSections);
@@ -79,10 +96,24 @@ export function ClassesBrowseTab({
       setSelectedSectionId("");
       return;
     }
+    if (urlSectionId && sections.some((s) => s.id === urlSectionId)) {
+      setSelectedSectionId(urlSectionId);
+      return;
+    }
     if (!sections.some((s) => s.id === selectedSectionId)) {
       setSelectedSectionId(sections[0].id);
     }
-  }, [sections, selectedSectionId]);
+  }, [sections, selectedSectionId, urlSectionId]);
+
+  function syncClassesUrl(sectionId: string, sectionTab?: SectionWorkspaceTab) {
+    router.replace(
+      buildInstitutePathFromSearch(instituteId, searchParams, {
+        tab: "classes",
+        sectionId,
+        sectionTab: sectionTab ?? urlSectionTab,
+      })
+    );
+  }
 
   useEffect(() => {
     if (!sections.length) return;
@@ -113,7 +144,10 @@ export function ClassesBrowseTab({
       sections.length ? (
         <select
           value={selectedSectionId}
-          onChange={(e) => setSelectedSectionId(e.target.value)}
+          onChange={(e) => {
+            setSelectedSectionId(e.target.value);
+            syncClassesUrl(e.target.value);
+          }}
           className="w-full min-w-0 truncate rounded-md border border-border bg-background px-2 py-1 text-xs font-medium"
           aria-label="Select class"
         >
@@ -127,9 +161,25 @@ export function ClassesBrowseTab({
     [sections, selectedSectionId, overviews]
   );
 
+  const stretchTimetable =
+    fitTimetable && urlSectionTab === "timetable" && !!selectedSection && !!selectedOverview;
+  const stretchRoster =
+    fitRoster && urlSectionTab === "roster" && !!selectedSection && !!selectedOverview;
+  const stretchAttendance =
+    fitAttendance && urlSectionTab === "attendance" && !!selectedSection && !!selectedOverview;
+  const stretchSubjects =
+    fitSubjects && urlSectionTab === "subjects" && !!selectedSection && !!selectedOverview;
+  const stretchGrid = stretchTimetable || stretchRoster || stretchAttendance || stretchSubjects;
+
   return (
-    <div className="mt-0 space-y-0 sm:mt-4 sm:space-y-4">
-      <div className="hidden md:flex md:flex-row md:items-start md:justify-between">
+    <div
+      className={
+        stretchGrid
+          ? "flex min-h-0 flex-1 flex-col gap-2 overflow-hidden"
+          : "mt-0 space-y-0 sm:mt-4 sm:space-y-4"
+      }
+    >
+      <div className="hidden shrink-0 md:flex md:flex-row md:items-start md:justify-between">
         <div>
           <h2 className="text-xl font-semibold">Classes</h2>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -141,7 +191,10 @@ export function ClassesBrowseTab({
             <span className="text-xs font-medium text-muted-foreground">Class</span>
             <select
               value={selectedSectionId}
-              onChange={(e) => setSelectedSectionId(e.target.value)}
+              onChange={(e) => {
+            setSelectedSectionId(e.target.value);
+            syncClassesUrl(e.target.value);
+          }}
               className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
             >
               {sections.map((section) => (
@@ -167,14 +220,19 @@ export function ClassesBrowseTab({
 
       {selectedSection && selectedOverview ? (
         <SectionWorkspace
-          key={`${selectedSection.id}-${sectionWorkspaceTab}`}
+          key={`${selectedSection.id}-${urlSectionTab}`}
           instituteId={instituteId}
           sectionId={selectedSection.id}
-          role={workspaceRole === "owner" ? "teacher" : workspaceRole}
-          initialTab={sectionWorkspaceTab}
+          role={workspaceRole}
+          initialTab={urlSectionTab}
+          onTabChange={(tab) => syncClassesUrl(selectedSection.id, tab)}
           overview={selectedOverview}
           assignments={selectedOverview.assignments}
           notes={[]}
+          fillTimetable={stretchTimetable}
+          fillRoster={stretchRoster}
+          fillAttendance={stretchAttendance}
+          fillSubjects={stretchSubjects}
         />
       ) : (
         selectedSection &&

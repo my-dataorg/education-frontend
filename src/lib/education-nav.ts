@@ -176,7 +176,7 @@ const LEGACY_TAB_ALIASES: Record<string, EducationNavId | "enrollment-split"> = 
   members: "association",
   associates: "association",
   enrollment: "enrollment-split",
-  "subject-teachers": "association",
+  "subject-teachers": "classes",
   "academic-year": "configure",
   "roles-settings": "configure",
   campuses: "profile",
@@ -255,7 +255,7 @@ export function resolveLegacyEducationTab(
   if (tabParam === "classes") return "classes";
   const alias = LEGACY_TAB_ALIASES[tabParam];
   if (alias === "enrollment-split") {
-    return "association";
+    return "classes";
   }
   if (alias) return alias;
   return null;

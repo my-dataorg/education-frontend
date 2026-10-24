@@ -12,7 +12,7 @@ const CONFIGURE_TABS = [
   { id: "sections", label: "Classes" },
   { id: "subjects", label: "Subjects" },
   { id: "activities", label: "Activities" },
-  { id: "section-subjects", label: "Subjects per class" },
+  { id: "rooms", label: "Rooms" },
   { id: "roles", label: "Roles & permissions" },
 ] as const;
 
@@ -70,13 +70,13 @@ export function ConfigureTab({ instituteId, branches, showRoles }: Props) {
 
       {active === "academic-year" && <AcademicYearTab instituteId={instituteId} />}
       {active === "roles" && showRoles && <RolesSettingsTab instituteId={instituteId} />}
-      {(["sections", "subjects", "activities", "section-subjects"] as const).includes(
-        active as "sections" | "subjects" | "activities" | "section-subjects"
+      {(["sections", "subjects", "activities", "rooms"] as const).includes(
+        active as "sections" | "subjects" | "activities" | "rooms"
       ) && (
         <ClassesTab
           instituteId={instituteId}
           branches={branches}
-          configureTab={active as "sections" | "subjects" | "activities" | "section-subjects"}
+          configureTab={active as "sections" | "subjects" | "activities" | "rooms"}
         />
       )}
     </div>

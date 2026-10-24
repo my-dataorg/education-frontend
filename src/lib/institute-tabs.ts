@@ -57,18 +57,24 @@ export function legacyTabQueryOverrides(
     };
   }
   if (tabParam === "teachers-classes" || tabParam === "my-classes") {
-    return { tab: "classes" };
+    return { tab: "classes", sectionTab: "roster" };
   }
   if (tabParam === "subject-teachers") {
-    return { tab: "association", associationPanel: "teachers" };
+    return { tab: "classes", sectionTab: "subjects" };
   }
   if (tabParam === "students-classes") {
-    return { tab: "association", associationPanel: "students" };
+    return { tab: "classes", sectionTab: "roster" };
   }
   if (tabParam === "enrollment") {
+    return { tab: "classes", sectionTab: "roster" };
+  }
+  if (tabParam === "configure" && searchParams.get("configureTab") === "section-subjects") {
+    const sectionId = searchParams.get("sectionId");
     return {
-      tab: "association",
-      associationPanel: enrollmentModule === "students" ? "students" : "teachers",
+      tab: "classes",
+      sectionTab: "subjects",
+      configureTab: undefined,
+      sectionId: sectionId || undefined,
     };
   }
   if (tabParam === "classes") {

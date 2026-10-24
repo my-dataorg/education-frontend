@@ -9,9 +9,18 @@ export type MemberTimetableCell = {
   room?: string | null;
 };
 
+export type TimetablePeriodKind = "class" | "break" | "lunch" | "play";
+
 export type MemberTimetableData = {
   publishedAt?: string | null;
-  periods: { periodNo: number; start: string; end: string }[];
+  periods: {
+    periodNo: number;
+    slotId?: string;
+    start: string;
+    end: string;
+    kind: TimetablePeriodKind;
+    label?: string;
+  }[];
   days: { day: number; isWorking: boolean }[];
   cells: MemberTimetableCell[];
 };
@@ -19,10 +28,20 @@ export type MemberTimetableData = {
 export function parseMemberTimetable(raw: Record<string, unknown>): MemberTimetableData {
   const periods = ((raw.periods as unknown[]) ?? []).map((p) => {
     const row = p as Record<string, unknown>;
+    const rawKind = String(row.kind ?? "class");
+    const kind: TimetablePeriodKind =
+      rawKind === "instruction" || rawKind === "class"
+        ? "class"
+        : rawKind === "break" || rawKind === "lunch" || rawKind === "play"
+          ? rawKind
+          : "break";
     return {
       periodNo: Number(row.periodNo ?? row.period_no),
+      slotId: (row.slotId ?? row.slot_id) as string | undefined,
       start: String(row.start ?? ""),
       end: String(row.end ?? ""),
+      kind,
+      label: (row.label as string | undefined) ?? undefined,
     };
   });
   const days = ((raw.days as unknown[]) ?? []).map((d) => {
@@ -54,9 +73,11 @@ export function parseMemberTimetable(raw: Record<string, unknown>): MemberTimeta
 export type OwnerTimetablePayload = {
   periods: {
     period_no: number;
+    slot_id?: string;
     start: string;
     end: string;
-    kind: "class" | "break" | "lunch" | "play";
+    kind: TimetablePeriodKind;
+    label?: string;
   }[];
   days: { day: number; is_working: boolean; half_day?: boolean }[];
   cells: {
@@ -70,6 +91,7 @@ export type OwnerTimetablePayload = {
     status: "ok" | "clash" | "empty" | "locked";
     clash_reason?: string | null;
     locked?: boolean;
+    cell_source?: "class_override" | "school_default" | null;
   }[];
   draft_saved_at?: string | null;
   published_at?: string | null;
@@ -80,11 +102,20 @@ export type OwnerTimetablePayload = {
 export function parseOwnerTimetable(raw: Record<string, unknown>): OwnerTimetablePayload {
   const periods = ((raw.periods as unknown[]) ?? []).map((p) => {
     const row = p as Record<string, unknown>;
+    const rawKind = String(row.kind ?? "class");
+    const kind: TimetablePeriodKind =
+      rawKind === "instruction" || rawKind === "class"
+        ? "class"
+        : rawKind === "break" || rawKind === "lunch" || rawKind === "play"
+          ? rawKind
+          : "break";
     return {
       period_no: Number(row.periodNo ?? row.period_no),
+      slot_id: (row.slotId ?? row.slot_id) as string | undefined,
       start: String(row.start ?? ""),
       end: String(row.end ?? ""),
-      kind: (row.kind as OwnerTimetablePayload["periods"][0]["kind"]) ?? "class",
+      kind,
+      label: (row.label as string | undefined) ?? undefined,
     };
   });
   const days = ((raw.days as unknown[]) ?? []).map((d) => {
@@ -109,6 +140,11 @@ export function parseOwnerTimetable(raw: Record<string, unknown>): OwnerTimetabl
       status: status as "ok" | "clash" | "empty" | "locked",
       clash_reason: (row.clashReason ?? row.clash_reason) as string | null | undefined,
       locked: Boolean(row.locked),
+      cell_source: (row.cellSource ?? row.cell_source) as
+        | "class_override"
+        | "school_default"
+        | null
+        | undefined,
     };
   });
   return {

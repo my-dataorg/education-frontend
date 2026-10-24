@@ -4,14 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import type { InstituteSummary } from "@/lib/api";
 import { buildInstitutePathFromSearch } from "@/lib/embed-href";
 import { MembersTab } from "@/components/institute-tabs/members-tab";
-import { TeachersClassesTab } from "@/components/institute-tabs/teachers-classes-tab";
-import { StudentsClassesTab } from "@/components/institute-tabs/students-classes-tab";
-
-const PANELS = [
-  { id: "roster", label: "People & invitations" },
-  { id: "teachers", label: "Teachers in classes" },
-  { id: "students", label: "Students in classes" },
-] as const;
+const PANELS = [{ id: "roster", label: "People & invitations" }] as const;
 
 type PanelId = (typeof PANELS)[number]["id"];
 
@@ -39,11 +32,8 @@ export function AssociationTab({
   const router = useRouter();
   const searchParams = useSearchParams();
   const raw = searchParams.get("associationPanel") || searchParams.get("memberTab");
-  const legacyEnrollment = searchParams.get("enrollmentModule");
   let active: PanelId = "roster";
-  if (raw === "teachers" || legacyEnrollment === "teachers") active = "teachers";
-  else if (raw === "students" || legacyEnrollment === "students") active = "students";
-  else if (PANELS.some((p) => p.id === raw)) active = raw as PanelId;
+  if (PANELS.some((p) => p.id === raw)) active = raw as PanelId;
 
   function selectPanel(id: PanelId) {
     router.replace(
@@ -63,7 +53,8 @@ export function AssociationTab({
       <div>
         <h1 className="text-2xl font-semibold">Association</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Roster, invitations, and class assignments for staff and students.
+          Institute roster and invitations. Assign teachers and students to classes under{" "}
+          <span className="font-medium text-foreground">Classes</span>.
         </p>
       </div>
 
@@ -93,21 +84,6 @@ export function AssociationTab({
           branches={branches}
           selectedBranchId={selectedBranchId}
           currentUserId={currentUserId}
-          inviteRefreshKey={inviteRefreshKey}
-          onChanged={onChanged}
-        />
-      )}
-      {active === "teachers" && showEnrollment && (
-        <TeachersClassesTab
-          instituteId={instituteId}
-          branchId={selectedBranchId}
-          inviteRefreshKey={inviteRefreshKey}
-          onChanged={onChanged}
-        />
-      )}
-      {active === "students" && showEnrollment && (
-        <StudentsClassesTab
-          instituteId={instituteId}
           inviteRefreshKey={inviteRefreshKey}
           onChanged={onChanged}
         />

@@ -191,37 +191,62 @@ export function MemberTimetableView({
             </tr>
           </thead>
           <tbody>
-            {(timetable.periods ?? []).map((period) => (
-              <tr key={period.periodNo} className="border-b border-border">
-                <td className="px-3 py-2 align-top text-xs text-muted-foreground">
-                  <span className="font-medium text-foreground">P{period.periodNo}</span>
-                  <br />
-                  {period.start}–{period.end}
-                </td>
-                {workingDays.map((day) => {
-                  const cell = cellMap.get(`${day}-${period.periodNo}`);
-                  const sectionLabel = cell?.sectionId ? sectionNames[cell.sectionId] : "";
-                  return (
-                    <td key={day} className="px-3 py-2 align-top">
-                      {cell?.subjectName ? (
-                        <div>
-                          <p className="font-medium">{cell.subjectName}</p>
-                          {browseMode !== "class" && sectionLabel && (
-                            <p className="text-xs text-muted-foreground">{sectionLabel}</p>
-                          )}
-                          {browseMode === "class" && cell.teacherName && (
-                            <p className="text-xs text-muted-foreground">{cell.teacherName}</p>
-                          )}
-                          {cell.room && <p className="text-xs text-muted-foreground">Room {cell.room}</p>}
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
+            {(timetable.periods ?? []).map((period) => {
+              const rowKey = period.slotId ?? `p${period.periodNo}`;
+              if (period.kind !== "class") {
+                const breakLabel =
+                  period.label?.trim() ||
+                  (period.kind === "lunch" ? "Lunch" : period.kind === "play" ? "Activity" : "Break");
+                return (
+                  <tr key={rowKey} className="border-b border-border bg-amber-50/60">
+                    <td className="px-3 py-2 align-top text-xs text-amber-950">
+                      {period.start}–{period.end}
+                      <br />
+                      <span className="font-medium">{breakLabel}</span>
                     </td>
-                  );
-                })}
-              </tr>
-            ))}
+                    <td
+                      colSpan={workingDays.length}
+                      className="px-3 py-2 text-center text-xs font-medium text-amber-950"
+                    >
+                      {breakLabel}
+                    </td>
+                  </tr>
+                );
+              }
+              return (
+                <tr key={rowKey} className="border-b border-border">
+                  <td className="px-3 py-2 align-top text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground">P{period.periodNo}</span>
+                    <br />
+                    {period.start}–{period.end}
+                  </td>
+                  {workingDays.map((day) => {
+                    const cell = cellMap.get(`${day}-${period.periodNo}`);
+                    const sectionLabel = cell?.sectionId ? sectionNames[cell.sectionId] : "";
+                    return (
+                      <td key={day} className="px-3 py-2 align-top">
+                        {cell?.subjectName ? (
+                          <div>
+                            <p className="font-medium">{cell.subjectName}</p>
+                            {browseMode !== "class" && sectionLabel && (
+                              <p className="text-xs text-muted-foreground">{sectionLabel}</p>
+                            )}
+                            <p className="text-xs text-muted-foreground">
+                              Teacher: {cell.teacherName?.trim() || "—"}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Room: {cell.room?.trim() || "—"}
+                            </p>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

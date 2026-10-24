@@ -6,7 +6,6 @@ import { ConfigureTab } from "@/components/institute-tabs/configure-tab";
 import { ProfileTab } from "@/components/institute-tabs/profile-tab";
 import { AssociationTab } from "@/components/institute-tabs/association-tab";
 import { ClassesBrowseTab } from "@/components/classes-browse-tab";
-import { ClassesMenuTab } from "@/components/institute-tabs/classes-menu-tab";
 import { DailyNotesTab } from "@/components/institute-tabs/daily-notes-tab";
 import { OverviewTab } from "@/components/institute-tabs/overview-tab";
 import { ScheduleTab } from "@/components/institute-tabs/schedule-tab";
@@ -74,6 +73,7 @@ export function InstituteDashboard({
 
   const tabs = getInstituteTabs(detail.role);
   const tabParam = searchParams.get("tab");
+  const classesSectionTab = searchParams.get("sectionTab");
   const activeTab = resolveInstituteTab(
     detail.role,
     tabParam,
@@ -151,6 +151,12 @@ export function InstituteDashboard({
   const canAdminWorkspace = INSTITUTE_ADMIN_ROLES.has(detail.role);
   const isOwner = detail.role === "owner";
   const showOwnerSetup = isOwner || detail.role === "principal";
+  const fitClassTimetable = activeTab === "classes" && classesSectionTab === "timetable";
+  const fitClassRoster = activeTab === "classes" && classesSectionTab === "roster";
+  const fitClassAttendance = activeTab === "classes" && classesSectionTab === "attendance";
+  const fitClassSubjects = activeTab === "classes" && classesSectionTab === "subjects";
+  const fitClassSectionPanel =
+    fitClassTimetable || fitClassRoster || fitClassAttendance || fitClassSubjects;
 
   return (
     <>
@@ -170,9 +176,16 @@ export function InstituteDashboard({
       sectionTabs={tabs}
       activeTab={activeTab}
       tabHref={tabHref}
+      fillMainContent={fitClassSectionPanel}
     >
-      <div className={`px-2 pb-4 sm:px-4 ${activeTab === "classes" ? "pt-0 sm:pt-2" : "pt-1 sm:pt-2"}`}>
-        <div>
+      <div
+        className={`px-2 sm:px-4 ${
+          fitClassSectionPanel
+            ? "flex min-h-0 flex-1 flex-col overflow-hidden pb-2 pt-0 sm:pt-2"
+            : `pb-4 ${activeTab === "classes" ? "pt-0 sm:pt-2" : "pt-1 sm:pt-2"}`
+        }`}
+      >
+        <div className="shrink-0">
           <BranchPills
             instituteId={instituteId}
             branches={branches}
@@ -191,7 +204,15 @@ export function InstituteDashboard({
         ) : (
           <Tabs
             value={educationNavActiveId(activeTab)}
-            className={`w-full min-w-0 ${activeTab === "classes" ? "mt-0" : activeTab === "overview" ? "mt-1" : "mt-4"}`}
+            className={`w-full min-w-0 ${
+              fitClassSectionPanel
+                ? "mt-0 flex min-h-0 flex-1 flex-col"
+                : activeTab === "classes"
+                  ? "mt-0"
+                  : activeTab === "overview"
+                    ? "mt-1"
+                    : "mt-4"
+            }`}
           >
             <TabsContent value="overview" className="w-full">
               <OverviewTab
@@ -244,23 +265,49 @@ export function InstituteDashboard({
                     showEnrollment={showOwnerSetup}
                   />
                 </TabsContent>
-                <TabsContent value="classes" className="mt-0 w-full sm:mt-2">
+                <TabsContent
+                  value="classes"
+                  className={
+                    fitClassSectionPanel
+                      ? "mt-0 flex min-h-0 w-full flex-1 flex-col overflow-hidden sm:mt-2"
+                      : "mt-0 w-full sm:mt-2"
+                  }
+                >
                   <ClassesBrowseTab
                     instituteId={instituteId}
                     sections={[]}
-                    workspaceRole="owner"
+                    workspaceRole={
+                      detail.role === "principal" || detail.role === "admin" ? detail.role : "owner"
+                    }
                     loadAllSections
+                    fitTimetable={fitClassTimetable}
+                    fitRoster={fitClassRoster}
+                    fitAttendance={fitClassAttendance}
+                    fitSubjects={fitClassSubjects}
                   />
-                  {showOwnerSetup && (
-                    <div className="mt-10 border-t border-border pt-8">
-                      <h2 className="text-lg font-semibold">Manage class structure</h2>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Create sections, subjects, and map subjects to classes.
-                      </p>
-                      <div className="mt-4">
-                        <ClassesMenuTab instituteId={instituteId} branches={branches} />
-                      </div>
-                    </div>
+                  {showOwnerSetup &&
+                    classesSectionTab !== "timetable" &&
+                    classesSectionTab !== "roster" &&
+                    classesSectionTab !== "subjects" &&
+                    classesSectionTab !== "attendance" && (
+                    <p className="mt-6 text-sm text-muted-foreground">
+                      To create sections, subjects, or map subjects to classes, use{" "}
+                      <button
+                        type="button"
+                        className="font-medium text-primary hover:underline"
+                        onClick={() =>
+                          router.replace(
+                            buildInstitutePathFromSearch(instituteId, searchParams, {
+                              tab: "configure",
+                              configureTab: "sections",
+                            })
+                          )
+                        }
+                      >
+                        Configure → Classes
+                      </button>
+                      .
+                    </p>
                   )}
                 </TabsContent>
                 <TabsContent value="calendar" className="w-full">
@@ -273,7 +320,10 @@ export function InstituteDashboard({
                   <DailyNotesTab instituteId={instituteId} />
                 </TabsContent>
                 <TabsContent value="timetable" className="w-full">
-                  <ScheduleTab instituteId={instituteId} />
+                  <ScheduleTab
+                    instituteId={instituteId}
+                    canEditTimetable={INSTITUTE_ADMIN_ROLES.has(detail.role)}
+                  />
                 </TabsContent>
                 <TabsContent value="exams" className="w-full">
                   <ExamsTab instituteId={instituteId} />

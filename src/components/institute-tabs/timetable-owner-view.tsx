@@ -6,7 +6,7 @@ import { AlertTriangle, Printer, Settings2 } from "lucide-react";
 import { buildInstitutePathFromSearch } from "@/lib/embed-href";
 import { parseOwnerTimetable, type OwnerTimetablePayload } from "@/lib/timetable-api";
 
-type TimetableView = "class" | "teacher" | "room";
+type TimetableView = "class" | "teacher" | "room" | "school";
 
 type TimetablePeriod = {
   period_no: number;
@@ -32,6 +32,7 @@ type TimetableCell = {
   status: "ok" | "clash" | "empty" | "locked";
   clash_reason?: string | null;
   locked?: boolean;
+  cell_source?: "class_override" | "school_default" | null;
 };
 
 type TimetablePayload = OwnerTimetablePayload;
@@ -121,6 +122,13 @@ function teacherLabel(teacher: Teacher) {
   return teacher.displayName || teacher.username || teacher.userId;
 }
 
+function breakRowLabel(period: { kind: string; label?: string }) {
+  if (period.label?.trim()) return period.label.trim();
+  if (period.kind === "lunch") return "Lunch";
+  if (period.kind === "play") return "Activity";
+  return "Break";
+}
+
 function queryString(campusId: string | null, params: Record<string, string>) {
   const sp = new URLSearchParams(params);
   if (campusId) sp.set("campus_id", campusId);
@@ -128,15 +136,32 @@ function queryString(campusId: string | null, params: Record<string, string>) {
   return qs ? `?${qs}` : "";
 }
 
-export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
+type RosterTeacher = { userId: string; displayName?: string; username?: string };
+
+export function TimetableOwnerView({
+  instituteId,
+  embedded = false,
+  fixedSectionId,
+  canEdit = true,
+}: {
+  instituteId: string;
+  embedded?: boolean;
+  fixedSectionId?: string;
+  canEdit?: boolean;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const campusId = searchParams.get("branch");
   const viewParam = searchParams.get("view");
-  const view: TimetableView = VIEWS.includes(viewParam as TimetableView)
-    ? (viewParam as TimetableView)
-    : "class";
-  const itemId = searchParams.get("id") || "";
+  const view: TimetableView =
+    embedded && fixedSectionId
+      ? "class"
+      : viewParam === "school"
+        ? "school"
+        : VIEWS.includes(viewParam as TimetableView)
+          ? (viewParam as TimetableView)
+          : "class";
+  const itemId = embedded && fixedSectionId ? fixedSectionId : searchParams.get("id") || "";
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -146,8 +171,10 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
   const [teacherLoad, setTeacherLoad] = useState<TeacherLoadItem[]>([]);
   const [sections, setSections] = useState<Section[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [rooms, setRooms] = useState<string[]>([]);
+  const [configuredRooms, setConfiguredRooms] = useState<{ id: string; name: string }[]>([]);
+  const [roomsUsedInTimetable, setRoomsUsedInTimetable] = useState<string[]>([]);
   const [subjects, setSubjects] = useState<SubjectOption[]>([]);
+  const [sectionRosterTeachers, setSectionRosterTeachers] = useState<RosterTeacher[]>([]);
   const [absences, setAbsences] = useState<Absence[]>([]);
   const [substitutions, setSubstitutions] = useState<SubstitutionItem[]>([]);
   const [specialDays, setSpecialDays] = useState<SpecialDay[]>([]);
@@ -186,9 +213,11 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
   const loadCatalog = useCallback(async () => {
     const today = new Date().toISOString().slice(0, 10);
     const campusQs = campusId ? `?branch=${encodeURIComponent(campusId)}` : "";
-    const [sectionsRes, teachersRes, specialDaysRes, absencesRes, substitutionsRes] = await Promise.all([
+    const [sectionsRes, teachersRes, roomsRes, specialDaysRes, absencesRes, substitutionsRes] =
+      await Promise.all([
       fetch(`/api/institutes/${instituteId}/sections`),
       fetch(`/api/institutes/${instituteId}/members?group=teacher`),
+      fetch(`/api/institutes/${instituteId}/rooms`),
       fetch(`/api/institutes/${instituteId}/special-days${campusQs}`),
       fetch(`/api/institutes/${instituteId}/teacher-absences?absence_date=${today}`),
       fetch(`/api/institutes/${instituteId}/timetable/substitutions?substitution_date=${today}${campusId ? `&branch=${campusId}` : ""}`),
@@ -197,6 +226,7 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
     const nextSections = (await sectionsRes.json()) as Section[];
     setSections(nextSections.sort((a, b) => sectionLabel(a).localeCompare(sectionLabel(b))));
     setTeachers(await teachersRes.json());
+    setConfiguredRooms(roomsRes.ok ? await roomsRes.json() : []);
     if (specialDaysRes.ok) {
       const payload = await specialDaysRes.json();
       setSpecialDays(payload.items ?? []);
@@ -211,7 +241,7 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
 
   const loadTimetableBundle = useCallback(
     async (activeView: TimetableView, activeId: string) => {
-      if (!activeId) {
+      if (!activeId && activeView !== "school") {
         setTimetable(null);
         setClashes([]);
         setPeriodWarnings([]);
@@ -221,20 +251,27 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
       }
       setLoading(true);
       setError("");
-      const qs = queryString(campusId, { view: activeView, id: activeId, state: "draft" });
-      const [timetableRes, clashesRes, warningsRes, loadRes] = await Promise.all([
-        fetch(`/api/institutes/${instituteId}/timetable${qs}`),
-        fetch(`/api/institutes/${instituteId}/timetable/clashes${campusId ? `?campus_id=${campusId}` : ""}`),
-        fetch(
-          `/api/institutes/${instituteId}/timetable/period-limit-warnings${campusId ? `?campus_id=${campusId}` : ""}`
-        ),
-        fetch(
-          `/api/institutes/${instituteId}/timetable/teacher-load${queryString(campusId, {
-            view: activeView,
-            id: activeId,
-          })}`
-        ),
-      ]);
+      const qs =
+        activeView === "school"
+          ? queryString(campusId, { view: "school", state: "draft" })
+          : queryString(campusId, { view: activeView, id: activeId, state: "draft" });
+      const timetableRes = await fetch(`/api/institutes/${instituteId}/timetable${qs}`);
+      const clashesRes = await fetch(
+        `/api/institutes/${instituteId}/timetable/clashes${campusId ? `?campus_id=${campusId}` : ""}`
+      );
+      const warningsRes = embedded
+        ? null
+        : await fetch(
+            `/api/institutes/${instituteId}/timetable/period-limit-warnings${campusId ? `?campus_id=${campusId}` : ""}`
+          );
+      const loadRes = embedded
+        ? null
+        : await fetch(
+            `/api/institutes/${instituteId}/timetable/teacher-load${queryString(campusId, {
+              view: activeView,
+              id: activeId,
+            })}`
+          );
       if (!timetableRes.ok) {
         const body = await timetableRes.json().catch(() => ({}));
         throw new Error(body.detail || body.error || "Could not load timetable");
@@ -244,7 +281,7 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
       const roomSet = new Set(
         payload.cells.map((cell) => cell.room).filter((room): room is string => Boolean(room?.trim()))
       );
-      setRooms([...roomSet].sort());
+      setRoomsUsedInTimetable([...roomSet].sort());
       if (clashesRes.ok) {
         const clashPayload = await clashesRes.json();
         const items = (clashPayload.items ?? []) as Record<string, unknown>[];
@@ -259,33 +296,43 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
       } else {
         setClashes([]);
       }
-      if (warningsRes.ok) {
-        const warningPayload = await warningsRes.json();
-        setPeriodWarnings(warningPayload.items ?? []);
-      } else {
+      if (embedded) {
         setPeriodWarnings([]);
-      }
-      if (loadRes.ok) {
-        const loadPayload = await loadRes.json();
-        setTeacherLoad(loadPayload.items ?? []);
-      } else {
         setTeacherLoad([]);
+      } else {
+        if (warningsRes?.ok) {
+          const warningPayload = await warningsRes.json();
+          setPeriodWarnings(warningPayload.items ?? []);
+        } else {
+          setPeriodWarnings([]);
+        }
+        if (loadRes?.ok) {
+          const loadPayload = await loadRes.json();
+          setTeacherLoad(loadPayload.items ?? []);
+        } else {
+          setTeacherLoad([]);
+        }
       }
       setLoading(false);
     },
-    [campusId, instituteId]
+    [campusId, embedded, instituteId]
   );
 
   useEffect(() => {
+    if (embedded) return;
     loadCatalog()
       .then((nextSections) => {
         if (itemId) return;
+        if (view === "school") {
+          loadTimetableBundle("school", "school").catch(() => undefined);
+          return;
+        }
         if (view === "class" && nextSections[0]) {
           replaceQuery({ view: "class", id: nextSections[0].id });
         }
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Could not load timetable"));
-  }, [itemId, loadCatalog, replaceQuery, view]);
+  }, [embedded, itemId, loadCatalog, loadTimetableBundle, replaceQuery, view]);
 
   useEffect(() => {
     if (itemId || view !== "teacher" || !teachers.length) return;
@@ -293,6 +340,13 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
   }, [itemId, replaceQuery, teachers, view]);
 
   useEffect(() => {
+    if (view === "school") {
+      loadTimetableBundle("school", "school").catch((e) => {
+        setError(e instanceof Error ? e.message : "Could not load timetable");
+        setLoading(false);
+      });
+      return;
+    }
     if (!itemId) return;
     loadTimetableBundle(view, itemId).catch((e) => {
       setError(e instanceof Error ? e.message : "Could not load timetable");
@@ -301,6 +355,15 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
   }, [itemId, loadTimetableBundle, view]);
 
   useEffect(() => {
+    if (view === "school") {
+      fetch(`/api/institutes/${instituteId}/subjects`)
+        .then((res) => (res.ok ? res.json() : []))
+        .then((rows: { id: string; name: string }[]) =>
+          setSubjects(rows.map((s) => ({ id: s.id, name: s.name, teachers: [] })))
+        )
+        .catch(() => setSubjects([]));
+      return;
+    }
     if (view !== "class" || !itemId) {
       setSubjects([]);
       return;
@@ -309,16 +372,45 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
       .then((res) => (res.ok ? res.json() : []))
       .then((rows: SubjectOption[]) => setSubjects(rows))
       .catch(() => setSubjects([]));
+  }, [instituteId, itemId, view]);
+
+  useEffect(() => {
+    if (view !== "class" || !itemId) {
+      setSectionRosterTeachers([]);
+      return;
+    }
+    fetch(`/api/sections/${itemId}`, { credentials: "include", cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { teachers?: RosterTeacher[] } | null) =>
+        setSectionRosterTeachers(data?.teachers ?? [])
+      )
+      .catch(() => setSectionRosterTeachers([]));
   }, [itemId, view]);
+
+  const roomNamesForView = useMemo(() => {
+    const names = new Set([
+      ...configuredRooms.map((r) => r.name),
+      ...roomsUsedInTimetable,
+    ]);
+    return [...names].sort();
+  }, [configuredRooms, roomsUsedInTimetable]);
+
+  const editorRoomOptions = useMemo(() => {
+    const names = new Set(configuredRooms.map((r) => r.name));
+    if (editor?.room?.trim()) names.add(editor.room.trim());
+    return [...names].sort();
+  }, [configuredRooms, editor?.room]);
 
   const itemOptions = useMemo(() => {
     if (view === "class") return sections.map((s) => ({ id: s.id, label: sectionLabel(s) }));
     if (view === "teacher") return teachers.map((t) => ({ id: t.userId, label: teacherLabel(t) }));
-    return rooms.map((room) => ({ id: room, label: room }));
-  }, [rooms, sections, teachers, view]);
+    return roomNamesForView.map((room) => ({ id: room, label: room }));
+  }, [roomNamesForView, sections, teachers, view]);
 
   const selectedItemLabel =
-    itemOptions.find((item) => item.id === itemId)?.label || "Select item";
+    view === "school"
+      ? "School default"
+      : itemOptions.find((item) => item.id === itemId)?.label || "Select item";
 
   const emptyCount = timetable?.cells.filter((cell) => cell.status === "empty").length ?? 0;
   const clashCount =
@@ -437,37 +529,80 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
     });
   }
 
+  async function applySchoolDefaults(mode: "fill_empty" | "override_all") {
+    const label =
+      mode === "override_all"
+        ? "Replace every class cell with the school default where the subject is linked?"
+        : "Fill empty class periods from the school default template?";
+    if (!window.confirm(label)) return;
+    setError("");
+    try {
+      const res = await fetch(`/api/institutes/${instituteId}/timetable/apply-school-defaults`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(body.detail || "Could not apply school defaults");
+        return;
+      }
+      if (view === "school") await loadTimetableBundle("school", "school");
+      else if (itemId) await loadTimetableBundle(view, itemId);
+    } catch {
+      setError("Could not apply school defaults");
+    }
+  }
+
   async function saveCell(clear = false) {
-    if (!editor || !itemId) return;
+    if (!editor || (view !== "school" && !itemId)) return;
+    const period = timetable?.periods.find((p) => p.period_no === editor.period_no);
+    const slotId = period?.slot_id;
+    if (!slotId) {
+      setCellMessage("Could not resolve period slot");
+      return;
+    }
     setSavingCell(true);
     setCellMessage("");
     setPublishMessage("");
     try {
-      const res = await fetch(
-        `/api/institutes/${instituteId}/timetable/cells${campusId ? `?campus_id=${campusId}` : ""}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            view,
-            id: itemId,
-            day: editor.day,
-            period_no: editor.period_no,
-            subject_id: clear ? null : editor.subject_id || null,
-            teacher_id: clear ? null : editor.teacher_id || null,
-            room: clear ? null : editor.room || null,
-            locked: editor.locked,
-            campus_id: campusId,
-          }),
-        }
-      );
+      const url =
+        view === "school"
+          ? `/api/institutes/${instituteId}/timetable/school-cells`
+          : `/api/institutes/${instituteId}/timetable/cells${campusId ? `?campus_id=${campusId}` : ""}`;
+      const res = await fetch(url, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          view === "school"
+            ? {
+                dayOfWeek: editor.day,
+                slotId,
+                subjectId: clear ? null : editor.subject_id || null,
+                teacherId: clear ? null : editor.teacher_id || null,
+                room: clear ? null : editor.room || null,
+                clear,
+              }
+            : {
+                sectionId: itemId,
+                dayOfWeek: editor.day,
+                slotId,
+                subjectId: clear ? null : editor.subject_id || null,
+                teacherId: clear ? null : editor.teacher_id || null,
+                room: clear ? null : editor.room || null,
+                locked: editor.locked,
+                clear,
+              }
+        ),
+      });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
         setCellMessage(body.detail || body.message || "Could not save cell");
         return;
       }
       setEditor(null);
-      await loadTimetableBundle(view, itemId);
+      if (view === "school") await loadTimetableBundle("school", "school");
+      else await loadTimetableBundle(view, itemId);
     } catch {
       setCellMessage("Could not save cell");
     } finally {
@@ -475,17 +610,44 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
     }
   }
 
+  function resolveTeacherName(cell: TimetableCell) {
+    if (cell.teacher_name?.trim()) return cell.teacher_name.trim();
+    if (!cell.teacher_id) return "";
+    const fromCatalog = teachers.find((t) => t.userId === cell.teacher_id);
+    if (fromCatalog) return teacherLabel(fromCatalog);
+    const fromRoster = sectionRosterTeachers.find((t) => t.userId === cell.teacher_id);
+    if (fromRoster) {
+      return fromRoster.displayName || fromRoster.username || fromRoster.userId;
+    }
+    return "";
+  }
+
   const editorTeachers = useMemo(() => {
-    if (!editor?.subject_id) return [];
-    const subject = subjects.find((item) => item.id === editor.subject_id);
-    if (!subject) return [];
-    return subject.teachers
-      .map((row) => teachers.find((t) => t.userId === row.userId))
-      .filter(Boolean) as Teacher[];
-  }, [editor?.subject_id, subjects, teachers]);
+    if (view === "school") return teachers;
+    if (view === "class" && itemId) {
+      return sectionRosterTeachers.map((member) => {
+        const fromCatalog = teachers.find((t) => t.userId === member.userId);
+        return (
+          fromCatalog ?? {
+            userId: member.userId,
+            displayName: member.displayName,
+            username: member.username,
+          }
+        );
+      });
+    }
+    return [];
+  }, [itemId, sectionRosterTeachers, teachers, view]);
 
   return (
-    <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
+    <section
+      className={
+        embedded
+          ? "flex min-h-0 w-full flex-1 flex-col overflow-hidden"
+          : "rounded-xl border border-border bg-card p-4 shadow-sm"
+      }
+    >
+      {!embedded && (
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-primary">Timetable</p>
@@ -528,8 +690,10 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
           </button>
         </div>
       </div>
+      )}
 
-      {!timetable?.published_at && (
+
+      {!embedded && !timetable?.published_at && (
         <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           Staff and students only see this timetable after you tap <strong>Publish</strong>. You must fix
           scheduling clashes (same teacher, room, or class at the same time) before publishing. Weekly period
@@ -554,7 +718,9 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
         <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
       )}
 
+      {!embedded && (
       <div className="mt-4 flex flex-wrap items-center gap-2">
+        <>
         <label className="text-xs font-medium text-muted-foreground">
           View by
           <select
@@ -563,10 +729,12 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
             className="ml-2 rounded-lg border border-border bg-background px-2 py-1.5 text-sm"
           >
             <option value="class">Class</option>
+            <option value="school">School default</option>
             <option value="teacher">Teacher</option>
             <option value="room">Room</option>
           </select>
         </label>
+        {view !== "school" && (
         <label className="text-xs font-medium text-muted-foreground">
           Item
           <select
@@ -580,6 +748,26 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
             ))}
           </select>
         </label>
+        )}
+        {view === "school" && (
+          <>
+            <button
+              type="button"
+              onClick={() => void applySchoolDefaults("fill_empty")}
+              className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium"
+            >
+              Apply to empty classes
+            </button>
+            <button
+              type="button"
+              onClick={() => void applySchoolDefaults("override_all")}
+              className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-900"
+            >
+              Override all classes
+            </button>
+          </>
+        )}
+        </>
         {clashCount > 0 && (
           <button
             type="button"
@@ -588,11 +776,6 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
           >
             {clashCount} scheduling clash{clashCount === 1 ? "" : "es"}
           </button>
-        )}
-        {periodWarningCount > 0 && (
-          <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800">
-            {periodWarningCount} period limit warning{periodWarningCount === 1 ? "" : "s"}
-          </span>
         )}
         {emptyCount > 0 && (
           <button
@@ -604,9 +787,20 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
           </button>
         )}
       </div>
+      )}
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_280px]">
-        <div className="min-w-0 overflow-x-auto">
+      {embedded && clashCount > 0 && (
+        <p className="mb-2 shrink-0 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs text-red-800">
+          {clashCount} scheduling clash{clashCount === 1 ? "" : "es"} — fix before publishing.
+        </p>
+      )}
+
+      <div
+        className={
+          embedded ? "mt-0 flex min-h-0 flex-1 flex-col overflow-hidden" : "mt-4 grid gap-4 lg:grid-cols-[1fr_280px]"
+        }
+      >
+        <div className={`min-w-0 ${embedded ? "flex min-h-0 flex-1 flex-col overflow-hidden" : "overflow-x-auto"}`}>
           {loading ? (
             <div className="space-y-2">
               {[1, 2, 3, 4].map((row) => (
@@ -618,53 +812,97 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
               Choose a {view} to load the timetable.
             </p>
           ) : (
-            <div className="min-w-[720px]">
+            <div
+              className={
+                embedded
+                  ? "flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-lg border border-border"
+                  : "min-w-[720px]"
+              }
+            >
               <div
-                className="grid gap-px overflow-hidden rounded-lg border border-border bg-border"
-                style={{ gridTemplateColumns: `100px repeat(${workingDays.length}, minmax(120px, 1fr))` }}
+                className={`grid shrink-0 gap-px overflow-hidden bg-border ${embedded ? "border-b border-border" : "rounded-t-lg border border-border"}`}
+                style={{
+                  gridTemplateColumns: embedded
+                    ? `5.25rem repeat(${workingDays.length}, minmax(0, 1fr))`
+                    : `100px repeat(${workingDays.length}, minmax(120px, 1fr))`,
+                }}
               >
-                <div className="bg-muted/60 px-2 py-2 text-[11px] font-semibold uppercase text-muted-foreground">
-                  {selectedItemLabel}
+                <div
+                  className={`bg-muted/60 font-semibold uppercase text-muted-foreground ${
+                    embedded ? "px-1.5 py-1.5 text-xs" : "px-2 py-2 text-[11px]"
+                  }`}
+                >
+                  {embedded ? "Time" : selectedItemLabel}
                 </div>
                 {workingDays.map((day) => (
-                  <div key={day.day} className="bg-muted/60 px-2 py-2 text-center text-xs font-semibold">
+                  <div
+                    key={day.day}
+                    className={`bg-muted/60 text-center font-semibold ${
+                      embedded ? "px-1.5 py-1.5 text-xs" : "px-2 py-2 text-xs"
+                    }`}
+                  >
                     {DAY_LABELS[day.day] ?? day.day}
                     {day.half_day ? " (½)" : ""}
                   </div>
                 ))}
               </div>
-              <div className="mt-1 space-y-1">
+              <div
+                className={
+                  embedded ? "flex min-h-0 flex-1 flex-col gap-0.5 overflow-hidden" : "mt-1 space-y-1"
+                }
+              >
                 {timetable.periods.map((period) => {
+                  const rowKey = period.slot_id ?? `p${period.period_no}`;
                   const isBreak = period.kind !== "class";
+                  const rowGridStyle = {
+                    gridTemplateColumns: embedded
+                      ? `5.25rem repeat(${workingDays.length}, minmax(0, 1fr))`
+                      : `100px repeat(${workingDays.length}, minmax(120px, 1fr))`,
+                  };
                   if (isBreak) {
+                    const breakLabel = breakRowLabel(period);
                     return (
                       <div
-                        key={period.period_no}
-                        className="grid min-w-[720px] gap-1"
-                        style={{ gridTemplateColumns: `100px repeat(${workingDays.length}, minmax(120px, 1fr))` }}
+                        key={rowKey}
+                        className={`grid shrink-0 ${embedded ? "min-w-0 gap-0.5" : "min-w-[720px] gap-1"}`}
+                        style={rowGridStyle}
                       >
-                        <div className="rounded-lg bg-amber-50 px-2 py-2 text-xs font-medium text-amber-900">
+                        <div
+                          className={`rounded bg-amber-50 font-medium text-amber-900 ${
+                            embedded ? "px-1.5 py-1 text-xs leading-tight" : "rounded-lg px-2 py-2 text-xs"
+                          }`}
+                        >
                           {period.start}–{period.end}
-                          <p className="text-[10px] capitalize">{period.kind}</p>
+                          {!embedded && <p className="text-[10px] capitalize">{breakLabel}</p>}
                         </div>
                         <div
-                          className="col-span-full rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2 text-center text-xs font-medium text-amber-900"
+                          className={`border border-amber-200 bg-amber-50/80 text-center font-medium text-amber-900 ${
+                            embedded
+                              ? "rounded px-1.5 py-1 text-xs"
+                              : "rounded-lg px-3 py-2 text-xs"
+                          }`}
                           style={{ gridColumn: `2 / span ${workingDays.length}` }}
                         >
-                          {period.kind}
+                          {breakLabel}
                         </div>
                       </div>
                     );
                   }
                   return (
                     <div
-                      key={period.period_no}
-                      className="grid min-w-[720px] gap-1"
-                      style={{ gridTemplateColumns: `100px repeat(${workingDays.length}, minmax(120px, 1fr))` }}
+                      key={rowKey}
+                      className={`grid min-h-0 ${embedded ? "min-h-[1.5rem] flex-1 gap-0.5" : "min-w-[720px] gap-1"}`}
+                      style={rowGridStyle}
                     >
-                      <div className="rounded-lg bg-muted/40 px-2 py-2 text-xs">
+                      <div
+                        className={`flex h-full flex-col justify-center rounded-lg bg-muted/40 ${
+                          embedded ? "px-1.5 py-1 text-xs leading-snug" : "px-2 py-2 text-xs"
+                        }`}
+                      >
                         <p className="font-medium">{period.start}–{period.end}</p>
-                        <p className="text-[10px] text-muted-foreground">P{period.period_no}</p>
+                        <p className={embedded ? "text-[11px] text-muted-foreground" : "text-[10px] text-muted-foreground"}>
+                          P{period.period_no}
+                        </p>
                       </div>
                       {workingDays.map((day) => {
                         const cell = timetable.cells.find(
@@ -675,40 +913,73 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
                           (highlightEmpty && status === "empty") ||
                           (focusedCell?.day === day.day &&
                             focusedCell?.period_no === period.period_no);
-                        return (
+                        const cellClass = `${
+                          embedded
+                            ? "flex h-full min-h-0 flex-col justify-center gap-0.5 rounded border p-1.5 text-left text-xs leading-snug"
+                            : "min-h-[68px] rounded-lg border p-2 text-left text-xs"
+                        } ${canEdit ? "transition hover:border-primary" : ""} ${
+                          status === "clash"
+                            ? "border-red-300 bg-red-50"
+                            : status === "empty"
+                              ? highlightEmpty
+                                ? "border-amber-400 bg-amber-50"
+                                : "border-dashed border-border bg-background"
+                              : "border-border bg-background"
+                        } ${highlighted ? "ring-2 ring-primary/40" : ""}`;
+                        const cellBody = (
+                          <>
+                            {cell?.subject_name ? (
+                              <>
+                                <span className={`block font-semibold ${embedded ? "text-sm leading-tight" : ""}`}>
+                                  {cell.subject_name}
+                                </span>
+                                <span
+                                  className={`block text-muted-foreground ${
+                                    embedded ? "truncate text-[11px] leading-tight" : "mt-0.5 text-[10px]"
+                                  }`}
+                                >
+                                  {embedded
+                                    ? `${resolveTeacherName(cell) || "—"} · ${cell.room?.trim() || "—"}`
+                                    : `Teacher: ${resolveTeacherName(cell) || "—"}`}
+                                </span>
+                                {!embedded && (
+                                  <span className="mt-0.5 block text-[10px] text-muted-foreground">
+                                    Room: {cell.room?.trim() || "—"}
+                                  </span>
+                                )}
+                                {!embedded && cell.locked && (
+                                  <span className="text-[10px] text-muted-foreground">Locked</span>
+                                )}
+                                {!embedded && cell.cell_source === "school_default" && (
+                                  <span className="mt-0.5 block text-[10px] font-medium text-sky-700">
+                                    School default
+                                  </span>
+                                )}
+                              </>
+                            ) : (
+                              <span className="text-muted-foreground">
+                                {canEdit ? "+ Assign" : "—"}
+                              </span>
+                            )}
+                            {status === "clash" && cell?.clash_reason && (
+                              <span className="mt-1 block text-[10px] text-red-700">{cell.clash_reason}</span>
+                            )}
+                          </>
+                        );
+                        return canEdit ? (
                           <button
                             key={`${day.day}-${period.period_no}`}
                             type="button"
                             disabled={!cell}
                             onClick={() => cell && openEditor(cell)}
-                            className={`min-h-[68px] rounded-lg border p-2 text-left text-xs transition hover:border-primary disabled:cursor-default disabled:opacity-70 ${
-                              status === "clash"
-                                ? "border-red-300 bg-red-50"
-                                : status === "empty"
-                                  ? highlightEmpty
-                                    ? "border-amber-400 bg-amber-50"
-                                    : "border-dashed border-border bg-background"
-                                  : "border-border bg-background"
-                            } ${highlighted ? "ring-2 ring-primary/40" : ""}`}
+                            className={`${cellClass} disabled:cursor-default disabled:opacity-70`}
                           >
-                            {cell?.subject_name ? (
-                              <>
-                                <span className="block font-semibold">{cell.subject_name}</span>
-                                {cell.teacher_name && (
-                                  <span className="mt-0.5 block text-[10px] text-muted-foreground">{cell.teacher_name}</span>
-                                )}
-                                {cell.room && (
-                                  <span className="mt-0.5 block text-[10px] text-muted-foreground">{cell.room}</span>
-                                )}
-                                {cell.locked && <span className="text-[10px] text-muted-foreground">Locked</span>}
-                              </>
-                            ) : (
-                              <span className="text-muted-foreground">+ Assign</span>
-                            )}
-                            {status === "clash" && cell?.clash_reason && (
-                              <span className="mt-1 block text-[10px] text-red-700">{cell.clash_reason}</span>
-                            )}
+                            {cellBody}
                           </button>
+                        ) : (
+                          <div key={`${day.day}-${period.period_no}`} className={cellClass}>
+                            {cellBody}
+                          </div>
                         );
                       })}
                     </div>
@@ -719,10 +990,12 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
           )}
         </div>
 
+        {!embedded && (
         <aside className="space-y-3">
+          {view !== "class" && (
           <div className="rounded-lg border border-border bg-background/80 p-3">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              {view === "class" ? `Teachers for ${selectedItemLabel}` : "Teacher load"}
+              Teacher load
             </h3>
             {teacherLoad.length === 0 ? (
               <p className="mt-2 text-xs text-muted-foreground">No load data yet.</p>
@@ -743,6 +1016,7 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
               </ul>
             )}
           </div>
+          )}
 
           {(clashPanelOpen || clashes.length > 0) && (
             <div className="rounded-lg border border-red-200 bg-red-50/50 p-3">
@@ -770,21 +1044,6 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
                   ))}
                 </ul>
               )}
-            </div>
-          )}
-
-          {periodWarnings.length > 0 && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-amber-900">
-                Period limits (warnings)
-              </h3>
-              <ul className="mt-2 space-y-2">
-                {periodWarnings.map((warning) => (
-                  <li key={warning.warning_id} className="text-xs text-amber-950">
-                    {warning.message}
-                  </li>
-                ))}
-              </ul>
             </div>
           )}
 
@@ -843,9 +1102,10 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
             )}
           </div>
         </aside>
+        )}
       </div>
 
-      {editor && (
+      {canEdit && editor && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true">
           <div className="w-full max-w-md rounded-xl border border-border bg-card p-4 shadow-lg">
             <h3 className="text-sm font-semibold">
@@ -882,15 +1142,29 @@ export function TimetableOwnerView({ instituteId }: { instituteId: string }) {
                     <option key={teacher.userId} value={teacher.userId}>{teacherLabel(teacher)}</option>
                   ))}
                 </select>
+                {view === "class" && editorTeachers.length === 0 && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Assign teachers to this class under Classes → Teachers &amp; students.
+                  </p>
+                )}
               </label>
               <label className="block text-xs font-medium text-muted-foreground">
                 Room
-                <input
+                <select
                   value={editor.room}
-                  maxLength={30}
                   onChange={(e) => setEditor((c) => (c ? { ...c, room: e.target.value } : c))}
                   className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-                />
+                >
+                  <option value="">No room</option>
+                  {editorRoomOptions.map((name) => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                </select>
+                {editorRoomOptions.length === 0 && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Add rooms under Configure → Rooms.
+                  </p>
+                )}
               </label>
               <label className="flex items-center gap-2 text-xs">
                 <input

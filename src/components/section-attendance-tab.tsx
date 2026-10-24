@@ -139,7 +139,13 @@ function statusCellClass(status: string | undefined) {
   return "bg-muted ring-border";
 }
 
-export function SectionAttendanceTab({ sectionId }: { sectionId: string }) {
+export function SectionAttendanceTab({
+  sectionId,
+  fillHeight = false,
+}: {
+  sectionId: string;
+  fillHeight?: boolean;
+}) {
   const [totalsRange, setTotalsRange] = useState<TotalsRange>("academic_year");
   const [sheet, setSheet] = useState<Sheet | null>(null);
   const [error, setError] = useState("");
@@ -312,11 +318,25 @@ export function SectionAttendanceTab({ sectionId }: { sectionId: string }) {
   const takeGrid = attendanceTakeGridLayout(sheet.students.length);
   const gridPublishState = sheet.publishStateByDate?.[gridDate];
 
+  const gridBodyScrollClass = fillHeight
+    ? "min-h-0 flex-1 overflow-y-auto overscroll-y-contain"
+    : "max-h-[calc(100dvh-18rem)] overflow-y-auto overscroll-y-contain";
+
+  const gridCardClass = fillHeight
+    ? "flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card px-1 py-0 shadow-sm sm:px-2"
+    : "w-full rounded-xl border border-border bg-card px-1 py-0 shadow-sm sm:px-2";
+
   return (
-    <div className="space-y-4">
+    <div
+      className={
+        fillHeight ? "flex min-h-0 flex-1 flex-col gap-3 overflow-hidden" : "space-y-4"
+      }
+    >
       {draftDates.length > 0 && (
         <div
-          className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 shadow-sm"
+          className={`rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 shadow-sm ${
+            fillHeight ? "shrink-0" : ""
+          }`}
           role="status"
         >
           <p className="font-semibold">Attendance saved but not submitted</p>
@@ -353,7 +373,7 @@ export function SectionAttendanceTab({ sectionId }: { sectionId: string }) {
         </div>
       )}
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
           <h2 className="text-lg font-semibold">Attendance</h2>
           <p className="text-sm text-muted-foreground">
@@ -376,9 +396,9 @@ export function SectionAttendanceTab({ sectionId }: { sectionId: string }) {
         </div>
       </div>
 
-      <div className="w-full rounded-xl border border-border bg-card px-1 py-0 shadow-sm sm:px-2">
+      <div className={gridCardClass}>
         <div
-          className={`${rowGrid} border-b border-border bg-muted/40 py-1.5 text-muted-foreground sm:py-2`}
+          className={`${rowGrid} sticky top-0 z-10 shrink-0 border-b border-border bg-muted/40 py-1.5 text-muted-foreground sm:py-2`}
         >
           <div className="truncate pl-0.5 text-[10px] font-semibold uppercase tracking-wide sm:text-xs">
             Student
@@ -447,6 +467,7 @@ export function SectionAttendanceTab({ sectionId }: { sectionId: string }) {
           </div>
         </div>
 
+        <div className={gridBodyScrollClass}>
         {sheet.students.map((student) => {
           const totals =
             sheet.totalsByStudent[student.userId] ?? {
@@ -494,15 +515,20 @@ export function SectionAttendanceTab({ sectionId }: { sectionId: string }) {
         {!sheet.students.length && (
           <p className="px-4 py-6 text-sm text-muted-foreground">No students in this class.</p>
         )}
+        </div>
       </div>
 
-      <p className="text-xs text-muted-foreground">
+      <p className={`text-xs text-muted-foreground ${fillHeight ? "shrink-0" : ""}`}>
         Tap a student for monthly calendar. Green = present · red = absent · orange = excused.
         {sheet.canTakeAttendanceToday ? " Use Take attendance for today." : ""}
         {sheet.canEditPastAttendance ? " Owner/admin can tap a day to edit past dates." : ""}
       </p>
 
-      <section className="rounded-xl border border-border bg-card px-4 py-3 shadow-sm">
+      <section
+        className={`rounded-xl border border-border bg-card px-4 py-3 shadow-sm ${
+          fillHeight ? "max-h-36 shrink-0 overflow-y-auto overscroll-y-contain" : ""
+        }`}
+      >
         <h3 className="text-sm font-semibold">Pending leave requests</h3>
         {!leaveRequests.length ? (
           <p className="mt-2 text-sm text-muted-foreground">No pending leave for this class.</p>

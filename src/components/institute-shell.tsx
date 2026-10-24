@@ -59,6 +59,8 @@ type Props = {
   sectionTabs?: InstituteTab[];
   activeTab?: InstituteTabId;
   tabHref?: (tab: InstituteTabId) => string;
+  /** Use full main-column height (no outer scroll); for class timetable fit. */
+  fillMainContent?: boolean;
 };
 
 function NavList({
@@ -108,6 +110,7 @@ export function InstituteShell({
   sectionTabs = [],
   activeTab,
   tabHref,
+  fillMainContent = false,
   children,
 }: Props & { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -210,7 +213,15 @@ export function InstituteShell({
           </div>
         )}
 
-        <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+        <div
+          className={
+            fillMainContent
+              ? "flex min-h-0 flex-1 flex-col overflow-hidden"
+              : "min-h-0 flex-1 overflow-y-auto"
+          }
+        >
+          {children}
+        </div>
       </div>
     </div>
   );
