@@ -44,6 +44,20 @@ async function exchangeHandoff(code: string, returnPath: string) {
   return userFromAccessToken(data.accessToken as string);
 }
 
+async function platformTokenStatus(accessToken: string) {
+  try {
+    const res = await fetch(`${PLATFORM_API}/v1/users/me`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      cache: "no-store",
+      signal: AbortSignal.timeout(4000),
+    });
+    if (res.status === 401 || res.status === 403) return "invalid" as const;
+    return "keep" as const;
+  } catch {
+    return "keep" as const;
+  }
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
     Credentials({
@@ -80,7 +94,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.accessToken = (user as { accessToken: string }).accessToken;
         token.userId = user.id;
         token.expiresAt = Math.floor(Date.now() / 1000) + 3600;
+        return token;
       }
+      const accessToken = token.accessToken as string | undefined;
+      if (accessToken && (await platformTokenStatus(accessToken)) === "invalid") return null;
       return token;
     },
     async session({ session, token }) {
