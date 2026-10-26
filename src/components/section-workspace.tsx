@@ -149,7 +149,7 @@ export function SectionWorkspace({
   const stretchAttendance = fillAttendance && tab === "attendance" && isTeacher;
   const stretchSubjects = fillSubjects && tab === "subjects" && canViewRosterSubjects;
   const stretchSyllabus = fillSyllabus && tab === "syllabus" && canViewRosterSubjects;
-  const stretchClassBoard = fillClassBoard && tab === "class-board";
+  const stretchClassBoard = tab === "class-board";
   const stretchPanel =
     stretchTimetable ||
     stretchRoster ||
@@ -190,9 +190,11 @@ export function SectionWorkspace({
 
       <div
         className={
-          stretchPanel
-            ? "mt-1 flex min-h-0 flex-1 flex-col overflow-hidden max-md:mt-2 max-md:overflow-visible max-md:flex-none"
-            : "mt-2 md:mt-4"
+          stretchClassBoard
+            ? "mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
+            : stretchPanel
+              ? "mt-1 flex min-h-0 flex-1 flex-col overflow-hidden max-md:mt-2 max-md:overflow-visible max-md:flex-none"
+              : "mt-2 md:mt-4"
         }
       >
         {tab === "overview" && (
@@ -279,7 +281,7 @@ export function SectionWorkspace({
             instituteId={instituteId}
             sectionId={sectionId}
             canEdit={canEditNotes}
-            fillHeight={stretchClassBoard}
+            fillHeight
           />
         )}
 

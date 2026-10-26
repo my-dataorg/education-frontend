@@ -182,19 +182,21 @@ export function ClassesBrowseTab({
   const stretchClassBoard =
     fitClassBoard && urlSectionTab === "class-board" && !!selectedSection && !!selectedOverview;
   const stretchGrid =
+    stretchClassBoard ||
     stretchTimetable ||
     stretchRoster ||
     stretchAttendance ||
     stretchSubjects ||
-    stretchSyllabus ||
-    stretchClassBoard;
+    stretchSyllabus;
 
   return (
     <div
       className={
-        stretchGrid
-          ? "flex min-h-0 flex-1 flex-col gap-2 overflow-hidden max-md:gap-3 max-md:overflow-visible max-md:flex-none"
-          : "mt-0 space-y-0 sm:mt-4 sm:space-y-4"
+        stretchClassBoard
+          ? "flex min-h-0 flex-1 flex-col gap-1 overflow-hidden"
+          : stretchGrid
+            ? "flex min-h-0 flex-1 flex-col gap-2 overflow-hidden max-md:gap-3 max-md:overflow-visible max-md:flex-none"
+            : "mt-0 space-y-0 sm:mt-4 sm:space-y-4"
       }
     >
       <div

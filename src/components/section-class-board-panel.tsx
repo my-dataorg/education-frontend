@@ -282,8 +282,10 @@ export function SectionClassBoardPanel({
   const onSplitPointerMove = (e: React.PointerEvent) => {
     if (!dragging.current || !splitRef.current) return;
     const rect = splitRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const pct = (x / rect.width) * 100;
+    const vertical = window.matchMedia("(max-width: 767px)").matches;
+    const pct = vertical
+      ? ((e.clientY - rect.top) / rect.height) * 100
+      : ((e.clientX - rect.left) / rect.width) * 100;
     setDrawPct(Math.min(78, Math.max(22, pct)));
   };
 
@@ -320,104 +322,78 @@ export function SectionClassBoardPanel({
     );
   }
 
-  const desktopFill = fillHeight;
+  const rootClass = fillHeight
+    ? "flex min-h-0 flex-1 flex-col gap-1 overflow-hidden"
+    : "flex min-h-0 flex-1 flex-col gap-2 overflow-hidden md:max-h-none";
 
-  const rootClass = desktopFill
-    ? "flex min-h-0 flex-1 flex-col gap-2 overflow-hidden max-md:block max-md:flex-none max-md:space-y-3 max-md:overflow-visible"
-    : "space-y-3 md:space-y-4";
-
-  const splitClass = desktopFill
-    ? "hidden min-h-0 flex-1 w-full md:flex"
-    : "hidden h-[min(70vh,32rem)] min-h-[18rem] w-full md:flex";
-
-  const mobileBoardClass = "h-[14rem] min-h-[14rem] shrink-0 sm:h-[min(42dvh,18rem)]";
-  const mobileNotesClass = "min-h-[10rem] shrink-0";
-
-  const compactSelect =
-    "max-w-[9.5rem] rounded-md border border-border bg-background px-2 py-1 text-xs font-medium md:max-w-[11rem] md:px-3 md:py-2 md:text-sm";
+  const toolBtn =
+    "shrink-0 whitespace-nowrap rounded-md border border-border px-2 py-1 text-[11px] font-medium hover:bg-muted disabled:opacity-50 md:text-xs";
+  const toolBtnPrimary =
+    "shrink-0 whitespace-nowrap rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 md:text-xs";
+  const toolSelect =
+    "shrink-0 max-w-[7.25rem] rounded-md border border-border bg-background px-1.5 py-1 text-[11px] font-medium md:max-w-[9rem] md:px-2 md:text-xs";
 
   return (
     <div className={rootClass}>
-      <div className="shrink-0 space-y-2">
-        <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold leading-tight">{subjectLabel} — class board</p>
-            {editable && (
-              <p className="mt-0.5 text-[11px] text-muted-foreground">
-                <span className="font-medium">{isPublished ? "Published" : "Draft"}</span>
-                {draftDirty ? " · unsynced" : ""}
-                <span className="hidden md:inline">
-                  {lastLocalSave ? ` · Device ${formatTime(lastLocalSave)}` : ""}
-                  {lastServerSave ? ` · Server ${formatTime(lastServerSave)}` : ""}
-                </span>
-              </p>
-            )}
-            {!desktopFill && (
-              <p className="mt-1 hidden text-xs text-muted-foreground md:block">
-                {editable
-                  ? "Draft saves on this device. Server backup every 15 minutes. Submit when students and families should see it."
-                  : awaitingPublish
-                    ? "The teacher has not shared today’s board yet."
-                    : noteDate === calendarToday
-                      ? teachesSubject
-                        ? "Read-only. Confirm today’s date matches the server, or refresh the page."
-                        : "Read-only. You are not assigned to teach this subject in this class."
-                      : "Past boards are read-only."}
-              </p>
-            )}
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
-            <select
-              aria-label="Subject"
-              value={subjectId}
-              onChange={(e) => setSubjectId(e.target.value)}
-              className={compactSelect}
+      <div
+        className="flex shrink-0 items-center gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        <p className="shrink-0 text-sm font-semibold whitespace-nowrap">{subjectLabel} — board</p>
+        <select
+          aria-label="Subject"
+          value={subjectId}
+          onChange={(e) => setSubjectId(e.target.value)}
+          className={toolSelect}
+        >
+          {subjects.map((subject) => {
+            const mine = userId && subject.teachers?.some((t) => t.userId === userId);
+            return (
+              <option key={subject.id} value={subject.id}>
+                {subject.name}
+                {mine ? " (you teach)" : ""}
+              </option>
+            );
+          })}
+        </select>
+        <select
+          aria-label="Date"
+          value={noteDate}
+          onChange={(e) => setNoteDate(e.target.value)}
+          className={toolSelect}
+        >
+          {dateOptions.map((d) => (
+            <option key={d} value={d}>
+              {d === calendarToday ? `Today (${d})` : d}
+            </option>
+          ))}
+        </select>
+        {editable && (
+          <>
+            <button
+              type="button"
+              disabled={saving || publishing}
+              onClick={() => saveDraftToServer().catch(() => undefined)}
+              className={toolBtn}
             >
-              {subjects.map((subject) => {
-                const mine = userId && subject.teachers?.some((t) => t.userId === userId);
-                return (
-                  <option key={subject.id} value={subject.id}>
-                    {subject.name}
-                    {mine ? " (you teach)" : ""}
-                  </option>
-                );
-              })}
-            </select>
-            <select
-              aria-label="Date"
-              value={noteDate}
-              onChange={(e) => setNoteDate(e.target.value)}
-              className={compactSelect}
+              Save draft
+            </button>
+            <button
+              type="button"
+              disabled={saving || publishing}
+              onClick={() => publishBoard().catch(() => undefined)}
+              className={toolBtnPrimary}
             >
-              {dateOptions.map((d) => (
-                <option key={d} value={d}>
-                  {d === calendarToday ? `Today (${d})` : d}
-                </option>
-              ))}
-            </select>
-            {editable && (
-              <>
-                <button
-                  type="button"
-                  disabled={saving || publishing}
-                  onClick={() => saveDraftToServer().catch(() => undefined)}
-                  className="rounded-md border border-border px-2 py-1 text-[11px] font-medium hover:bg-muted disabled:opacity-50 md:px-3 md:py-2 md:text-sm"
-                >
-                  Save draft
-                </button>
-                <button
-                  type="button"
-                  disabled={saving || publishing}
-                  onClick={() => publishBoard().catch(() => undefined)}
-                  className="rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 md:px-3 md:py-2 md:text-sm"
-                >
-                  {publishing ? "…" : isPublished ? "Update" : "Submit"}
-                </button>
-              </>
-            )}
-          </div>
-        </div>
+              {publishing ? "…" : isPublished ? "Update" : "Submit"}
+            </button>
+          </>
+        )}
       </div>
+      {editable && (
+        <p className="shrink-0 text-[10px] text-muted-foreground">
+          {isPublished ? "Published" : "Draft"}
+          {draftDirty ? " · unsynced" : ""}
+        </p>
+      )}
 
       {awaitingPublish && (
         <p className="shrink-0 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
@@ -437,26 +413,27 @@ export function SectionClassBoardPanel({
       {loading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
       ) : awaitingPublish ? null : (
-        <div
-          className={
-            desktopFill
-              ? "flex min-h-0 flex-1 flex-col gap-2 overflow-hidden max-md:block max-md:flex-none max-md:space-y-3 max-md:overflow-visible"
-              : "space-y-3"
-          }
-        >
-          <div ref={splitRef} className={splitClass}>
-            <div className="flex min-h-0 min-w-0 flex-col" style={{ width: `${drawPct}%` }}>
+        <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-hidden">
+          <div
+            ref={splitRef}
+            className="flex min-h-0 flex-1 flex-col md:min-h-[18rem] md:flex-row"
+          >
+            <div
+              className="flex min-h-0 min-w-0 flex-col overflow-hidden"
+              style={{ flex: `0 0 ${drawPct}%` }}
+            >
               <DrawingBoard
                 value={sheet.drawingJson}
                 onChange={(drawingJson) => applyChange({ ...sheet, drawingJson })}
                 readOnly={!editable}
+                className="h-full min-h-0"
               />
             </div>
             <div
               role="separator"
-              aria-orientation="vertical"
+              aria-orientation="horizontal"
               aria-label="Resize drawing and written notes"
-              className="mx-1 w-2 shrink-0 cursor-col-resize rounded-full bg-border hover:bg-primary/40 active:bg-primary/60"
+              className="my-0.5 h-2 w-full shrink-0 cursor-row-resize rounded-full bg-border hover:bg-primary/40 active:bg-primary/60 md:my-0 md:mx-1 md:h-auto md:w-2 md:cursor-col-resize"
               onPointerDown={onSplitPointerDown}
               onPointerMove={onSplitPointerMove}
               onPointerUp={onSplitPointerUp}
@@ -464,46 +441,21 @@ export function SectionClassBoardPanel({
             />
             <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
               <div className="flex h-full min-h-0 flex-col rounded-xl border border-border bg-card shadow-sm">
-                <div className="shrink-0 border-b border-border px-3 py-2">
+                <div className="shrink-0 border-b border-border px-3 py-1.5">
                   <p className="text-xs font-semibold text-muted-foreground">Written notes</p>
-                  <p className="text-[11px] text-muted-foreground/80">Type homework, reminders, or lesson points.</p>
                 </div>
                 <textarea
                   value={sheet.content}
                   onChange={(e) => applyChange({ ...sheet, content: e.target.value })}
                   readOnly={!editable}
                   placeholder={`Notes for ${subjectLabel} today…`}
-                  className="min-h-0 flex-1 resize-none overflow-y-auto rounded-b-xl bg-muted/20 px-3 py-3 text-sm leading-relaxed outline-none"
+                  className="min-h-0 flex-1 resize-none overflow-y-auto rounded-b-xl bg-muted/20 px-3 py-2 text-sm leading-relaxed outline-none"
                 />
               </div>
             </div>
           </div>
 
-          <div className="flex shrink-0 flex-col gap-3 md:hidden">
-            <DrawingBoard
-              value={sheet.drawingJson}
-              onChange={(drawingJson) => applyChange({ ...sheet, drawingJson })}
-              readOnly={!editable}
-              className={mobileBoardClass}
-            />
-            <div
-              className={`flex shrink-0 flex-col rounded-xl border border-border bg-card shadow-sm ${mobileNotesClass}`}
-            >
-              <div className="border-b border-border px-3 py-1.5">
-                <p className="text-xs font-semibold text-muted-foreground">Written notes</p>
-              </div>
-              <textarea
-                value={sheet.content}
-                onChange={(e) => applyChange({ ...sheet, content: e.target.value })}
-                readOnly={!editable}
-                placeholder={`Notes for ${subjectLabel} today…`}
-                className="min-h-[8.5rem] w-full resize-y rounded-b-xl bg-muted/20 px-3 py-3 text-sm outline-none"
-                rows={5}
-              />
-            </div>
-          </div>
-
-          <div className="shrink-0 space-y-2 border-t border-border pt-3">
+          <div className="shrink-0 border-t border-border py-1.5">
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-xs font-semibold text-muted-foreground">Board photos</p>
               {editable && (
