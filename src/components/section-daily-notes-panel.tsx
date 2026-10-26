@@ -154,7 +154,7 @@ export function SectionDailyNotesPanel({ instituteId, sectionId, canEdit = false
             {editable
               ? "Today’s board — draw, type, or upload a photo. Saves automatically."
               : noteDate === today
-                ? "Read-only for your role. The class teacher or today’s substitute can edit."
+                ? "Read-only for your role. Teachers assigned to a subject in this class (or today’s substitute) can edit."
                 : "Past notes are read-only."}
           </p>
         </div>

@@ -574,7 +574,7 @@ function ClassTeacherPicker({
         Class teacher
       </label>
       <p className="mt-0.5 text-[11px] text-muted-foreground">
-        Only the class teacher can post daily notes. Assign teachers below first, then pick one here.
+        Assign subject teachers below so they can post daily notes. Optionally set a class teacher for attendance.
       </p>
       <select
         id={`ct-${sectionId}`}
