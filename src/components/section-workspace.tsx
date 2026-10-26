@@ -7,6 +7,8 @@ import { SectionAssignmentsTab } from "@/components/section-assignments-tab";
 import { SectionClassOverview } from "@/components/section-class-overview";
 import { SectionRosterPanel } from "@/components/section-roster-panel";
 import { SectionSubjectsPanel } from "@/components/section-subjects-panel";
+import { SectionSyllabusPanel } from "@/components/section-syllabus-panel";
+import type { SyllabusMode } from "@/lib/syllabus-types";
 import { SectionTimetablePanel } from "@/components/section-timetable-panel";
 import { formatUserName } from "@/components/user-identity";
 import type { Member } from "@/lib/api";
@@ -18,6 +20,7 @@ export type SectionWorkspaceTab =
   | "overview"
   | "roster"
   | "subjects"
+  | "syllabus"
   | "timetable"
   | "attendance"
   | "assignments"
@@ -61,6 +64,7 @@ export function SectionWorkspace({
   fillRoster = false,
   fillAttendance = false,
   fillSubjects = false,
+  fillSyllabus = false,
 }: {
   instituteId: string;
   sectionId: string;
@@ -71,6 +75,7 @@ export function SectionWorkspace({
   fillRoster?: boolean;
   fillAttendance?: boolean;
   fillSubjects?: boolean;
+  fillSyllabus?: boolean;
   overview: Overview;
   assignments: {
     id: string;
@@ -93,6 +98,11 @@ export function SectionWorkspace({
   const canManage = INSTITUTE_ADMIN_ROLES.has(role);
   const canViewRosterSubjects = isTeacher || role === "student";
   const isStudent = role === "student";
+  const syllabusMode: SyllabusMode = canManage
+    ? "admin"
+    : isTeacher
+      ? "teacher"
+      : "viewer";
   const canEditNotes = overview.canEditDailyNotes === true;
   const sectionLabel = `${overview.className || "Class"} · ${overview.sectionName}`;
 
@@ -114,6 +124,7 @@ export function SectionWorkspace({
     { id: "overview", label: "Overview", shortLabel: "Overview", show: true },
     { id: "roster", label: "Teachers & students", shortLabel: "Roster", show: canViewRosterSubjects },
     { id: "subjects", label: "Subjects", shortLabel: "Subjects", show: canViewRosterSubjects },
+    { id: "syllabus", label: "Syllabus", shortLabel: "Syl.", show: canViewRosterSubjects },
     { id: "timetable", label: "Timetable", shortLabel: "Time", show: canManage },
     { id: "attendance", label: "Attendance", shortLabel: "Attend", show: isTeacher },
     { id: "assignments", label: "Assignments", shortLabel: "Tasks", show: true },
@@ -148,7 +159,9 @@ export function SectionWorkspace({
   const stretchRoster = fillRoster && tab === "roster" && canViewRosterSubjects;
   const stretchAttendance = fillAttendance && tab === "attendance" && isTeacher;
   const stretchSubjects = fillSubjects && tab === "subjects" && canViewRosterSubjects;
-  const stretchPanel = stretchTimetable || stretchRoster || stretchAttendance || stretchSubjects;
+  const stretchSyllabus = fillSyllabus && tab === "syllabus" && canViewRosterSubjects;
+  const stretchPanel =
+    stretchTimetable || stretchRoster || stretchAttendance || stretchSubjects || stretchSyllabus;
 
   return (
     <div
@@ -232,6 +245,15 @@ export function SectionWorkspace({
             sectionLabel={sectionLabel}
             canManage={canManage}
             fillHeight={stretchSubjects}
+          />
+        )}
+
+        {tab === "syllabus" && canViewRosterSubjects && (
+          <SectionSyllabusPanel
+            instituteId={instituteId}
+            sectionId={sectionId}
+            mode={syllabusMode}
+            fillHeight={stretchSyllabus}
           />
         )}
 

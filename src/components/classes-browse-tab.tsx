@@ -51,6 +51,7 @@ export function ClassesBrowseTab({
   fitRoster = false,
   fitAttendance = false,
   fitSubjects = false,
+  fitSyllabus = false,
 }: {
   instituteId: string;
   sections: Section[];
@@ -61,6 +62,7 @@ export function ClassesBrowseTab({
   fitRoster?: boolean;
   fitAttendance?: boolean;
   fitSubjects?: boolean;
+  fitSyllabus?: boolean;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -169,7 +171,10 @@ export function ClassesBrowseTab({
     fitAttendance && urlSectionTab === "attendance" && !!selectedSection && !!selectedOverview;
   const stretchSubjects =
     fitSubjects && urlSectionTab === "subjects" && !!selectedSection && !!selectedOverview;
-  const stretchGrid = stretchTimetable || stretchRoster || stretchAttendance || stretchSubjects;
+  const stretchSyllabus =
+    fitSyllabus && urlSectionTab === "syllabus" && !!selectedSection && !!selectedOverview;
+  const stretchGrid =
+    stretchTimetable || stretchRoster || stretchAttendance || stretchSubjects || stretchSyllabus;
 
   return (
     <div
@@ -233,6 +238,7 @@ export function ClassesBrowseTab({
           fillRoster={stretchRoster}
           fillAttendance={stretchAttendance}
           fillSubjects={stretchSubjects}
+          fillSyllabus={stretchSyllabus}
         />
       ) : (
         selectedSection &&

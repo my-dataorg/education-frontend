@@ -155,8 +155,13 @@ export function InstituteDashboard({
   const fitClassRoster = activeTab === "classes" && classesSectionTab === "roster";
   const fitClassAttendance = activeTab === "classes" && classesSectionTab === "attendance";
   const fitClassSubjects = activeTab === "classes" && classesSectionTab === "subjects";
+  const fitClassSyllabus = activeTab === "classes" && classesSectionTab === "syllabus";
   const fitClassSectionPanel =
-    fitClassTimetable || fitClassRoster || fitClassAttendance || fitClassSubjects;
+    fitClassTimetable ||
+    fitClassRoster ||
+    fitClassAttendance ||
+    fitClassSubjects ||
+    fitClassSyllabus;
 
   return (
     <>
@@ -284,11 +289,13 @@ export function InstituteDashboard({
                     fitRoster={fitClassRoster}
                     fitAttendance={fitClassAttendance}
                     fitSubjects={fitClassSubjects}
+                    fitSyllabus={fitClassSyllabus}
                   />
                   {showOwnerSetup &&
                     classesSectionTab !== "timetable" &&
                     classesSectionTab !== "roster" &&
                     classesSectionTab !== "subjects" &&
+                    classesSectionTab !== "syllabus" &&
                     classesSectionTab !== "attendance" && (
                     <p className="mt-6 text-sm text-muted-foreground">
                       To create sections, subjects, or map subjects to classes, use{" "}
