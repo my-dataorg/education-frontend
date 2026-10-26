@@ -4,17 +4,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DrawingBoard } from "@/components/drawing-board";
 import type { DailyNoteAttachment, DailyNoteSheet } from "@/lib/daily-notes-types";
 import { todayIsoDate } from "@/lib/daily-notes-types";
+import type { SectionSubject } from "@/lib/api";
 
 type Props = {
   instituteId: string;
   sectionId: string;
-  /** Hint for empty state before API load; server `editable` is authoritative. */
   canEdit?: boolean;
 };
 
-function emptySheet(noteDate: string, editable: boolean): DailyNoteSheet {
+function emptySheet(noteDate: string, subjectId: string, editable: boolean): DailyNoteSheet {
   return {
     id: null,
+    subjectId,
     content: "",
     noteDate,
     drawingJson: "",
@@ -25,33 +26,55 @@ function emptySheet(noteDate: string, editable: boolean): DailyNoteSheet {
 
 export function SectionDailyNotesPanel({ instituteId, sectionId, canEdit = false }: Props) {
   const today = todayIsoDate();
+  const [subjects, setSubjects] = useState<SectionSubject[]>([]);
+  const [subjectId, setSubjectId] = useState("");
   const [noteDate, setNoteDate] = useState(today);
-  const [sheet, setSheet] = useState<DailyNoteSheet>(() => emptySheet(today, canEdit));
+  const [sheet, setSheet] = useState<DailyNoteSheet>(() => emptySheet(today, "", false));
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const editable = noteDate === today && sheet.editable;
+  const editable = Boolean(subjectId) && noteDate === today && sheet.editable;
+
+  useEffect(() => {
+    fetch(`/api/sections/${sectionId}/subjects`, { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : []))
+      .then((rows: SectionSubject[]) => {
+        setSubjects(rows);
+        setSubjectId((current) => current || rows[0]?.id || "");
+      })
+      .catch(() => setSubjects([]));
+  }, [sectionId]);
 
   const loadList = useCallback(async () => {
-    const res = await fetch(`/api/institutes/${instituteId}/sections/${sectionId}/notes`, {
-      credentials: "include",
-    });
+    if (!subjectId) {
+      setAvailableDates([today]);
+      return;
+    }
+    const res = await fetch(
+      `/api/institutes/${instituteId}/sections/${sectionId}/notes?subjectId=${subjectId}`,
+      { credentials: "include" }
+    );
     if (!res.ok) return;
     const rows: { noteDate: string }[] = await res.json();
     const dates = rows.map((row) => row.noteDate).filter(Boolean);
     if (!dates.includes(today)) dates.unshift(today);
     setAvailableDates([...new Set(dates)].sort().reverse());
-  }, [instituteId, sectionId, today]);
+  }, [instituteId, sectionId, subjectId, today]);
 
   const loadSheet = useCallback(async () => {
+    if (!subjectId) {
+      setLoading(false);
+      setSheet(emptySheet(noteDate, "", false));
+      return;
+    }
     setLoading(true);
     setError("");
     try {
       const res = await fetch(
-        `/api/institutes/${instituteId}/sections/${sectionId}/notes/${noteDate}`,
+        `/api/institutes/${instituteId}/sections/${sectionId}/subjects/${subjectId}/notes/${noteDate}`,
         { credentials: "include" }
       );
       if (!res.ok) throw new Error("Could not load daily note");
@@ -59,11 +82,11 @@ export function SectionDailyNotesPanel({ instituteId, sectionId, canEdit = false
       setSheet(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
-      setSheet(emptySheet(noteDate, canEdit && noteDate === today));
+      setSheet(emptySheet(noteDate, subjectId, canEdit && noteDate === today));
     } finally {
       setLoading(false);
     }
-  }, [instituteId, sectionId, noteDate, canEdit, today]);
+  }, [instituteId, sectionId, subjectId, noteDate, canEdit, today]);
 
   useEffect(() => {
     loadList().catch(() => undefined);
@@ -75,12 +98,12 @@ export function SectionDailyNotesPanel({ instituteId, sectionId, canEdit = false
 
   const persist = useCallback(
     async (next: DailyNoteSheet) => {
-      if (!editable) return;
+      if (!editable || !subjectId) return;
       setSaving(true);
       setError("");
       try {
         const res = await fetch(
-          `/api/institutes/${instituteId}/sections/${sectionId}/notes/${noteDate}`,
+          `/api/institutes/${instituteId}/sections/${sectionId}/subjects/${subjectId}/notes/${noteDate}`,
           {
             method: "PUT",
             credentials: "include",
@@ -105,7 +128,7 @@ export function SectionDailyNotesPanel({ instituteId, sectionId, canEdit = false
         setSaving(false);
       }
     },
-    [editable, instituteId, sectionId, noteDate, loadList]
+    [editable, instituteId, sectionId, subjectId, noteDate, loadList]
   );
 
   const scheduleSave = (next: DailyNoteSheet) => {
@@ -145,19 +168,33 @@ export function SectionDailyNotesPanel({ instituteId, sectionId, canEdit = false
     return [...set].sort().reverse();
   }, [availableDates, noteDate, today]);
 
+  const subjectLabel = subjects.find((s) => s.id === subjectId)?.name ?? "Subject";
+
+  if (!subjects.length) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Link subjects to this class under <strong>Subjects</strong>, then add daily notes per subject.
+      </p>
+    );
+  }
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="text-sm font-medium">Daily note</p>
-          <p className="text-xs text-muted-foreground">
-            {editable
-              ? "Today’s board — draw, type, or upload a photo. Saves automatically."
-              : noteDate === today
-                ? "Read-only for your role. Teachers assigned to a subject in this class (or today’s substitute) can edit."
-                : "Past notes are read-only."}
-          </p>
-        </div>
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="text-xs font-semibold text-muted-foreground">
+          Subject
+          <select
+            value={subjectId}
+            onChange={(e) => setSubjectId(e.target.value)}
+            className="mt-1 block min-w-[10rem] rounded-lg border border-border bg-background px-3 py-2 text-sm"
+          >
+            {subjects.map((subject) => (
+              <option key={subject.id} value={subject.id}>
+                {subject.name}
+              </option>
+            ))}
+          </select>
+        </label>
         <label className="text-xs font-semibold text-muted-foreground">
           Date
           <select
@@ -172,6 +209,16 @@ export function SectionDailyNotesPanel({ instituteId, sectionId, canEdit = false
             ))}
           </select>
         </label>
+      </div>
+      <div>
+        <p className="text-sm font-medium">{subjectLabel} — daily note</p>
+        <p className="text-xs text-muted-foreground">
+          {editable
+            ? "One board per subject per day for this class. Saves automatically."
+            : noteDate === today
+              ? "Read-only. Only the teacher assigned to this subject (or today’s substitute) can edit."
+              : "Past notes are read-only."}
+        </p>
       </div>
 
       {error && (
@@ -197,7 +244,7 @@ export function SectionDailyNotesPanel({ instituteId, sectionId, canEdit = false
                 value={sheet.content}
                 onChange={(e) => scheduleSave({ ...sheet, content: e.target.value })}
                 readOnly={!editable}
-                placeholder="Type today’s summary for parents and staff…"
+                placeholder={`Notes for ${subjectLabel} today…`}
                 className="min-h-[240px] flex-1 resize-none rounded-b-xl bg-transparent px-3 py-3 text-sm outline-none"
               />
             </div>

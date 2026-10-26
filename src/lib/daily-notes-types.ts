@@ -7,6 +7,7 @@ export type DailyNoteAttachment = {
 
 export type DailyNoteSheet = {
   id: string | null;
+  subjectId: string;
   content: string;
   noteDate: string;
   teacherId?: string | null;

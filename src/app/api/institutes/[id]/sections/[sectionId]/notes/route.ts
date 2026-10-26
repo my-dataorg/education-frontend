@@ -4,15 +4,17 @@ import { NextRequest, NextResponse } from "next/server";
 const API = process.env.EDUCATION_API_URL || "http://localhost:8010";
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ sectionId: string }> }
 ) {
   const { sectionId } = await params;
+  const subjectId = req.nextUrl.searchParams.get("subjectId");
   const session = await auth();
   if (!session?.accessToken) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const res = await fetch(`${API}/v1/sections/${sectionId}/notes`, {
+  const query = subjectId ? `?subjectId=${encodeURIComponent(subjectId)}` : "";
+  const res = await fetch(`${API}/v1/sections/${sectionId}/notes${query}`, {
     headers: { Authorization: `Bearer ${session.accessToken}` },
     cache: "no-store",
   });
