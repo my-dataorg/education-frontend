@@ -26,7 +26,10 @@ export default async function InstitutesPage({
   const embedded =
     query.embed === "1" || cookieStore.get("edu-embed")?.value === "1";
   const session = await auth();
-  if (!session?.accessToken) redirect("/login");
+  if (!session?.accessToken) {
+    const login = embedded ? "/login?embed=1" : "/login?reason=session";
+    redirect(login);
+  }
 
   const pendingInvites = await fetchPendingInvitations(session);
   const pendingJoinRequests = await fetchPendingJoinRequests(session);

@@ -1,61 +1,43 @@
-import { auth } from "@/auth";
-import { federatedSignOut } from "@/lib/auth-actions";
-import { fetchPendingInvitations } from "@/lib/fetch-invitations";
-import { InvitationsList } from "@/components/invitations-list";
+import { auth, isPlatformAccessTokenValid, signOut } from "@/auth";
+import { PlatformTopLoginRedirect } from "@/components/platform-top-login-redirect";
 import { GraduationCap } from "lucide-react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 const PLATFORM_URL = process.env.PLATFORM_URL || "http://localhost:3000";
+const PLATFORM_CALLBACK = `${PLATFORM_URL}/dashboard?app=education`;
+const PLATFORM_LOGIN_URL = `${PLATFORM_URL}/login?callbackUrl=${encodeURIComponent(PLATFORM_CALLBACK)}`;
 
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ reason?: string }>;
+  searchParams: Promise<{ reason?: string; embed?: string }>;
 }) {
-  const { reason } = await searchParams;
+  const { reason, embed: embedParam } = await searchParams;
+  const embedded = embedParam === "1";
+  const sessionExpired = reason === "session";
   const session = await auth();
 
-  if (session?.user && session.accessToken) {
-    const pendingInvites = await fetchPendingInvitations(session);
+  let tokenValid = false;
+  if (session?.accessToken) {
+    tokenValid = await isPlatformAccessTokenValid(session.accessToken);
+  }
 
+  if (session && (!tokenValid || sessionExpired)) {
+    await signOut({ redirect: false });
+    tokenValid = false;
+  }
+
+  if (!tokenValid && (embedded || sessionExpired)) {
     return (
-      <div className="flex min-h-screen items-center justify-center px-4 py-10">
-        <div className="w-full max-w-md rounded-2xl border border-border bg-card p-10 shadow-sm">
-          <h1 className="text-center text-xl font-semibold">Already signed in</h1>
-          <p className="mt-2 text-center text-sm text-muted-foreground">
-            {session.user.name || session.user.email}
-          </p>
-
-          {pendingInvites.length > 0 ? (
-            <div className="mt-6">
-              <InvitationsList invites={pendingInvites} variant="prominent" />
-            </div>
-          ) : (
-            <Link
-              href="/institutes"
-              className="mt-6 block w-full rounded-xl bg-primary py-3 text-center text-sm font-medium text-primary-foreground hover:opacity-90"
-            >
-              Continue to Education
-            </Link>
-          )}
-
-          <form
-            className="mt-3"
-            action={async () => {
-              "use server";
-              await federatedSignOut();
-            }}
-          >
-            <button
-              type="submit"
-              className="w-full rounded-xl border border-border py-3 text-sm font-medium hover:bg-muted"
-            >
-              Sign in as a different user
-            </button>
-          </form>
-        </div>
+      <div className="flex min-h-screen items-center justify-center px-4">
+        <PlatformTopLoginRedirect loginUrl={PLATFORM_LOGIN_URL} />
       </div>
     );
+  }
+
+  if (tokenValid && session?.user) {
+    redirect(embedded ? "/institutes?embed=1" : "/institutes");
   }
 
   return (
@@ -69,13 +51,13 @@ export default async function LoginPage({
           Sign in on the MyData platform, then open Education from your dashboard. Use the same email
           if an admin invited you as staff or student.
         </p>
-        {reason === "session" && (
+        {sessionExpired && (
           <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
             Your previous sign-in expired. Please sign in on the platform again.
           </p>
         )}
         <Link
-          href={`${PLATFORM_URL}/login`}
+          href={PLATFORM_LOGIN_URL}
           target="_top"
           className="mt-8 block w-full rounded-xl bg-primary py-3 text-sm font-medium text-primary-foreground hover:opacity-90"
         >

@@ -6,6 +6,10 @@ const PLATFORM_API = (
   process.env.PLATFORM_API_URL || "http://127.0.0.1:8002"
 ).replace("://localhost", "://127.0.0.1");
 
+export async function isPlatformAccessTokenValid(accessToken: string): Promise<boolean> {
+  return (await platformTokenStatus(accessToken)) === "keep";
+}
+
 async function userFromAccessToken(accessToken: string) {
   const res = await fetch(`${PLATFORM_API}/v1/users/me`, {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -97,6 +101,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return token;
       }
       const accessToken = token.accessToken as string | undefined;
+      const expiresAt = token.expiresAt as number | undefined;
+      if (expiresAt && Math.floor(Date.now() / 1000) > expiresAt) return null;
       if (accessToken && (await platformTokenStatus(accessToken)) === "invalid") return null;
       return token;
     },
