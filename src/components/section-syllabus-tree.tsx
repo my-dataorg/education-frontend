@@ -30,6 +30,74 @@ type TreeHandlers = {
   onAddChild: (parentId: string) => void;
 };
 
+function AdminWeightCell({
+  node,
+  busy,
+  remainder,
+  onPatchWeight,
+}: {
+  node: SyllabusNode;
+  busy: boolean;
+  remainder: number | null;
+  onPatchWeight: (nodeId: string, weightPercent: number) => void;
+}) {
+  const [draft, setDraft] = useState(String(node.weightPercent));
+
+  useEffect(() => {
+    setDraft(String(node.weightPercent));
+  }, [node.id, node.weightPercent]);
+
+  const parsed = Number(draft);
+  const dirty = !Number.isNaN(parsed) && parsed !== node.weightPercent;
+
+  function save() {
+    if (Number.isNaN(parsed) || parsed === node.weightPercent) return;
+    onPatchWeight(node.id, parsed);
+  }
+
+  return (
+    <div className="text-right">
+      <div className="flex items-center justify-end gap-1">
+        <input
+          type="number"
+          min={0.01}
+          max={100}
+          step={0.01}
+          disabled={busy}
+          className="w-16 rounded border border-border bg-background px-1 py-0.5 text-right text-xs tabular-nums"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              save();
+            }
+          }}
+        />
+        {dirty && (
+          <button
+            type="button"
+            disabled={busy || Number.isNaN(parsed)}
+            onClick={save}
+            className="shrink-0 rounded bg-primary px-1.5 py-0.5 text-[10px] font-medium text-primary-foreground disabled:opacity-50"
+          >
+            Save
+          </button>
+        )}
+      </div>
+      {remainder !== null && remainder > 0 && remainder <= 100 && (
+        <button
+          type="button"
+          className="mt-0.5 block w-full text-[10px] text-primary hover:underline"
+          onClick={() => onPatchWeight(node.id, remainder)}
+        >
+          Set to remaining ({remainder}%)
+        </button>
+      )}
+    </div>
+  );
+}
+
 function CompletionCell({
   node,
   mode,
@@ -153,33 +221,12 @@ function SyllabusTreeNodeRow({
         </div>
 
         {mode === "admin" && (
-          <div className="text-right">
-            <input
-              type="number"
-              min={0.01}
-              max={100}
-              step={0.01}
-              disabled={handlers.busy}
-              className="w-16 rounded border border-border bg-background px-1 py-0.5 text-right text-xs tabular-nums"
-              defaultValue={node.weightPercent}
-              key={`${node.id}-${node.weightPercent}`}
-              onBlur={(e) => {
-                const v = Number(e.target.value);
-                if (!Number.isNaN(v) && v !== node.weightPercent) {
-                  handlers.onPatchWeight(node.id, v);
-                }
-              }}
-            />
-            {remainder !== null && remainder > 0 && remainder <= 100 && (
-              <button
-                type="button"
-                className="mt-0.5 block w-full text-[10px] text-primary hover:underline"
-                onClick={() => handlers.onPatchWeight(node.id, remainder)}
-              >
-                Set to remaining ({remainder}%)
-              </button>
-            )}
-          </div>
+          <AdminWeightCell
+            node={node}
+            busy={handlers.busy}
+            remainder={remainder}
+            onPatchWeight={handlers.onPatchWeight}
+          />
         )}
 
         <CompletionCell node={node} mode={mode} onSetCompletion={handlers.onSetCompletion} />

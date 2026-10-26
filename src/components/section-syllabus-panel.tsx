@@ -24,7 +24,8 @@ function childrenOfParent(nodes: SyllabusNode[], parentId: string | null): Sylla
 }
 
 const MODE_HINT: Record<SyllabusMode, string> = {
-  admin: "Add chapters and set weights (siblings must total 100% per level).",
+  admin:
+    "Set weights so siblings at each level total 100%, then click Save on each row (or press Enter).",
   teacher: "Update completion % on topics you teach (leaf items only).",
   viewer: "View syllabus progress for this class (read only).",
 };
