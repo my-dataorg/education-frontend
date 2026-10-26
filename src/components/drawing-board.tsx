@@ -185,13 +185,21 @@ export function DrawingBoard({ value, onChange, readOnly = false, className = ""
 
   const showExtendHint = !readOnly && canvasHeight <= viewportHeight * padPages + 4;
 
+  const shellClass = className?.trim()
+    ? className
+    : "h-full min-h-[17.5rem]";
+
   return (
-    <div className={`flex h-full min-h-0 flex-col rounded-xl border border-border bg-card shadow-sm ${className}`}>
-      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-2">
-        <div>
+    <div
+      className={`flex min-h-0 flex-col rounded-xl border border-border bg-card shadow-sm ${shellClass}`}
+    >
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-1.5">
+        <div className="min-w-0">
           <p className="text-xs font-semibold text-muted-foreground">Drawing board</p>
           {!readOnly && (
-            <p className="text-[11px] text-muted-foreground/80">Scroll the pad or extend for more room.</p>
+            <p className="hidden text-[11px] text-muted-foreground/80 sm:block">
+              Scroll the pad or extend for more room.
+            </p>
           )}
         </div>
         <div className="flex shrink-0 items-center gap-2">

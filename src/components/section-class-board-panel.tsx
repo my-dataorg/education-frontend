@@ -323,74 +323,71 @@ export function SectionClassBoardPanel({
   const desktopFill = fillHeight;
 
   const rootClass = desktopFill
-    ? "flex min-h-0 flex-1 flex-col gap-2 overflow-hidden max-md:space-y-3 max-md:overflow-visible"
+    ? "flex min-h-0 flex-1 flex-col gap-2 overflow-hidden max-md:block max-md:flex-none max-md:space-y-3 max-md:overflow-visible"
     : "space-y-3 md:space-y-4";
 
   const splitClass = desktopFill
     ? "hidden min-h-0 flex-1 w-full md:flex"
     : "hidden h-[min(70vh,32rem)] min-h-[18rem] w-full md:flex";
 
-  const mobileBoardClass = "h-[min(48dvh,20rem)] min-h-[12rem]";
-  const mobileNotesClass = "min-h-[9rem] h-[min(36dvh,14rem)]";
+  const mobileBoardClass = "h-[14rem] min-h-[14rem] shrink-0 sm:h-[min(42dvh,18rem)]";
+  const mobileNotesClass = "min-h-[10rem] shrink-0";
+
+  const compactSelect =
+    "max-w-[9.5rem] rounded-md border border-border bg-background px-2 py-1 text-xs font-medium md:max-w-[11rem] md:px-3 md:py-2 md:text-sm";
 
   return (
     <div className={rootClass}>
-      <div
-        className={`flex shrink-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between ${
-          desktopFill ? "sm:items-center" : ""
-        }`}
-      >
-        <div className="min-w-0">
-          <p className="text-sm font-semibold leading-tight">{subjectLabel} — class board</p>
-          {!desktopFill && (
-            <p className="text-xs text-muted-foreground">
-              {editable
-                ? "Draft saves on this device. Server backup every 15 minutes. Submit when students and families should see it."
-                : awaitingPublish
-                  ? "The teacher has not shared today’s board yet."
-                  : noteDate === calendarToday
-                    ? teachesSubject
-                      ? "Read-only. Confirm today’s date matches the server, or refresh the page."
-                      : "Read-only. You are not assigned to teach this subject in this class—pick a subject you teach or ask an admin to assign you under Subjects."
-                    : "Past boards are read-only."}
-            </p>
-          )}
-          {editable && (
-            <p className="mt-1 text-[11px] leading-snug text-muted-foreground md:truncate">
-              <span className="font-medium">{isPublished ? "Published" : "Draft"}</span>
-              {draftDirty ? " · unsynced" : ""}
-              <span className="hidden sm:inline">
-                {lastLocalSave ? ` · Device ${formatTime(lastLocalSave)}` : ""}
-                {lastServerSave ? ` · Server ${formatTime(lastServerSave)}` : ""}
-              </span>
-            </p>
-          )}
-        </div>
-        <div className="grid w-full gap-2 sm:w-auto sm:max-w-md sm:grid-cols-2">
-          <label className="text-xs font-semibold text-muted-foreground">
-            Subject
+      <div className="shrink-0 space-y-2">
+        <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold leading-tight">{subjectLabel} — class board</p>
+            {editable && (
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                <span className="font-medium">{isPublished ? "Published" : "Draft"}</span>
+                {draftDirty ? " · unsynced" : ""}
+                <span className="hidden md:inline">
+                  {lastLocalSave ? ` · Device ${formatTime(lastLocalSave)}` : ""}
+                  {lastServerSave ? ` · Server ${formatTime(lastServerSave)}` : ""}
+                </span>
+              </p>
+            )}
+            {!desktopFill && (
+              <p className="mt-1 hidden text-xs text-muted-foreground md:block">
+                {editable
+                  ? "Draft saves on this device. Server backup every 15 minutes. Submit when students and families should see it."
+                  : awaitingPublish
+                    ? "The teacher has not shared today’s board yet."
+                    : noteDate === calendarToday
+                      ? teachesSubject
+                        ? "Read-only. Confirm today’s date matches the server, or refresh the page."
+                        : "Read-only. You are not assigned to teach this subject in this class."
+                      : "Past boards are read-only."}
+              </p>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
             <select
+              aria-label="Subject"
               value={subjectId}
               onChange={(e) => setSubjectId(e.target.value)}
-              className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm"
+              className={compactSelect}
             >
-            {subjects.map((subject) => {
-              const mine = userId && subject.teachers?.some((t) => t.userId === userId);
-              return (
-                <option key={subject.id} value={subject.id}>
-                  {subject.name}
-                  {mine ? " (you teach)" : ""}
-                </option>
-              );
-            })}
+              {subjects.map((subject) => {
+                const mine = userId && subject.teachers?.some((t) => t.userId === userId);
+                return (
+                  <option key={subject.id} value={subject.id}>
+                    {subject.name}
+                    {mine ? " (you teach)" : ""}
+                  </option>
+                );
+              })}
             </select>
-          </label>
-          <label className="text-xs font-semibold text-muted-foreground sm:col-span-2 md:col-span-1">
-            Date
             <select
+              aria-label="Date"
               value={noteDate}
               onChange={(e) => setNoteDate(e.target.value)}
-              className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm"
+              className={compactSelect}
             >
               {dateOptions.map((d) => (
                 <option key={d} value={d}>
@@ -398,27 +395,27 @@ export function SectionClassBoardPanel({
                 </option>
               ))}
             </select>
-          </label>
-          {editable && (
-            <div className="grid grid-cols-2 gap-2 sm:col-span-2">
-              <button
-                type="button"
-                disabled={saving || publishing}
-                onClick={() => saveDraftToServer().catch(() => undefined)}
-                className="rounded-lg border border-border px-3 py-2.5 text-sm font-medium hover:bg-muted disabled:opacity-50"
-              >
-                Save draft
-              </button>
-              <button
-                type="button"
-                disabled={saving || publishing}
-                onClick={() => publishBoard().catch(() => undefined)}
-                className="rounded-lg bg-primary px-3 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-              >
-                {publishing ? "Submitting…" : isPublished ? "Submit updates" : "Submit to class"}
-              </button>
-            </div>
-          )}
+            {editable && (
+              <>
+                <button
+                  type="button"
+                  disabled={saving || publishing}
+                  onClick={() => saveDraftToServer().catch(() => undefined)}
+                  className="rounded-md border border-border px-2 py-1 text-[11px] font-medium hover:bg-muted disabled:opacity-50 md:px-3 md:py-2 md:text-sm"
+                >
+                  Save draft
+                </button>
+                <button
+                  type="button"
+                  disabled={saving || publishing}
+                  onClick={() => publishBoard().catch(() => undefined)}
+                  className="rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 md:px-3 md:py-2 md:text-sm"
+                >
+                  {publishing ? "…" : isPublished ? "Update" : "Submit"}
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -443,7 +440,7 @@ export function SectionClassBoardPanel({
         <div
           className={
             desktopFill
-              ? "flex min-h-0 flex-1 flex-col gap-2 overflow-hidden max-md:space-y-3 max-md:overflow-visible"
+              ? "flex min-h-0 flex-1 flex-col gap-2 overflow-hidden max-md:block max-md:flex-none max-md:space-y-3 max-md:overflow-visible"
               : "space-y-3"
           }
         >
@@ -482,7 +479,7 @@ export function SectionClassBoardPanel({
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 md:hidden">
+          <div className="flex shrink-0 flex-col gap-3 md:hidden">
             <DrawingBoard
               value={sheet.drawingJson}
               onChange={(drawingJson) => applyChange({ ...sheet, drawingJson })}
@@ -490,9 +487,9 @@ export function SectionClassBoardPanel({
               className={mobileBoardClass}
             />
             <div
-              className={`flex flex-col rounded-xl border border-border bg-card shadow-sm ${mobileNotesClass}`}
+              className={`flex shrink-0 flex-col rounded-xl border border-border bg-card shadow-sm ${mobileNotesClass}`}
             >
-              <div className="border-b border-border px-3 py-2">
+              <div className="border-b border-border px-3 py-1.5">
                 <p className="text-xs font-semibold text-muted-foreground">Written notes</p>
               </div>
               <textarea
@@ -500,7 +497,8 @@ export function SectionClassBoardPanel({
                 onChange={(e) => applyChange({ ...sheet, content: e.target.value })}
                 readOnly={!editable}
                 placeholder={`Notes for ${subjectLabel} today…`}
-                className="min-h-0 flex-1 resize-none overflow-y-auto rounded-b-xl bg-transparent px-3 py-3 text-sm outline-none"
+                className="min-h-[8.5rem] w-full resize-y rounded-b-xl bg-muted/20 px-3 py-3 text-sm outline-none"
+                rows={5}
               />
             </div>
           </div>
