@@ -34,8 +34,8 @@ export function DailyNotesTab({ instituteId }: Props) {
       <div>
         <h1 className="text-2xl font-semibold">Daily notes</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Class teachers edit today&apos;s board from <strong>Classes → Daily notes</strong>. Owners review
-          past days here (read-only).
+          Admins, principals, and students open a class below to view boards. Class teachers (or
+          today&apos;s substitute) edit from <strong>Classes → Daily notes</strong>.
         </p>
       </div>
       {error && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}

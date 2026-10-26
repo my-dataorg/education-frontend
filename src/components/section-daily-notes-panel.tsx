@@ -8,7 +8,8 @@ import { todayIsoDate } from "@/lib/daily-notes-types";
 type Props = {
   instituteId: string;
   sectionId: string;
-  canEdit: boolean;
+  /** Hint for empty state before API load; server `editable` is authoritative. */
+  canEdit?: boolean;
 };
 
 function emptySheet(noteDate: string, editable: boolean): DailyNoteSheet {
@@ -22,7 +23,7 @@ function emptySheet(noteDate: string, editable: boolean): DailyNoteSheet {
   };
 }
 
-export function SectionDailyNotesPanel({ instituteId, sectionId, canEdit }: Props) {
+export function SectionDailyNotesPanel({ instituteId, sectionId, canEdit = false }: Props) {
   const today = todayIsoDate();
   const [noteDate, setNoteDate] = useState(today);
   const [sheet, setSheet] = useState<DailyNoteSheet>(() => emptySheet(today, canEdit));
@@ -32,7 +33,7 @@ export function SectionDailyNotesPanel({ instituteId, sectionId, canEdit }: Prop
   const [error, setError] = useState("");
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const editable = canEdit && noteDate === today && sheet.editable;
+  const editable = noteDate === today && sheet.editable;
 
   const loadList = useCallback(async () => {
     const res = await fetch(`/api/institutes/${instituteId}/sections/${sectionId}/notes`, {
@@ -153,7 +154,7 @@ export function SectionDailyNotesPanel({ instituteId, sectionId, canEdit }: Prop
             {editable
               ? "Today’s board — draw, type, or upload a photo. Saves automatically."
               : noteDate === today
-                ? "Read-only for your role. Only the class teacher can edit today’s note."
+                ? "Read-only for your role. The class teacher or today’s substitute can edit."
                 : "Past notes are read-only."}
           </p>
         </div>
