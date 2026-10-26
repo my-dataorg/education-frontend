@@ -9,6 +9,7 @@ import { SectionRosterPanel } from "@/components/section-roster-panel";
 import { SectionSubjectsPanel } from "@/components/section-subjects-panel";
 import { SectionSyllabusPanel } from "@/components/section-syllabus-panel";
 import type { SyllabusMode } from "@/lib/syllabus-types";
+import { SectionDailyNotesPanel } from "@/components/section-daily-notes-panel";
 import { SectionTimetablePanel } from "@/components/section-timetable-panel";
 import { formatUserName } from "@/components/user-identity";
 import type { Member } from "@/lib/api";
@@ -93,7 +94,6 @@ export function SectionWorkspace({
   const [overview, setOverview] = useState(initialOverview);
   const [subjects, setSubjects] = useState<SectionSubject[]>([]);
   const [sectionAssignments, setSectionAssignments] = useState(assignments);
-  const [sectionNotes, setSectionNotes] = useState(notes);
   const isTeacher = ["owner", "admin", "principal", "teacher", "lecturer", "professor"].includes(role);
   const canManage = INSTITUTE_ADMIN_ROLES.has(role);
   const canViewRosterSubjects = isTeacher || role === "student";
@@ -110,12 +110,10 @@ export function SectionWorkspace({
     Promise.all([
       fetch(`/api/sections/${sectionId}/subjects`),
       fetch(`/api/institutes/${instituteId}/sections/${sectionId}/assignments`),
-      fetch(`/api/institutes/${instituteId}/sections/${sectionId}/notes`),
     ])
-      .then(async ([subjectsRes, assignmentsRes, notesRes]) => {
+      .then(async ([subjectsRes, assignmentsRes]) => {
         if (subjectsRes.ok) setSubjects(await subjectsRes.json());
         if (assignmentsRes.ok) setSectionAssignments(await assignmentsRes.json());
-        if (notesRes.ok) setSectionNotes(await notesRes.json());
       })
       .catch(() => undefined);
   }, [instituteId, sectionId]);
@@ -132,25 +130,9 @@ export function SectionWorkspace({
     { id: "progress", label: "Progress", shortLabel: "Prog.", show: true },
   ];
 
-  const [note, setNote] = useState("");
-
   async function refreshOverview() {
     const res = await fetch(`/api/sections/${sectionId}`, { credentials: "include" });
     if (res.ok) setOverview(await res.json());
-    router.refresh();
-  }
-
-  async function createNote() {
-    const response = await fetch(`/api/institutes/${instituteId}/sections/${sectionId}/notes`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: note }),
-    });
-    if (response.ok) {
-      const created = await response.json();
-      setSectionNotes((current) => [created, ...current]);
-    }
-    setNote("");
     router.refresh();
   }
 
@@ -270,35 +252,11 @@ export function SectionWorkspace({
         )}
 
         {tab === "notes" && (
-          <div>
-            <ul className="space-y-2">
-              {sectionNotes.map((n) => (
-                <li key={n.id} className="rounded-lg border border-border bg-card px-4 py-3 text-sm">
-                  <p className="text-xs text-muted-foreground">{n.noteDate}</p>
-                  {n.content}
-                </li>
-              ))}
-            </ul>
-            {canEditNotes && (
-              <div className="mt-4 space-y-2">
-                <textarea
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  placeholder="Today's note for parents and staff"
-                  className="w-full rounded-lg border border-border px-3 py-2 text-sm"
-                  rows={3}
-                />
-                <button type="button" onClick={createNote} className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground">
-                  Post note
-                </button>
-              </div>
-            )}
-            {isTeacher && !canEditNotes && (
-              <p className="mt-4 text-sm text-muted-foreground">
-                Daily notes are read-only here. Only the class teacher can post updates for this class.
-              </p>
-            )}
-          </div>
+          <SectionDailyNotesPanel
+            instituteId={instituteId}
+            sectionId={sectionId}
+            canEdit={canEditNotes}
+          />
         )}
 
         {tab === "progress" && (
