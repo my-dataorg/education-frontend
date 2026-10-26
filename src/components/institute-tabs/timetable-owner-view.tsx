@@ -107,6 +107,11 @@ const DAY_LABELS: Record<number, string> = {
 
 const VIEWS: TimetableView[] = ["class", "teacher", "room"];
 
+/** Narrow first column in section (embedded) timetable so day cells get more width. */
+function embeddedGridColumns(dayCount: number) {
+  return `minmax(2.75rem, 3.25rem) repeat(${dayCount}, minmax(0, 1fr))`;
+}
+
 function formatStatusTime(iso: string | null | undefined) {
   if (!iso) return "";
   const d = new Date(iso);
@@ -823,13 +828,13 @@ export function TimetableOwnerView({
                 className={`grid shrink-0 gap-px overflow-hidden bg-border ${embedded ? "border-b border-border" : "rounded-t-lg border border-border"}`}
                 style={{
                   gridTemplateColumns: embedded
-                    ? `5.25rem repeat(${workingDays.length}, minmax(0, 1fr))`
+                    ? embeddedGridColumns(workingDays.length)
                     : `100px repeat(${workingDays.length}, minmax(120px, 1fr))`,
                 }}
               >
                 <div
                   className={`bg-muted/60 font-semibold uppercase text-muted-foreground ${
-                    embedded ? "px-1.5 py-1.5 text-xs" : "px-2 py-2 text-[11px]"
+                    embedded ? "px-0.5 py-1 text-[10px] leading-tight" : "px-2 py-2 text-[11px]"
                   }`}
                 >
                   {embedded ? "Time" : selectedItemLabel}
@@ -838,7 +843,7 @@ export function TimetableOwnerView({
                   <div
                     key={day.day}
                     className={`bg-muted/60 text-center font-semibold ${
-                      embedded ? "px-1.5 py-1.5 text-xs" : "px-2 py-2 text-xs"
+                      embedded ? "px-0.5 py-1 text-[10px] leading-tight" : "px-2 py-2 text-xs"
                     }`}
                   >
                     {DAY_LABELS[day.day] ?? day.day}
@@ -856,7 +861,7 @@ export function TimetableOwnerView({
                   const isBreak = period.kind !== "class";
                   const rowGridStyle = {
                     gridTemplateColumns: embedded
-                      ? `5.25rem repeat(${workingDays.length}, minmax(0, 1fr))`
+                      ? embeddedGridColumns(workingDays.length)
                       : `100px repeat(${workingDays.length}, minmax(120px, 1fr))`,
                   };
                   if (isBreak) {
@@ -869,16 +874,27 @@ export function TimetableOwnerView({
                       >
                         <div
                           className={`rounded bg-amber-50 font-medium text-amber-900 ${
-                            embedded ? "px-1.5 py-1 text-xs leading-tight" : "rounded-lg px-2 py-2 text-xs"
+                            embedded
+                              ? "px-0.5 py-0.5 text-[9px] leading-[1.15] tabular-nums"
+                              : "rounded-lg px-2 py-2 text-xs leading-tight"
                           }`}
                         >
-                          {period.start}–{period.end}
-                          {!embedded && <p className="text-[10px] capitalize">{breakLabel}</p>}
+                          {embedded ? (
+                            <>
+                              <span className="block">{period.start}</span>
+                              <span className="block text-[8px] opacity-80">{period.end}</span>
+                            </>
+                          ) : (
+                            <>
+                              {period.start}–{period.end}
+                              <p className="text-[10px] capitalize">{breakLabel}</p>
+                            </>
+                          )}
                         </div>
                         <div
                           className={`border border-amber-200 bg-amber-50/80 text-center font-medium text-amber-900 ${
                             embedded
-                              ? "rounded px-1.5 py-1 text-xs"
+                              ? "rounded px-1 py-0.5 text-[10px] leading-tight"
                               : "rounded-lg px-3 py-2 text-xs"
                           }`}
                           style={{ gridColumn: `2 / span ${workingDays.length}` }}
@@ -896,13 +912,25 @@ export function TimetableOwnerView({
                     >
                       <div
                         className={`flex h-full flex-col justify-center rounded-lg bg-muted/40 ${
-                          embedded ? "px-1.5 py-1 text-xs leading-snug" : "px-2 py-2 text-xs"
+                          embedded
+                            ? "px-0.5 py-0.5 text-[9px] leading-[1.15] tabular-nums"
+                            : "px-2 py-2 text-xs leading-snug"
                         }`}
                       >
-                        <p className="font-medium">{period.start}–{period.end}</p>
-                        <p className={embedded ? "text-[11px] text-muted-foreground" : "text-[10px] text-muted-foreground"}>
-                          P{period.period_no}
-                        </p>
+                        {embedded ? (
+                          <>
+                            <span className="block font-medium">{period.start}</span>
+                            <span className="block text-[8px] text-muted-foreground">{period.end}</span>
+                            <span className="mt-0.5 text-[8px] font-semibold text-primary">
+                              P{period.period_no}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <p className="font-medium">{period.start}–{period.end}</p>
+                            <p className="text-[10px] text-muted-foreground">P{period.period_no}</p>
+                          </>
+                        )}
                       </div>
                       {workingDays.map((day) => {
                         const cell = timetable.cells.find(
@@ -915,7 +943,7 @@ export function TimetableOwnerView({
                             focusedCell?.period_no === period.period_no);
                         const cellClass = `${
                           embedded
-                            ? "flex h-full min-h-0 flex-col justify-center gap-0.5 rounded border p-1.5 text-left text-xs leading-snug"
+                            ? "flex h-full min-h-0 min-w-0 flex-col justify-center gap-0.5 overflow-hidden rounded border p-1 text-left leading-snug"
                             : "min-h-[68px] rounded-lg border p-2 text-left text-xs"
                         } ${canEdit ? "transition hover:border-primary" : ""} ${
                           status === "clash"
@@ -930,18 +958,31 @@ export function TimetableOwnerView({
                           <>
                             {cell?.subject_name ? (
                               <>
-                                <span className={`block font-semibold ${embedded ? "text-sm leading-tight" : ""}`}>
-                                  {cell.subject_name}
-                                </span>
                                 <span
-                                  className={`block text-muted-foreground ${
-                                    embedded ? "truncate text-[11px] leading-tight" : "mt-0.5 text-[10px]"
+                                  className={`block font-semibold ${
+                                    embedded
+                                      ? "text-[11px] leading-tight line-clamp-3 break-words [overflow-wrap:anywhere]"
+                                      : ""
                                   }`}
                                 >
-                                  {embedded
-                                    ? `${resolveTeacherName(cell) || "—"} · ${cell.room?.trim() || "—"}`
-                                    : `Teacher: ${resolveTeacherName(cell) || "—"}`}
+                                  {cell.subject_name}
                                 </span>
+                                {embedded ? (
+                                  <>
+                                    <span
+                                      className="block text-[9px] leading-tight text-muted-foreground line-clamp-2 break-words [overflow-wrap:anywhere]"
+                                    >
+                                      {resolveTeacherName(cell) || "—"}
+                                    </span>
+                                    <span className="block text-[9px] leading-tight text-muted-foreground">
+                                      {cell.room?.trim() || "—"}
+                                    </span>
+                                  </>
+                                ) : (
+                                  <span className="mt-0.5 block text-[10px] text-muted-foreground">
+                                    Teacher: {resolveTeacherName(cell) || "—"}
+                                  </span>
+                                )}
                                 {!embedded && (
                                   <span className="mt-0.5 block text-[10px] text-muted-foreground">
                                     Room: {cell.room?.trim() || "—"}

@@ -3,8 +3,22 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Section } from "@/lib/api";
 import type { SyllabusMode, SyllabusNode, SyllabusTree } from "@/lib/syllabus-types";
-import { defaultWeightForNewSibling, siblingSum } from "@/lib/syllabus-weights";
+import {
+  applyDraftWeightChange,
+  collectWeightMap,
+  defaultWeightForNewSibling,
+  deleteWeightPreview,
+  findSiblingGroup,
+  normalizeTreeWeights,
+  siblingSum,
+  treeHasInvalidWeightGroups,
+  weightMapsEqual,
+} from "@/lib/syllabus-weights";
 import { SyllabusTreeView } from "@/components/section-syllabus-tree";
+
+function cloneNodes(nodes: SyllabusNode[]): SyllabusNode[] {
+  return nodes.map((n) => ({ ...n, children: cloneNodes(n.children) }));
+}
 
 function sectionOptionLabel(section: Section) {
   return `${section.className || "Class"} · ${section.name}`;
@@ -25,7 +39,7 @@ function childrenOfParent(nodes: SyllabusNode[], parentId: string | null): Sylla
 
 const MODE_HINT: Record<SyllabusMode, string> = {
   admin:
-    "Set weights so siblings at each level total 100%, then click Save on each row (or press Enter).",
+    "Edit weights (last item in each group adjusts automatically). Click Save syllabus when done.",
   teacher: "Update completion % on topics you teach (leaf items only).",
   viewer: "View syllabus progress for this class (read only).",
 };
@@ -55,6 +69,9 @@ export function SectionSyllabusPanel({
   const [copyOpen, setCopyOpen] = useState(false);
   const [copySourceId, setCopySourceId] = useState(sectionId);
   const [copyTargetIds, setCopyTargetIds] = useState<string[]>([]);
+  const [draftNodes, setDraftNodes] = useState<SyllabusNode[]>([]);
+  const [deleteTarget, setDeleteTarget] = useState<SyllabusNode | null>(null);
+  const [deletePreview, setDeletePreview] = useState<ReturnType<typeof deleteWeightPreview>>(null);
 
   const loadSubjects = useCallback(async () => {
     const res = await fetch(`/api/sections/${sectionId}/subjects`, {
@@ -112,13 +129,24 @@ export function SectionSyllabusPanel({
     loadTree().catch(() => setError("Could not load syllabus"));
   }, [loadTree]);
 
+  useEffect(() => {
+    if (tree) setDraftNodes(normalizeTreeWeights(cloneNodes(tree.nodes)));
+  }, [tree]);
+
+  const serverWeightMap = useMemo(
+    () => (tree ? collectWeightMap(tree.nodes) : new Map<string, number>()),
+    [tree]
+  );
+  const draftWeightMap = useMemo(() => collectWeightMap(draftNodes), [draftNodes]);
+  const hasDraftChanges = isAdmin && !weightMapsEqual(serverWeightMap, draftWeightMap);
+
   const addSiblingRemainder = useMemo(() => {
     if (!tree) return 100;
-    const siblings = childrenOfParent(tree.nodes, addParentId);
+    const siblings = childrenOfParent(draftNodes, addParentId);
     return defaultWeightForNewSibling(
       siblings.map((s) => ({ id: s.id, weightPercent: s.weightPercent }))
     );
-  }, [tree, addParentId]);
+  }, [tree, draftNodes, addParentId]);
 
   async function createNode() {
     if (!subjectId) return;
@@ -152,56 +180,90 @@ export function SectionSyllabusPanel({
     }
   }
 
-  const patchWeight = useCallback(
-    async (nodeId: string, weightPercent: number) => {
-      if (!subjectId) return;
-      setBusy(true);
-      setError("");
+  const onDraftWeightChange = useCallback((nodeId: string, weightPercent: number) => {
+    setDraftNodes((current) => {
       try {
-        const res = await fetch(
-          `/api/sections/${sectionId}/subjects/${subjectId}/syllabus/nodes/${nodeId}`,
-          {
-            method: "PATCH",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ weightPercent }),
-          }
-        );
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(body.detail || "Could not update weight");
-        await loadTree();
+        return applyDraftWeightChange(current, nodeId, weightPercent);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Could not update weight");
-      } finally {
-        setBusy(false);
+        return current;
       }
+    });
+    setError("");
+  }, []);
+
+  const discardDraft = useCallback(() => {
+    if (tree) setDraftNodes(cloneNodes(tree.nodes));
+    setError("");
+  }, [tree]);
+
+  const saveDraft = useCallback(async () => {
+    if (!subjectId || !hasDraftChanges) return;
+    const toSave = normalizeTreeWeights(draftNodes);
+    setDraftNodes(toSave);
+    setBusy(true);
+    setError("");
+    try {
+      const weights = [...collectWeightMap(toSave).entries()].map(([nodeId, weightPercent]) => ({
+        nodeId,
+        weightPercent,
+      }));
+      const res = await fetch(
+        `/api/sections/${sectionId}/subjects/${subjectId}/syllabus/weights`,
+        {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ weights }),
+        }
+      );
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.detail || body.error || "Could not save syllabus");
+      setTree(body as SyllabusTree);
+      setDraftNodes(cloneNodes((body as SyllabusTree).nodes));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save syllabus");
+    } finally {
+      setBusy(false);
+    }
+  }, [subjectId, sectionId, hasDraftChanges, draftNodes]);
+
+  const requestDelete = useCallback(
+    (node: SyllabusNode) => {
+      const group = findSiblingGroup(draftNodes, node.id);
+      if (!group) return;
+      const preview = deleteWeightPreview(
+        group.map((s) => ({ id: s.id, title: s.title, weightPercent: s.weightPercent })),
+        node.id
+      );
+      setDeleteTarget(node);
+      setDeletePreview(preview);
     },
-    [sectionId, subjectId, loadTree]
+    [draftNodes]
   );
 
-  const removeNode = useCallback(
-    async (nodeId: string) => {
-      if (!subjectId || !confirm("Delete this chapter and all sub-chapters?")) return;
-      setBusy(true);
-      setError("");
-      try {
-        const res = await fetch(
-          `/api/sections/${sectionId}/subjects/${subjectId}/syllabus/nodes/${nodeId}`,
-          { method: "DELETE", credentials: "include" }
-        );
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          throw new Error(body.detail || "Could not delete");
-        }
-        await loadTree();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Could not delete");
-      } finally {
-        setBusy(false);
+  const confirmDelete = useCallback(async () => {
+    if (!subjectId || !deleteTarget) return;
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch(
+        `/api/sections/${sectionId}/subjects/${subjectId}/syllabus/nodes/${deleteTarget.id}`,
+        { method: "DELETE", credentials: "include" }
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.detail || "Could not delete");
       }
-    },
-    [sectionId, subjectId, loadTree]
-  );
+      setDeleteTarget(null);
+      setDeletePreview(null);
+      await loadTree();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not delete");
+    } finally {
+      setBusy(false);
+    }
+  }, [subjectId, sectionId, deleteTarget, loadTree]);
 
   const setCompletion = useCallback(
     async (nodeId: string, completedPercent: number) => {
@@ -274,7 +336,7 @@ export function SectionSyllabusPanel({
   function openAdd(parentId: string | null) {
     setAddParentId(parentId);
     setAddTitle("");
-    const siblings = childrenOfParent(tree?.nodes ?? [], parentId);
+    const siblings = childrenOfParent(draftNodes, parentId);
     const weight = defaultWeightForNewSibling(
       siblings.map((s) => ({ id: s.id, weightPercent: s.weightPercent }))
     );
@@ -291,17 +353,18 @@ export function SectionSyllabusPanel({
     : "max-w-4xl rounded-xl border border-border bg-card p-4 shadow-sm";
 
   const total = tree?.subjectTotalCompletedPercent ?? 0;
-  const hasNodes = (tree?.nodes.length ?? 0) > 0;
+  const displayNodes = isAdmin ? draftNodes : tree?.nodes ?? [];
+  const hasNodes = displayNodes.length > 0;
 
   const treeHandlers = useMemo(
     () => ({
       busy,
-      onPatchWeight: (id: string, w: number) => void patchWeight(id, w),
+      onDraftWeightChange: (id: string, w: number) => onDraftWeightChange(id, w),
       onSetCompletion: (id: string, p: number) => void setCompletion(id, p),
-      onRemove: (id: string) => void removeNode(id),
+      onRequestDelete: (node: SyllabusNode) => requestDelete(node),
       onAddChild: (parentId: string) => openAdd(parentId),
     }),
-    [busy, patchWeight, setCompletion, removeNode, tree]
+    [busy, onDraftWeightChange, setCompletion, requestDelete]
   );
 
   return (
@@ -375,9 +438,40 @@ export function SectionSyllabusPanel({
                   : "No syllabus published for this subject yet."}
               </p>
             ) : (
-              <SyllabusTreeView nodes={tree!.nodes} mode={mode} handlers={treeHandlers} />
+              <SyllabusTreeView nodes={displayNodes} mode={mode} handlers={treeHandlers} />
             )}
           </div>
+
+          {isAdmin && treeHasInvalidWeightGroups(draftNodes) && (
+            <p className="mt-2 shrink-0 text-xs text-amber-700">
+              Some levels still total more or less than 100%. Saving will scale those groups
+              proportionally (e.g. 100% + 100% → 50% + 50%).
+            </p>
+          )}
+
+          {isAdmin && hasDraftChanges && (
+            <div className="mt-3 flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
+              <p className="text-sm text-muted-foreground">You have unsaved weight changes.</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={discardDraft}
+                  className="rounded-lg border border-border px-3 py-1.5 text-sm font-medium hover:bg-muted/50 disabled:opacity-50"
+                >
+                  Discard
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void saveDraft()}
+                  className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-50"
+                >
+                  Save syllabus
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -442,6 +536,55 @@ export function SectionSyllabusPanel({
         </div>
       )}
 
+      {deletePreview && deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-xl border border-border bg-card p-4 shadow-lg">
+            <h3 className="font-semibold">Delete chapter?</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Removing <strong>{deletePreview.deletedTitle}</strong> ({deletePreview.deletedWeight}
+              %). Sub-chapters under it will be removed too.
+            </p>
+            {deletePreview.rows.length > 0 && (
+              <div className="mt-3 rounded-lg border border-border bg-muted/30 p-3">
+                <p className="text-xs font-medium text-foreground">
+                  Remaining items at this level will be adjusted proportionally:
+                </p>
+                <ul className="mt-2 space-y-1 text-sm">
+                  {deletePreview.rows.map((row) => (
+                    <li key={row.title} className="flex justify-between gap-2 tabular-nums">
+                      <span className="truncate">{row.title}</span>
+                      <span className="shrink-0 text-muted-foreground">
+                        {row.from}% → <span className="font-medium text-foreground">{row.to}%</span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                className="rounded-lg px-3 py-1.5 text-sm"
+                onClick={() => {
+                  setDeleteTarget(null);
+                  setDeletePreview(null);
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                className="rounded-lg bg-destructive px-3 py-1.5 text-sm text-destructive-foreground disabled:opacity-50"
+                onClick={() => void confirmDelete()}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {addOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-sm rounded-xl border border-border bg-card p-4 shadow-lg">
@@ -466,8 +609,8 @@ export function SectionSyllabusPanel({
               <p className="text-xs text-muted-foreground">
                 Sibling weights must sum to 100% after this change. Suggested weight for a new
                 item here: {addSiblingRemainder}%.
-                {tree && addParentId === null && tree.nodes.length > 0 && (
-                  <> Current roots total {siblingSum(tree.nodes).toFixed(0)}%.</>
+                {draftNodes.length > 0 && addParentId === null && (
+                  <> Current roots total {siblingSum(draftNodes).toFixed(0)}%.</>
                 )}
               </p>
             </div>

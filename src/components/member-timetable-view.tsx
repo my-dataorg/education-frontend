@@ -4,6 +4,16 @@ import { useEffect, useMemo, useState } from "react";
 import { parseMemberTimetable, type MemberTimetableData } from "@/lib/timetable-api";
 
 const DAY_LABELS: Record<number, string> = {
+  1: "Mon",
+  2: "Tue",
+  3: "Wed",
+  4: "Thu",
+  5: "Fri",
+  6: "Sat",
+  7: "Sun",
+};
+
+const DAY_LABELS_LONG: Record<number, string> = {
   1: "Monday",
   2: "Tuesday",
   3: "Wednesday",
@@ -179,13 +189,25 @@ export function MemberTimetableView({
         </div>
       </div>
       <div className="overflow-x-auto rounded-xl border border-border">
-        <table className="min-w-full border-collapse text-sm">
+        <table className="w-full min-w-0 table-fixed border-collapse text-sm">
+          <colgroup>
+            <col className="w-[3.25rem] sm:w-24" />
+            {workingDays.map((day) => (
+              <col key={day} className="min-w-0" />
+            ))}
+          </colgroup>
           <thead>
             <tr className="border-b border-border bg-muted/40">
-              <th className="px-3 py-2 text-left font-medium">Period</th>
+              <th className="px-1 py-1.5 text-left text-[10px] font-medium sm:px-3 sm:py-2 sm:text-xs">
+                Time
+              </th>
               {workingDays.map((day) => (
-                <th key={day} className="px-3 py-2 text-left font-medium">
-                  {DAY_LABELS[day]}
+                <th
+                  key={day}
+                  className="px-1 py-1.5 text-center text-[10px] font-medium sm:px-2 sm:py-2 sm:text-xs"
+                >
+                  <span className="sm:hidden">{DAY_LABELS[day]}</span>
+                  <span className="hidden sm:inline">{DAY_LABELS_LONG[day]}</span>
                 </th>
               ))}
             </tr>
@@ -199,14 +221,13 @@ export function MemberTimetableView({
                   (period.kind === "lunch" ? "Lunch" : period.kind === "play" ? "Activity" : "Break");
                 return (
                   <tr key={rowKey} className="border-b border-border bg-amber-50/60">
-                    <td className="px-3 py-2 align-top text-xs text-amber-950">
-                      {period.start}–{period.end}
-                      <br />
-                      <span className="font-medium">{breakLabel}</span>
+                    <td className="px-1 py-1 align-top text-[9px] leading-tight tabular-nums text-amber-950 sm:px-3 sm:py-2 sm:text-xs">
+                      <span className="block">{period.start}</span>
+                      <span className="block text-[8px] opacity-80">{period.end}</span>
                     </td>
                     <td
                       colSpan={workingDays.length}
-                      className="px-3 py-2 text-center text-xs font-medium text-amber-950"
+                      className="px-2 py-1 text-center text-[10px] font-medium text-amber-950 sm:px-3 sm:py-2 sm:text-xs"
                     >
                       {breakLabel}
                     </td>
@@ -215,31 +236,33 @@ export function MemberTimetableView({
               }
               return (
                 <tr key={rowKey} className="border-b border-border">
-                  <td className="px-3 py-2 align-top text-xs text-muted-foreground">
-                    <span className="font-medium text-foreground">P{period.periodNo}</span>
-                    <br />
-                    {period.start}–{period.end}
+                  <td className="px-1 py-1 align-top text-[9px] leading-tight tabular-nums text-muted-foreground sm:px-3 sm:py-2 sm:text-xs">
+                    <span className="block font-semibold text-primary">P{period.periodNo}</span>
+                    <span className="block font-medium text-foreground">{period.start}</span>
+                    <span className="block text-[8px]">{period.end}</span>
                   </td>
                   {workingDays.map((day) => {
                     const cell = cellMap.get(`${day}-${period.periodNo}`);
                     const sectionLabel = cell?.sectionId ? sectionNames[cell.sectionId] : "";
                     return (
-                      <td key={day} className="px-3 py-2 align-top">
+                      <td key={day} className="min-w-0 px-1 py-1 align-top sm:px-2 sm:py-2">
                         {cell?.subjectName ? (
-                          <div>
-                            <p className="font-medium">{cell.subjectName}</p>
-                            {browseMode !== "class" && sectionLabel && (
-                              <p className="text-xs text-muted-foreground">{sectionLabel}</p>
-                            )}
-                            <p className="text-xs text-muted-foreground">
-                              Teacher: {cell.teacherName?.trim() || "—"}
+                          <div className="min-w-0">
+                            <p className="text-[11px] font-semibold leading-tight line-clamp-3 break-words [overflow-wrap:anywhere] sm:text-sm">
+                              {cell.subjectName}
                             </p>
-                            <p className="text-xs text-muted-foreground">
-                              Room: {cell.room?.trim() || "—"}
+                            {browseMode !== "class" && sectionLabel && (
+                              <p className="hidden text-xs text-muted-foreground sm:block">{sectionLabel}</p>
+                            )}
+                            <p className="text-[9px] leading-tight text-muted-foreground line-clamp-2 break-words sm:text-xs">
+                              {cell.teacherName?.trim() || "—"}
+                            </p>
+                            <p className="text-[9px] leading-tight text-muted-foreground sm:text-xs">
+                              {cell.room?.trim() || "—"}
                             </p>
                           </div>
                         ) : (
-                          <span className="text-muted-foreground">—</span>
+                          <span className="text-[10px] text-muted-foreground sm:text-sm">—</span>
                         )}
                       </td>
                     );

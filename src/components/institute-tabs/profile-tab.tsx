@@ -32,12 +32,35 @@ export function ProfileTab({
   onJoinCodeChange,
 }: Props) {
   const [year, setYear] = useState<AcademicYear | null>(null);
+  const [profile, setProfile] = useState<{
+    contactName: string;
+    phone: string;
+    address: string;
+    city: string;
+    state: string;
+    postalCode: string;
+  } | null>(null);
   const [joinCodeValue, setJoinCodeValue] = useState(joinCode);
   const primary = branches.find((b) => b.isPrimary) ?? branches[0];
+  const addressLine = profile
+    ? [profile.address, profile.city, profile.state, profile.postalCode]
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .join(", ")
+    : "";
 
   useEffect(() => {
     setJoinCodeValue(joinCode);
   }, [joinCode]);
+
+  useEffect(() => {
+    fetch(`/api/institutes/${instituteId}/profile`, { credentials: "include" })
+      .then(async (res) => {
+        if (!res.ok) return;
+        setProfile(await res.json());
+      })
+      .catch(() => undefined);
+  }, [instituteId]);
 
   useEffect(() => {
     fetch(`/api/institutes/${instituteId}/academic-year`, { credentials: "include" })
@@ -102,10 +125,23 @@ export function ProfileTab({
               </div>
             </>
           )}
+          {profile && (
+            <>
+              <div>
+                <dt className="text-xs text-muted-foreground">Contact person</dt>
+                <dd className="font-medium">{profile.contactName || "—"}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">Phone</dt>
+                <dd className="font-medium">{profile.phone || "—"}</dd>
+              </div>
+              <div className="sm:col-span-2">
+                <dt className="text-xs text-muted-foreground">Address</dt>
+                <dd className="font-medium">{addressLine || "—"}</dd>
+              </div>
+            </>
+          )}
         </dl>
-        <p className="mt-4 text-xs text-muted-foreground">
-          Logo, phone, and website fields can be added when institute profile editing is enabled on the server.
-        </p>
       </section>
 
       <CampusesTab instituteId={instituteId} branches={branches} onChanged={onChanged} />

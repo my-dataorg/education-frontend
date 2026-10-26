@@ -3,11 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import type { SyllabusMode, SyllabusNode } from "@/lib/syllabus-types";
-import {
-  isSiblingGroupValid,
-  remainderForNode,
-  siblingSum,
-} from "@/lib/syllabus-weights";
+import { isSiblingGroupValid, siblingSum } from "@/lib/syllabus-weights";
 
 function collectIds(nodes: SyllabusNode[]): string[] {
   const ids: string[] = [];
@@ -22,24 +18,26 @@ function rootIds(nodes: SyllabusNode[]): string[] {
   return nodes.map((n) => n.id);
 }
 
-type TreeHandlers = {
+export type SyllabusTreeHandlers = {
   busy: boolean;
-  onPatchWeight: (nodeId: string, weightPercent: number) => void;
+  onDraftWeightChange: (nodeId: string, weightPercent: number) => void;
   onSetCompletion: (nodeId: string, completedPercent: number) => void;
-  onRemove: (nodeId: string) => void;
+  onRequestDelete: (node: SyllabusNode) => void;
   onAddChild: (parentId: string) => void;
 };
 
 function AdminWeightCell({
   node,
+  siblings,
+  isLastSibling,
   busy,
-  remainder,
-  onPatchWeight,
+  onDraftWeightChange,
 }: {
   node: SyllabusNode;
+  siblings: SyllabusNode[];
+  isLastSibling: boolean;
   busy: boolean;
-  remainder: number | null;
-  onPatchWeight: (nodeId: string, weightPercent: number) => void;
+  onDraftWeightChange: (nodeId: string, weightPercent: number) => void;
 }) {
   const [draft, setDraft] = useState(String(node.weightPercent));
 
@@ -47,53 +45,58 @@ function AdminWeightCell({
     setDraft(String(node.weightPercent));
   }, [node.id, node.weightPercent]);
 
-  const parsed = Number(draft);
-  const dirty = !Number.isNaN(parsed) && parsed !== node.weightPercent;
+  if (siblings.length === 1) {
+    return (
+      <div className="text-right" title="Add another item at this level to change weights">
+        <input
+          type="number"
+          disabled
+          value={100}
+          className="w-16 cursor-not-allowed rounded border border-border bg-muted px-1 py-0.5 text-right text-xs tabular-nums opacity-70"
+        />
+        <p className="mt-0.5 text-[10px] leading-tight text-muted-foreground">Add sibling to edit</p>
+      </div>
+    );
+  }
 
-  function save() {
+  if (isLastSibling) {
+    return (
+      <div
+        className="rounded-md border border-dashed border-primary/30 bg-primary/5 px-1 py-1 text-right"
+        title="Calculated automatically from other items in this group"
+      >
+        <span className="text-xs font-medium tabular-nums text-primary">{node.weightPercent}%</span>
+        <p className="text-[10px] text-primary/80">Auto · remaining</p>
+      </div>
+    );
+  }
+
+  const parsed = Number(draft);
+
+  function commit() {
     if (Number.isNaN(parsed) || parsed === node.weightPercent) return;
-    onPatchWeight(node.id, parsed);
+    onDraftWeightChange(node.id, parsed);
   }
 
   return (
     <div className="text-right">
-      <div className="flex items-center justify-end gap-1">
-        <input
-          type="number"
-          min={0.01}
-          max={100}
-          step={0.01}
-          disabled={busy}
-          className="w-16 rounded border border-border bg-background px-1 py-0.5 text-right text-xs tabular-nums"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              save();
-            }
-          }}
-        />
-        {dirty && (
-          <button
-            type="button"
-            disabled={busy || Number.isNaN(parsed)}
-            onClick={save}
-            className="shrink-0 rounded bg-primary px-1.5 py-0.5 text-[10px] font-medium text-primary-foreground disabled:opacity-50"
-          >
-            Save
-          </button>
-        )}
-      </div>
-      {remainder !== null && remainder > 0 && remainder <= 100 && (
-        <button
-          type="button"
-          className="mt-0.5 block w-full text-[10px] text-primary hover:underline"
-          onClick={() => onPatchWeight(node.id, remainder)}
-        >
-          Set to remaining ({remainder}%)
-        </button>
-      )}
+      <input
+        type="number"
+        min={0.01}
+        max={99.99}
+        step={0.01}
+        disabled={busy}
+        className="w-16 rounded border border-border bg-background px-1 py-0.5 text-right text-xs tabular-nums"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            commit();
+          }
+        }}
+      />
     </div>
   );
 }
@@ -165,27 +168,21 @@ function SyllabusTreeNodeRow({
   mode: SyllabusMode;
   expandedIds: Set<string>;
   toggleExpanded: (id: string) => void;
-  handlers: TreeHandlers;
+  handlers: SyllabusTreeHandlers;
 }) {
   const hasChildren = node.children.length > 0;
   const expanded = expandedIds.has(node.id);
   const childSum = siblingSum(node.children);
   const childrenInvalid = hasChildren && mode === "admin" && !isSiblingGroupValid(childSum);
-  const siblingGroupInvalid =
-    mode === "admin" && siblings.length > 0 && !isSiblingGroupValid(siblingSum(siblings));
-  const remainder =
-    mode === "admin" && isLastSibling && siblingGroupInvalid
-      ? remainderForNode(siblings, node.id)
-      : null;
 
   return (
     <>
       <div
         className={`grid gap-2 border-t border-border/60 py-2 text-sm ${
           mode === "admin"
-            ? "grid-cols-[1fr_4.5rem_5.5rem_auto]"
+            ? "grid-cols-[1fr_5rem_5.5rem_auto]"
             : "grid-cols-[1fr_5.5rem]"
-        } items-center`}
+        } items-center ${mode === "admin" && isLastSibling && siblings.length > 1 ? "bg-primary/[0.03]" : ""}`}
       >
         <div className="flex min-w-0 items-start gap-1" style={{ paddingLeft: depth * 16 }}>
           {hasChildren ? (
@@ -214,7 +211,7 @@ function SyllabusTreeNodeRow({
             </button>
             {childrenInvalid && (
               <p className="mt-0.5 text-xs text-amber-700">
-                Child weights total {childSum.toFixed(0)}% — must be 100%
+                Child weights total {childSum.toFixed(0)}% — save valid weights or fix below
               </p>
             )}
           </div>
@@ -223,9 +220,10 @@ function SyllabusTreeNodeRow({
         {mode === "admin" && (
           <AdminWeightCell
             node={node}
+            siblings={siblings}
+            isLastSibling={isLastSibling}
             busy={handlers.busy}
-            remainder={remainder}
-            onPatchWeight={handlers.onPatchWeight}
+            onDraftWeightChange={handlers.onDraftWeightChange}
           />
         )}
 
@@ -246,7 +244,7 @@ function SyllabusTreeNodeRow({
               type="button"
               className="text-destructive hover:underline"
               disabled={handlers.busy}
-              onClick={() => handlers.onRemove(node.id)}
+              onClick={() => handlers.onRequestDelete(node)}
             >
               Delete
             </button>
@@ -280,7 +278,7 @@ export function SyllabusTreeView({
 }: {
   nodes: SyllabusNode[];
   mode: SyllabusMode;
-  handlers: TreeHandlers;
+  handlers: SyllabusTreeHandlers;
 }) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set(rootIds(nodes)));
 
@@ -315,9 +313,15 @@ export function SyllabusTreeView({
   return (
     <div>
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        {mode === "admin" && (
+          <p className="text-xs text-muted-foreground">
+            Last item in each group is auto-calculated. Use <strong>Save syllabus</strong> at the
+            bottom to publish weight changes.
+          </p>
+        )}
         {rootInvalid && (
           <p className="text-xs text-amber-700">
-            Top-level weights total {siblingSum(nodes).toFixed(0)}% — must be 100%
+            Top-level weights total {siblingSum(nodes).toFixed(0)}% — adjust or save to fix
           </p>
         )}
         <div className="ml-auto flex gap-2 text-xs">
@@ -332,11 +336,11 @@ export function SyllabusTreeView({
 
       <div
         className={`hidden gap-2 border-b border-border pb-2 text-xs font-medium text-muted-foreground sm:grid ${
-          mode === "admin" ? "grid-cols-[1fr_4.5rem_5.5rem_auto]" : "grid-cols-[1fr_5.5rem]"
+          mode === "admin" ? "grid-cols-[1fr_5rem_5.5rem_auto]" : "grid-cols-[1fr_5.5rem]"
         }`}
       >
         <span>Chapter</span>
-        {mode === "admin" && <span className="text-right">Weight</span>}
+        {mode === "admin" && <span className="text-right">Weight %</span>}
         <span className="text-right">Completed</span>
         {mode === "admin" && <span className="w-16" />}
       </div>

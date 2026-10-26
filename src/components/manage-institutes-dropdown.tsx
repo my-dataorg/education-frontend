@@ -3,11 +3,13 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, X } from "lucide-react";
+import { ContactFields } from "@/components/contact-fields";
 import {
   createInstituteAction,
   deleteInstituteAction,
   listOwnedInstitutesAction,
 } from "@/lib/institute-actions";
+import { contactReady, emptyContact, type ContactInput } from "@/lib/contact";
 
 type Institute = { id: string; name: string; role: string; joinCode: string };
 
@@ -58,6 +60,7 @@ export function ManageInstitutesDropdown() {
   const [dialog, setDialog] = useState<"create" | "delete" | null>(null);
 
   const [name, setName] = useState("");
+  const [contact, setContact] = useState<ContactInput>(emptyContact);
   const [owned, setOwned] = useState<Institute[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -98,7 +101,7 @@ export function ManageInstitutesDropdown() {
     e.preventDefault();
     setLoading(true);
     setError("");
-    const result = await createInstituteAction(name.trim());
+    const result = await createInstituteAction(name.trim(), contact);
     setLoading(false);
     if (!result.ok) {
       setError(result.error);
@@ -109,6 +112,7 @@ export function ManageInstitutesDropdown() {
     }
     setDialog(null);
     setName("");
+    setContact(emptyContact);
     router.push(`/institutes/${result.institute.id}`);
     router.refresh();
   }
@@ -184,6 +188,9 @@ export function ManageInstitutesDropdown() {
             minLength={2}
             autoFocus
           />
+          <div className="mt-4">
+            <ContactFields idPrefix="inst" value={contact} onChange={setContact} />
+          </div>
           {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
           <div className="mt-6 flex justify-end gap-2">
             <button
@@ -195,7 +202,7 @@ export function ManageInstitutesDropdown() {
             </button>
             <button
               type="submit"
-              disabled={loading || name.trim().length < 2}
+              disabled={loading || name.trim().length < 2 || !contactReady(contact)}
               className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-60"
             >
               {loading ? "Creating..." : "Create"}

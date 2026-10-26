@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:weights": "npx --yes tsx --test src/lib/syllabus-weights.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-tabs": "^1.1.15",
