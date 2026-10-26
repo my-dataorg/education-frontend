@@ -168,6 +168,11 @@ export function DrawingBoard({ value, onChange, readOnly = false, className = ""
     currentStroke.current = null;
   };
 
+  const undoLast = () => {
+    if (readOnly || strokes.length === 0) return;
+    commit(strokes.slice(0, -1));
+  };
+
   const clearBoard = () => {
     if (readOnly) return;
     setPadPages(2);
@@ -214,8 +219,16 @@ export function DrawingBoard({ value, onChange, readOnly = false, className = ""
               </button>
               <button
                 type="button"
+                onClick={undoLast}
+                disabled={strokes.length === 0}
+                className="rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-40"
+              >
+                Undo
+              </button>
+              <button
+                type="button"
                 onClick={clearBoard}
-                className="text-xs font-medium text-primary hover:underline"
+                className="rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-muted"
               >
                 Clear
               </button>
