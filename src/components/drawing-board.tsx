@@ -229,7 +229,7 @@ export function DrawingBoard({ value, onChange, readOnly = false, className = ""
           onPointerLeave={onPointerUp}
         />
         {showExtendHint && (
-          <div className="pointer-events-none sticky bottom-0 flex justify-center pb-2 pt-6">
+          <div className="pointer-events-none sticky bottom-0 hidden justify-center pb-2 pt-4 sm:flex">
             <span className="rounded-full bg-background/90 px-3 py-1 text-[11px] text-muted-foreground shadow-sm ring-1 ring-border">
               Need more space? Use Extend ↓
             </span>

@@ -126,15 +126,15 @@ export function SectionWorkspace({
   }, [instituteId, sectionId]);
 
   const tabs: { id: Tab; label: string; shortLabel: string; show: boolean }[] = [
-    { id: "overview", label: "Overview", shortLabel: "Overview", show: true },
-    { id: "roster", label: "Teachers & students", shortLabel: "Roster", show: canViewRosterSubjects },
+    { id: "overview", label: "Overview", shortLabel: "Summary", show: true },
+    { id: "roster", label: "Teachers & students", shortLabel: "People", show: canViewRosterSubjects },
     { id: "subjects", label: "Subjects", shortLabel: "Subjects", show: canViewRosterSubjects },
-    { id: "syllabus", label: "Syllabus", shortLabel: "Syl.", show: canViewRosterSubjects },
-    { id: "timetable", label: "Timetable", shortLabel: "Time", show: canViewRosterSubjects },
-    { id: "attendance", label: "Attendance", shortLabel: "Attend", show: isTeacher },
+    { id: "syllabus", label: "Syllabus", shortLabel: "Syllabus", show: canViewRosterSubjects },
+    { id: "timetable", label: "Timetable", shortLabel: "Schedule", show: canViewRosterSubjects },
+    { id: "attendance", label: "Attendance", shortLabel: "Attendance", show: isTeacher },
     { id: "assignments", label: "Assignments", shortLabel: "Tasks", show: true },
     { id: "class-board", label: "Class board", shortLabel: "Board", show: true },
-    { id: "progress", label: "Progress", shortLabel: "Prog.", show: true },
+    { id: "progress", label: "Progress", shortLabel: "Progress", show: true },
   ];
 
   async function refreshOverview() {
@@ -164,9 +164,9 @@ export function SectionWorkspace({
         stretchPanel ? "mt-0 flex min-h-0 flex-1 flex-col overflow-hidden md:mt-1" : "mt-0 md:mt-4"
       }
     >
-      <div
-        className="grid w-full shrink-0 border-b border-border md:flex md:flex-nowrap md:gap-0"
-        style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, minmax(0, 1fr))` }}
+      <nav
+        aria-label="Class section"
+        className="flex w-full shrink-0 gap-1 overflow-x-auto border-b border-border [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:flex-wrap md:gap-0 md:overflow-visible"
       >
         {visibleTabs.map((t) => (
           <button
@@ -176,7 +176,7 @@ export function SectionWorkspace({
               setTab(t.id);
               onTabChange?.(t.id);
             }}
-            className={`border-b-2 px-0.5 py-1 text-center text-[10px] font-medium leading-tight transition md:shrink-0 md:px-4 md:py-2 md:text-left md:text-sm ${
+            className={`shrink-0 whitespace-nowrap border-b-2 px-3 py-2 text-xs font-medium transition md:px-4 md:text-sm ${
               tab === t.id
                 ? "border-primary text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground"
@@ -186,9 +186,15 @@ export function SectionWorkspace({
             <span className="hidden md:inline">{t.label}</span>
           </button>
         ))}
-      </div>
+      </nav>
 
-      <div className={stretchPanel ? "mt-1 flex min-h-0 flex-1 flex-col overflow-hidden" : "mt-2 md:mt-4"}>
+      <div
+        className={
+          stretchPanel
+            ? "mt-1 flex min-h-0 flex-1 flex-col overflow-hidden max-md:mt-2 max-md:overflow-visible max-md:flex-none"
+            : "mt-2 md:mt-4"
+        }
+      >
         {tab === "overview" && (
           <div className="space-y-5">
             {isTeacher && (

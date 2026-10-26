@@ -193,7 +193,7 @@ export function ClassesBrowseTab({
     <div
       className={
         stretchGrid
-          ? "flex min-h-0 flex-1 flex-col gap-2 overflow-hidden"
+          ? "flex min-h-0 flex-1 flex-col gap-2 overflow-hidden max-md:gap-3 max-md:overflow-visible max-md:flex-none"
           : "mt-0 space-y-0 sm:mt-4 sm:space-y-4"
       }
     >

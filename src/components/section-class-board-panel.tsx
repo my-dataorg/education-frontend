@@ -320,27 +320,29 @@ export function SectionClassBoardPanel({
     );
   }
 
-  const rootClass = fillHeight
-    ? "flex min-h-0 flex-1 flex-col gap-2 overflow-hidden"
-    : "space-y-4";
+  const desktopFill = fillHeight;
 
-  const splitClass = fillHeight
+  const rootClass = desktopFill
+    ? "flex min-h-0 flex-1 flex-col gap-2 overflow-hidden max-md:space-y-3 max-md:overflow-visible"
+    : "space-y-3 md:space-y-4";
+
+  const splitClass = desktopFill
     ? "hidden min-h-0 flex-1 w-full md:flex"
     : "hidden h-[min(70vh,32rem)] min-h-[18rem] w-full md:flex";
 
-  const mobileBoardClass = fillHeight ? "h-[min(42vh,20rem)]" : "h-[min(55vh,28rem)]";
-  const mobileNotesClass = fillHeight ? "h-[min(32vh,16rem)]" : "h-[min(45vh,22rem)]";
+  const mobileBoardClass = "h-[min(48dvh,20rem)] min-h-[12rem]";
+  const mobileNotesClass = "min-h-[9rem] h-[min(36dvh,14rem)]";
 
   return (
     <div className={rootClass}>
       <div
-        className={`flex shrink-0 flex-col gap-2 sm:flex-row sm:items-end sm:justify-between ${
-          fillHeight ? "sm:items-center" : ""
+        className={`flex shrink-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between ${
+          desktopFill ? "sm:items-center" : ""
         }`}
       >
         <div className="min-w-0">
-          <p className="text-sm font-medium leading-tight">{subjectLabel} — class board</p>
-          {!fillHeight && (
+          <p className="text-sm font-semibold leading-tight">{subjectLabel} — class board</p>
+          {!desktopFill && (
             <p className="text-xs text-muted-foreground">
               {editable
                 ? "Draft saves on this device. Server backup every 15 minutes. Submit when students and families should see it."
@@ -354,21 +356,23 @@ export function SectionClassBoardPanel({
             </p>
           )}
           {editable && (
-            <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-              {isPublished ? "Published" : "Draft"}
-              {lastLocalSave ? ` · Device ${formatTime(lastLocalSave)}` : ""}
-              {lastServerSave ? ` · Server ${formatTime(lastServerSave)}` : ""}
+            <p className="mt-1 text-[11px] leading-snug text-muted-foreground md:truncate">
+              <span className="font-medium">{isPublished ? "Published" : "Draft"}</span>
               {draftDirty ? " · unsynced" : ""}
+              <span className="hidden sm:inline">
+                {lastLocalSave ? ` · Device ${formatTime(lastLocalSave)}` : ""}
+                {lastServerSave ? ` · Server ${formatTime(lastServerSave)}` : ""}
+              </span>
             </p>
           )}
         </div>
-        <div className="flex flex-wrap items-end justify-end gap-2">
+        <div className="grid w-full gap-2 sm:w-auto sm:max-w-md sm:grid-cols-2">
           <label className="text-xs font-semibold text-muted-foreground">
             Subject
             <select
               value={subjectId}
               onChange={(e) => setSubjectId(e.target.value)}
-              className="mt-1 block min-w-[10rem] rounded-lg border border-border bg-background px-3 py-2 text-sm"
+              className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm"
             >
             {subjects.map((subject) => {
               const mine = userId && subject.teachers?.some((t) => t.userId === userId);
@@ -381,12 +385,12 @@ export function SectionClassBoardPanel({
             })}
             </select>
           </label>
-          <label className="text-xs font-semibold text-muted-foreground">
+          <label className="text-xs font-semibold text-muted-foreground sm:col-span-2 md:col-span-1">
             Date
             <select
               value={noteDate}
               onChange={(e) => setNoteDate(e.target.value)}
-              className="mt-1 block min-w-[10rem] rounded-lg border border-border bg-background px-3 py-2 text-sm"
+              className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm"
             >
               {dateOptions.map((d) => (
                 <option key={d} value={d}>
@@ -396,12 +400,12 @@ export function SectionClassBoardPanel({
             </select>
           </label>
           {editable && (
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-2 gap-2 sm:col-span-2">
               <button
                 type="button"
                 disabled={saving || publishing}
                 onClick={() => saveDraftToServer().catch(() => undefined)}
-                className="rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
+                className="rounded-lg border border-border px-3 py-2.5 text-sm font-medium hover:bg-muted disabled:opacity-50"
               >
                 Save draft
               </button>
@@ -409,7 +413,7 @@ export function SectionClassBoardPanel({
                 type="button"
                 disabled={saving || publishing}
                 onClick={() => publishBoard().catch(() => undefined)}
-                className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                className="rounded-lg bg-primary px-3 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
                 {publishing ? "Submitting…" : isPublished ? "Submit updates" : "Submit to class"}
               </button>
@@ -436,7 +440,13 @@ export function SectionClassBoardPanel({
       {loading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
       ) : awaitingPublish ? null : (
-        <div className={fillHeight ? "flex min-h-0 flex-1 flex-col gap-2 overflow-hidden" : "space-y-4"}>
+        <div
+          className={
+            desktopFill
+              ? "flex min-h-0 flex-1 flex-col gap-2 overflow-hidden max-md:space-y-3 max-md:overflow-visible"
+              : "space-y-3"
+          }
+        >
           <div ref={splitRef} className={splitClass}>
             <div className="flex min-h-0 min-w-0 flex-col" style={{ width: `${drawPct}%` }}>
               <DrawingBoard
@@ -472,7 +482,7 @@ export function SectionClassBoardPanel({
             </div>
           </div>
 
-          <div className={`grid gap-3 md:hidden ${fillHeight ? "min-h-0 flex-1" : ""}`}>
+          <div className="flex flex-col gap-3 md:hidden">
             <DrawingBoard
               value={sheet.drawingJson}
               onChange={(drawingJson) => applyChange({ ...sheet, drawingJson })}
@@ -495,11 +505,7 @@ export function SectionClassBoardPanel({
             </div>
           </div>
 
-          <div
-            className={`shrink-0 space-y-1 border-t border-border pt-2 ${
-              fillHeight ? "max-h-[5.5rem] overflow-y-auto" : "space-y-2"
-            }`}
-          >
+          <div className="shrink-0 space-y-2 border-t border-border pt-3">
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-xs font-semibold text-muted-foreground">Board photos</p>
               {editable && (

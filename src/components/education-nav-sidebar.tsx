@@ -119,7 +119,7 @@ export function EducationNavSidebar({
         className={cn(
           "education-content min-h-0 min-w-0 w-full flex-1 px-3 sm:px-4",
           fillMainContent
-            ? "flex flex-col overflow-hidden py-1 sm:py-2"
+            ? "flex flex-col overflow-hidden py-1 max-md:overflow-y-auto sm:py-2"
             : "overscroll-y-contain overflow-y-auto py-3 sm:py-4"
         )}
       >
@@ -131,7 +131,13 @@ export function EducationNavSidebar({
         >
           {items.map((item) => navButton(item, true))}
         </div>
-        <div className={fillMainContent ? "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" : undefined}>
+        <div
+          className={
+            fillMainContent
+              ? "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden max-md:overflow-visible max-md:flex-none"
+              : undefined
+          }
+        >
           {children}
         </div>
       </main>
