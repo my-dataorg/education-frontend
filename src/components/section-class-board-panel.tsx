@@ -338,7 +338,6 @@ export function SectionClassBoardPanel({
       <div
         className="flex shrink-0 items-center gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
-        <p className="shrink-0 text-sm font-semibold whitespace-nowrap">{subjectLabel} — board</p>
         <select
           aria-label="Subject"
           value={subjectId}
