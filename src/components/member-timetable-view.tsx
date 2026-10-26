@@ -147,6 +147,15 @@ export function MemberTimetableView({
     );
   }
 
+  if (!timetable) {
+    return (
+      <div className="mt-6 space-y-2">
+        <h2 className="text-xl font-semibold">{title}</h2>
+        <p className="text-sm text-muted-foreground">No timetable to show yet.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="mt-6 space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
