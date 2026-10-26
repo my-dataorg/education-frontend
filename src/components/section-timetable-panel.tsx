@@ -15,8 +15,8 @@ export function SectionTimetablePanel({
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {!canEdit && (
         <p className="mb-2 shrink-0 text-sm text-muted-foreground">
-          Weekly timetable for this class (read-only), including teacher names for periods you teach here. Students
-          see the published version after the owner publishes from Timetable.
+          Weekly timetable for this class (read-only). Students see the published schedule after the owner publishes
+          from Timetable; until then they see the current draft for this class.
         </p>
       )}
       <TimetableOwnerView
