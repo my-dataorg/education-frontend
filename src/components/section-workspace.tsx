@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SectionAttendanceTab } from "@/components/section-attendance-tab";
+import { SectionStudentAttendancePanel } from "@/components/section-student-attendance-panel";
 import { SectionAssignmentsTab } from "@/components/section-assignments-tab";
 import { SectionClassOverview } from "@/components/section-class-overview";
 import { SectionRosterPanel } from "@/components/section-roster-panel";
@@ -131,7 +132,7 @@ export function SectionWorkspace({
     { id: "subjects", label: "Subjects", shortLabel: "Subjects", show: canViewRosterSubjects },
     { id: "syllabus", label: "Syllabus", shortLabel: "Syllabus", show: canViewRosterSubjects },
     { id: "timetable", label: "Timetable", shortLabel: "Schedule", show: canViewRosterSubjects },
-    { id: "attendance", label: "Attendance", shortLabel: "Attendance", show: isTeacher },
+    { id: "attendance", label: "Attendance", shortLabel: "Attendance", show: isTeacher || isStudent },
     { id: "assignments", label: "Assignments", shortLabel: "Tasks", show: true },
     { id: "class-board", label: "Class board", shortLabel: "Board", show: true },
     { id: "progress", label: "Progress", shortLabel: "Progress", show: true },
@@ -146,7 +147,7 @@ export function SectionWorkspace({
   const visibleTabs = tabs.filter((t) => t.show);
   const stretchTimetable = fillTimetable && tab === "timetable" && canViewRosterSubjects;
   const stretchRoster = fillRoster && tab === "roster" && canViewRosterSubjects;
-  const stretchAttendance = fillAttendance && tab === "attendance" && isTeacher;
+  const stretchAttendance = fillAttendance && tab === "attendance" && (isTeacher || isStudent);
   const stretchSubjects = fillSubjects && tab === "subjects" && canViewRosterSubjects;
   const stretchSyllabus = fillSyllabus && tab === "syllabus" && canViewRosterSubjects;
   const stretchClassBoard = tab === "class-board";
@@ -270,6 +271,14 @@ export function SectionWorkspace({
 
         {tab === "attendance" && isTeacher && (
           <SectionAttendanceTab sectionId={sectionId} fillHeight={stretchAttendance} />
+        )}
+
+        {tab === "attendance" && isStudent && (
+          <SectionStudentAttendancePanel
+            sectionId={sectionId}
+            sectionLabel={sectionLabel}
+            fillHeight={stretchAttendance}
+          />
         )}
 
         {tab === "assignments" && (
