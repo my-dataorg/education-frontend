@@ -9,7 +9,7 @@ import { SectionRosterPanel } from "@/components/section-roster-panel";
 import { SectionSubjectsPanel } from "@/components/section-subjects-panel";
 import { SectionSyllabusPanel } from "@/components/section-syllabus-panel";
 import type { SyllabusMode } from "@/lib/syllabus-types";
-import { SectionDailyNotesPanel } from "@/components/section-daily-notes-panel";
+import { SectionClassBoardPanel } from "@/components/section-class-board-panel";
 import { SectionTimetablePanel } from "@/components/section-timetable-panel";
 import { formatUserName } from "@/components/user-identity";
 import type { Member } from "@/lib/api";
@@ -25,6 +25,7 @@ export type SectionWorkspaceTab =
   | "timetable"
   | "attendance"
   | "assignments"
+  | "class-board"
   | "notes"
   | "progress"
   | "students";
@@ -66,6 +67,7 @@ export function SectionWorkspace({
   fillAttendance = false,
   fillSubjects = false,
   fillSyllabus = false,
+  fillClassBoard = false,
 }: {
   instituteId: string;
   sectionId: string;
@@ -77,6 +79,7 @@ export function SectionWorkspace({
   fillAttendance?: boolean;
   fillSubjects?: boolean;
   fillSyllabus?: boolean;
+  fillClassBoard?: boolean;
   overview: Overview;
   assignments: {
     id: string;
@@ -89,7 +92,11 @@ export function SectionWorkspace({
 }) {
   const router = useRouter();
   const normalizedInitial: Tab =
-    initialTab === "students" ? "attendance" : (initialTab as Tab);
+    initialTab === "students"
+      ? "attendance"
+      : initialTab === "notes"
+        ? "class-board"
+        : (initialTab as Tab);
   const [tab, setTab] = useState<Tab>(normalizedInitial);
   const [overview, setOverview] = useState(initialOverview);
   const [subjects, setSubjects] = useState<SectionSubject[]>([]);
@@ -123,10 +130,10 @@ export function SectionWorkspace({
     { id: "roster", label: "Teachers & students", shortLabel: "Roster", show: canViewRosterSubjects },
     { id: "subjects", label: "Subjects", shortLabel: "Subjects", show: canViewRosterSubjects },
     { id: "syllabus", label: "Syllabus", shortLabel: "Syl.", show: canViewRosterSubjects },
-    { id: "timetable", label: "Timetable", shortLabel: "Time", show: canManage },
+    { id: "timetable", label: "Timetable", shortLabel: "Time", show: canViewRosterSubjects },
     { id: "attendance", label: "Attendance", shortLabel: "Attend", show: isTeacher },
     { id: "assignments", label: "Assignments", shortLabel: "Tasks", show: true },
-    { id: "notes", label: "Daily notes", shortLabel: "Notes", show: true },
+    { id: "class-board", label: "Class board", shortLabel: "Board", show: true },
     { id: "progress", label: "Progress", shortLabel: "Prog.", show: true },
   ];
 
@@ -137,13 +144,19 @@ export function SectionWorkspace({
   }
 
   const visibleTabs = tabs.filter((t) => t.show);
-  const stretchTimetable = fillTimetable && tab === "timetable" && canManage;
+  const stretchTimetable = fillTimetable && tab === "timetable" && canViewRosterSubjects;
   const stretchRoster = fillRoster && tab === "roster" && canViewRosterSubjects;
   const stretchAttendance = fillAttendance && tab === "attendance" && isTeacher;
   const stretchSubjects = fillSubjects && tab === "subjects" && canViewRosterSubjects;
   const stretchSyllabus = fillSyllabus && tab === "syllabus" && canViewRosterSubjects;
+  const stretchClassBoard = fillClassBoard && tab === "class-board";
   const stretchPanel =
-    stretchTimetable || stretchRoster || stretchAttendance || stretchSubjects || stretchSyllabus;
+    stretchTimetable ||
+    stretchRoster ||
+    stretchAttendance ||
+    stretchSubjects ||
+    stretchSyllabus ||
+    stretchClassBoard;
 
   return (
     <div
@@ -175,7 +188,7 @@ export function SectionWorkspace({
         ))}
       </div>
 
-      <div className={stretchPanel ? "mt-2 flex min-h-0 flex-1 flex-col overflow-hidden" : "mt-2 md:mt-6"}>
+      <div className={stretchPanel ? "mt-1 flex min-h-0 flex-1 flex-col overflow-hidden" : "mt-2 md:mt-4"}>
         {tab === "overview" && (
           <div className="space-y-5">
             {isTeacher && (
@@ -239,8 +252,12 @@ export function SectionWorkspace({
           />
         )}
 
-        {tab === "timetable" && canManage && (
-          <SectionTimetablePanel instituteId={instituteId} sectionId={sectionId} />
+        {tab === "timetable" && canViewRosterSubjects && (
+          <SectionTimetablePanel
+            instituteId={instituteId}
+            sectionId={sectionId}
+            canEdit={canManage}
+          />
         )}
 
         {tab === "attendance" && isTeacher && (
@@ -251,11 +268,12 @@ export function SectionWorkspace({
           <SectionAssignmentsTab sectionId={sectionId} isTeacher={isTeacher} />
         )}
 
-        {tab === "notes" && (
-          <SectionDailyNotesPanel
+        {tab === "class-board" && (
+          <SectionClassBoardPanel
             instituteId={instituteId}
             sectionId={sectionId}
             canEdit={canEditNotes}
+            fillHeight={stretchClassBoard}
           />
         )}
 

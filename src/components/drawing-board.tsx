@@ -25,55 +25,104 @@ function parseStrokes(raw: string): Stroke[] {
   }
 }
 
+const MIN_CANVAS_HEIGHT = 480;
+const CANVAS_GROW_PADDING = 120;
+const GRID_STEP = 24;
+
+function maxStrokeY(rows: Stroke[], extra?: Stroke | null): number {
+  let maxY = 0;
+  const all = extra ? [...rows, extra] : rows;
+  for (const stroke of all) {
+    for (const p of stroke.points) {
+      maxY = Math.max(maxY, p.y);
+    }
+  }
+  return maxY;
+}
+
+function heightForContent(rows: Stroke[], extra?: Stroke | null): number {
+  const contentBottom = maxStrokeY(rows, extra);
+  if (contentBottom <= 0) return 0;
+  return Math.ceil(contentBottom + CANVAS_GROW_PADDING);
+}
+
+function paintGrid(ctx: CanvasRenderingContext2D, width: number, height: number) {
+  ctx.fillStyle = "#fafafa";
+  ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = "#d1d5db";
+  for (let y = GRID_STEP; y < height; y += GRID_STEP) {
+    for (let x = GRID_STEP; x < width; x += GRID_STEP) {
+      ctx.beginPath();
+      ctx.arc(x, y, 0.8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+}
+
 export function DrawingBoard({ value, onChange, readOnly = false, className = "" }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [strokes, setStrokes] = useState<Stroke[]>(() => parseStrokes(value));
+  const [canvasWidth, setCanvasWidth] = useState(320);
+  const [padPages, setPadPages] = useState(2);
+  const [viewportHeight, setViewportHeight] = useState(MIN_CANVAS_HEIGHT);
   const drawing = useRef(false);
   const currentStroke = useRef<Stroke | null>(null);
 
-  const redraw = useCallback((rows: Stroke[]) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    for (const stroke of rows) {
-      if (stroke.points.length < 2) continue;
-      ctx.strokeStyle = stroke.color;
-      ctx.lineWidth = stroke.width;
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      ctx.beginPath();
-      ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
-      for (let i = 1; i < stroke.points.length; i += 1) {
-        ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+  const padHeight = Math.max(MIN_CANVAS_HEIGHT, viewportHeight * padPages);
+  const contentHeight = heightForContent(strokes, currentStroke.current);
+  const canvasHeight = Math.max(padHeight, contentHeight);
+
+  const redraw = useCallback(
+    (rows: Stroke[], width: number, height: number) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      paintGrid(ctx, width, height);
+      for (const stroke of rows) {
+        if (stroke.points.length < 2) continue;
+        ctx.strokeStyle = stroke.color;
+        ctx.lineWidth = stroke.width;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.beginPath();
+        ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+        for (let i = 1; i < stroke.points.length; i += 1) {
+          ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+        }
+        ctx.stroke();
       }
-      ctx.stroke();
-    }
-  }, []);
+    },
+    []
+  );
 
   useEffect(() => {
     setStrokes(parseStrokes(value));
   }, [value]);
 
   useEffect(() => {
-    redraw(strokes);
-  }, [strokes, redraw]);
-
-  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const resize = () => {
-      const rect = canvas.getBoundingClientRect();
-      canvas.width = Math.max(320, Math.floor(rect.width));
-      canvas.height = Math.max(280, Math.floor(rect.height));
-      redraw(strokes);
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
+    redraw(strokes, canvasWidth, canvasHeight);
+  }, [strokes, canvasWidth, canvasHeight, redraw]);
+
+  useEffect(() => {
+    const scrollEl = scrollRef.current;
+    if (!scrollEl) return;
+    const measure = () => {
+      const w = Math.max(320, Math.floor(scrollEl.clientWidth));
+      const h = Math.max(280, Math.floor(scrollEl.clientHeight));
+      setCanvasWidth(w);
+      setViewportHeight(h);
     };
-    resize();
-    window.addEventListener("resize", resize);
-    return () => window.removeEventListener("resize", resize);
-  }, [strokes, redraw]);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(scrollEl);
+    return () => observer.disconnect();
+  }, []);
 
   const pointFromEvent = (event: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -106,7 +155,10 @@ export function DrawingBoard({ value, onChange, readOnly = false, className = ""
   const onPointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
     if (!drawing.current || !currentStroke.current || readOnly) return;
     currentStroke.current.points.push(pointFromEvent(event));
-    redraw([...strokes, currentStroke.current]);
+    const canvas = canvasRef.current;
+    if (canvas) {
+      redraw([...strokes, currentStroke.current], canvas.width, canvas.height);
+    }
   };
 
   const onPointerUp = () => {
@@ -118,31 +170,72 @@ export function DrawingBoard({ value, onChange, readOnly = false, className = ""
 
   const clearBoard = () => {
     if (readOnly) return;
+    setPadPages(2);
     commit([]);
   };
 
+  const extendPad = () => {
+    setPadPages((n) => n + 1);
+    requestAnimationFrame(() => {
+      const scrollEl = scrollRef.current;
+      if (!scrollEl) return;
+      scrollEl.scrollTo({ top: scrollEl.scrollHeight, behavior: "smooth" });
+    });
+  };
+
+  const showExtendHint = !readOnly && canvasHeight <= viewportHeight * padPages + 4;
+
   return (
-    <div className={`flex h-full min-h-[280px] flex-col rounded-xl border border-border bg-card ${className}`}>
-      <div className="flex items-center justify-between border-b border-border px-3 py-2">
-        <p className="text-xs font-semibold text-muted-foreground">Drawing board</p>
-        {!readOnly && (
-          <button
-            type="button"
-            onClick={clearBoard}
-            className="text-xs font-medium text-primary hover:underline"
-          >
-            Clear
-          </button>
+    <div className={`flex h-full min-h-0 flex-col rounded-xl border border-border bg-card shadow-sm ${className}`}>
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-2">
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground">Drawing board</p>
+          {!readOnly && (
+            <p className="text-[11px] text-muted-foreground/80">Scroll the pad or extend for more room.</p>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {!readOnly && (
+            <>
+              <button
+                type="button"
+                onClick={extendPad}
+                className="rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-muted"
+              >
+                Extend ↓
+              </button>
+              <button
+                type="button"
+                onClick={clearBoard}
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                Clear
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+      <div
+        ref={scrollRef}
+        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-b-xl bg-muted/30"
+      >
+        <canvas
+          ref={canvasRef}
+          style={{ width: canvasWidth, height: canvasHeight }}
+          className={`block w-full touch-none shadow-sm ${readOnly ? "cursor-default" : "cursor-crosshair"}`}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerLeave={onPointerUp}
+        />
+        {showExtendHint && (
+          <div className="pointer-events-none sticky bottom-0 flex justify-center pb-2 pt-6">
+            <span className="rounded-full bg-background/90 px-3 py-1 text-[11px] text-muted-foreground shadow-sm ring-1 ring-border">
+              Need more space? Use Extend ↓
+            </span>
+          </div>
         )}
       </div>
-      <canvas
-        ref={canvasRef}
-        className={`h-full w-full flex-1 touch-none ${readOnly ? "cursor-default" : "cursor-crosshair"}`}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerLeave={onPointerUp}
-      />
     </div>
   );
 }

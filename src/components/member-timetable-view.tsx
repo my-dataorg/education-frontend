@@ -132,13 +132,16 @@ export function MemberTimetableView({
     );
   }
 
-  if (!timetable?.publishedAt) {
+  const hasScheduledCells = Boolean(
+    timetable?.cells?.some((cell) => cell.subjectName?.trim())
+  );
+  if (timetable && !timetable.publishedAt && !hasScheduledCells) {
     return (
       <div className="mt-6 space-y-2">
         <h2 className="text-xl font-semibold">{title}</h2>
         <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          The weekly timetable has not been published yet. You will see the schedule here after the institute owner
-          publishes it.
+          Timetable not published yet. Ask the institute owner to publish from <strong>Timetable</strong> in the
+          sidebar.
         </p>
       </div>
     );

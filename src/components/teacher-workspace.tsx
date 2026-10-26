@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ClassesBrowseTab } from "@/components/classes-browse-tab";
 import { TeacherTimetableTab } from "@/components/teacher-timetable-tab";
 import { TeacherShell } from "@/components/teacher-shell";
@@ -72,6 +72,8 @@ export function TeacherWorkspace({
   initialTab?: EducationNavId;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const classesSectionTab = searchParams.get("sectionTab");
   const [tab, setTab] = useState<EducationNavId>(initialTab);
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [allSections, setAllSections] = useState<Section[]>(sections);
@@ -137,10 +139,13 @@ export function TeacherWorkspace({
     .sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate)))
     .slice(0, 6);
 
+  const fitClassBoard = tab === "classes" && classesSectionTab === "class-board";
+
   return (
     <TeacherShell
       role={role}
       activeTab={tab}
+      fillMainContent={fitClassBoard}
       onTabChange={(nextTab) => {
         setTab(nextTab);
         const params = new URLSearchParams(window.location.search);
@@ -188,6 +193,7 @@ export function TeacherWorkspace({
           instituteId={instituteId}
           sections={sections}
           workspaceRole="teacher"
+          fitClassBoard={fitClassBoard}
         />
       )}
 

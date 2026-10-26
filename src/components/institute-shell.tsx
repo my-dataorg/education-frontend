@@ -38,7 +38,7 @@ const TAB_ICONS: Partial<Record<InstituteTabId, React.ComponentType<{ className?
   associates: Users,
   "teachers-classes": UserRound,
   "students-classes": GraduationCap,
-  "daily-notes": NotebookPen,
+  "class-board": NotebookPen,
   fees: WalletCards,
   exams: BookOpen,
   reports: BarChart3,

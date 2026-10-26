@@ -6,7 +6,7 @@ import { ConfigureTab } from "@/components/institute-tabs/configure-tab";
 import { ProfileTab } from "@/components/institute-tabs/profile-tab";
 import { AssociationTab } from "@/components/institute-tabs/association-tab";
 import { ClassesBrowseTab } from "@/components/classes-browse-tab";
-import { DailyNotesTab } from "@/components/institute-tabs/daily-notes-tab";
+import { ClassBoardTab } from "@/components/institute-tabs/class-board-tab";
 import { OverviewTab } from "@/components/institute-tabs/overview-tab";
 import { ScheduleTab } from "@/components/institute-tabs/schedule-tab";
 import { AttendanceTab } from "@/components/institute-tabs/attendance-tab";
@@ -156,12 +156,14 @@ export function InstituteDashboard({
   const fitClassAttendance = activeTab === "classes" && classesSectionTab === "attendance";
   const fitClassSubjects = activeTab === "classes" && classesSectionTab === "subjects";
   const fitClassSyllabus = activeTab === "classes" && classesSectionTab === "syllabus";
+  const fitClassBoard = activeTab === "classes" && classesSectionTab === "class-board";
   const fitClassSectionPanel =
     fitClassTimetable ||
     fitClassRoster ||
     fitClassAttendance ||
     fitClassSubjects ||
-    fitClassSyllabus;
+    fitClassSyllabus ||
+    fitClassBoard;
 
   return (
     <>
@@ -290,13 +292,15 @@ export function InstituteDashboard({
                     fitAttendance={fitClassAttendance}
                     fitSubjects={fitClassSubjects}
                     fitSyllabus={fitClassSyllabus}
+                    fitClassBoard={fitClassBoard}
                   />
                   {showOwnerSetup &&
                     classesSectionTab !== "timetable" &&
                     classesSectionTab !== "roster" &&
                     classesSectionTab !== "subjects" &&
                     classesSectionTab !== "syllabus" &&
-                    classesSectionTab !== "attendance" && (
+                    classesSectionTab !== "attendance" &&
+                    classesSectionTab !== "class-board" && (
                     <p className="mt-6 text-sm text-muted-foreground">
                       To create sections, subjects, or map subjects to classes, use{" "}
                       <button
@@ -323,8 +327,8 @@ export function InstituteDashboard({
                 <TabsContent value="attendance" className="w-full">
                   <AttendanceTab instituteId={instituteId} branchId={selectedBranchId} />
                 </TabsContent>
-                <TabsContent value="daily-notes" className="w-full">
-                  <DailyNotesTab instituteId={instituteId} />
+                <TabsContent value="class-board" className="w-full">
+                  <ClassBoardTab instituteId={instituteId} />
                 </TabsContent>
                 <TabsContent value="timetable" className="w-full">
                   <ScheduleTab

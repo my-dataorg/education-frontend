@@ -52,6 +52,7 @@ export function ClassesBrowseTab({
   fitAttendance = false,
   fitSubjects = false,
   fitSyllabus = false,
+  fitClassBoard = false,
 }: {
   instituteId: string;
   sections: Section[];
@@ -63,11 +64,16 @@ export function ClassesBrowseTab({
   fitAttendance?: boolean;
   fitSubjects?: boolean;
   fitSyllabus?: boolean;
+  fitClassBoard?: boolean;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const urlSectionId = searchParams.get("sectionId");
-  const urlSectionTab = (searchParams.get("sectionTab") as SectionWorkspaceTab | null) || sectionWorkspaceTab || "overview";
+  const rawSectionTab = searchParams.get("sectionTab") as SectionWorkspaceTab | null;
+  const urlSectionTab =
+    rawSectionTab === "notes"
+      ? "class-board"
+      : rawSectionTab || sectionWorkspaceTab || "overview";
 
   const [sections, setSections] = useState<Section[]>(initialSections);
   const [selectedSectionId, setSelectedSectionId] = useState(
@@ -173,8 +179,15 @@ export function ClassesBrowseTab({
     fitSubjects && urlSectionTab === "subjects" && !!selectedSection && !!selectedOverview;
   const stretchSyllabus =
     fitSyllabus && urlSectionTab === "syllabus" && !!selectedSection && !!selectedOverview;
+  const stretchClassBoard =
+    fitClassBoard && urlSectionTab === "class-board" && !!selectedSection && !!selectedOverview;
   const stretchGrid =
-    stretchTimetable || stretchRoster || stretchAttendance || stretchSubjects || stretchSyllabus;
+    stretchTimetable ||
+    stretchRoster ||
+    stretchAttendance ||
+    stretchSubjects ||
+    stretchSyllabus ||
+    stretchClassBoard;
 
   return (
     <div
@@ -184,12 +197,20 @@ export function ClassesBrowseTab({
           : "mt-0 space-y-0 sm:mt-4 sm:space-y-4"
       }
     >
-      <div className="hidden shrink-0 md:flex md:flex-row md:items-start md:justify-between">
-        <div>
-          <h2 className="text-xl font-semibold">Classes</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {loadAllSections ? "All class sections in this institute." : "Your class sections."}
-          </p>
+      <div
+        className={`hidden shrink-0 md:flex md:flex-row md:items-center md:justify-between ${
+          stretchGrid ? "gap-2 py-0" : "md:items-start"
+        }`}
+      >
+        <div className={stretchGrid ? "min-w-0" : undefined}>
+          <h2 className={stretchGrid ? "text-lg font-semibold leading-tight" : "text-xl font-semibold"}>
+            Classes
+          </h2>
+          {!stretchGrid && (
+            <p className="mt-1 text-sm text-muted-foreground">
+              {loadAllSections ? "All class sections in this institute." : "Your class sections."}
+            </p>
+          )}
         </div>
         {sections.length > 0 && (
           <label className="flex w-full flex-col gap-1 sm:w-auto sm:min-w-[14rem] sm:items-end">
@@ -239,6 +260,7 @@ export function ClassesBrowseTab({
           fillAttendance={stretchAttendance}
           fillSubjects={stretchSubjects}
           fillSyllabus={stretchSyllabus}
+          fillClassBoard={stretchClassBoard}
         />
       ) : (
         selectedSection &&

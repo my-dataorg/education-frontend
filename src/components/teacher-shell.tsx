@@ -10,17 +10,24 @@ export function TeacherShell({
   activeTab,
   onTabChange,
   role,
+  fillMainContent = false,
   children,
 }: {
   activeTab: EducationNavId;
   onTabChange: (tab: EducationNavId) => void;
   role: string;
+  fillMainContent?: boolean;
   children: React.ReactNode;
 }) {
   const items = getEducationNavItems(role);
 
   return (
-    <EducationNavSidebar items={items} activeTab={activeTab} onTabChange={onTabChange}>
+    <EducationNavSidebar
+      items={items}
+      activeTab={activeTab}
+      onTabChange={onTabChange}
+      fillMainContent={fillMainContent}
+    >
       {children}
     </EducationNavSidebar>
   );

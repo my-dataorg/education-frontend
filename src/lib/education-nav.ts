@@ -18,7 +18,7 @@ export const EDUCATION_NAV_IDS = [
   "associates",
   "teachers-classes",
   "students-classes",
-  "daily-notes",
+  "class-board",
   "assignments",
   "messages",
   "class-teacher",
@@ -62,7 +62,7 @@ const LABELS: Record<EducationNavId, string> = {
   associates: "Associates",
   "teachers-classes": "Teachers in classes",
   "students-classes": "Students in classes",
-  "daily-notes": "Daily notes",
+  "class-board": "Class board",
   assignments: "Assignments",
   messages: "Messages",
   "class-teacher": "Class teacher",
@@ -78,7 +78,7 @@ const OWNER_ORDER: EducationNavId[] = [
   "calendar",
   "timetable",
   "attendance",
-  "daily-notes",
+  "class-board",
   "exams",
   "fees",
   "reports",
@@ -135,7 +135,7 @@ const ROLE_ORDER: Record<RoleKey, EducationNavId[]> = {
     "calendar",
     "timetable",
     "attendance",
-    "daily-notes",
+    "class-board",
     "exams",
     "fees",
     "reports",
@@ -189,6 +189,8 @@ const LEGACY_TAB_ALIASES: Record<string, EducationNavId | "enrollment-split"> = 
   results: "exams",
   home: "overview",
   academics: "exams",
+  "daily-notes": "class-board",
+  notes: "class-board",
 };
 
 /** Map legacy tab ids to the sidebar item that should appear selected. */
@@ -228,7 +230,7 @@ export function getEducationNavScope(role: string, tabId: EducationNavId): Educa
   if (key === "parent") return "children";
   if (key === "student") return "self";
   if (
-    ["classes", "teachers-classes", "attendance", "daily-notes", "assignments", "exams", "reports"].includes(
+    ["classes", "teachers-classes", "attendance", "class-board", "assignments", "exams", "reports"].includes(
       tabId
     )
   ) {

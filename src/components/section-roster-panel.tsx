@@ -174,7 +174,7 @@ export function SectionRosterPanel({
             Class teacher
           </label>
           <p className="mt-0.5 text-[11px] text-muted-foreground">
-            Assign subject teachers on the Subjects tab so they can post daily notes for {sectionLabel}.
+            Assign subject teachers on the Subjects tab so they can update the class board for {sectionLabel}.
           </p>
           <select
             id="class-teacher"

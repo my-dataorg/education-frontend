@@ -36,7 +36,7 @@ const NAV_ICONS: Record<EducationNavId, React.ComponentType<{ className?: string
   calendar: Megaphone,
   timetable: CalendarDays,
   attendance: CheckSquare,
-  "daily-notes": NotebookPen,
+  "class-board": NotebookPen,
   assignments: ClipboardList,
   exams: BookOpen,
   fees: WalletCards,
@@ -54,9 +54,18 @@ type Props = {
   tabHref?: (tab: EducationNavId) => string;
   /** Button-based nav (teacher / student / parent). */
   onTabChange?: (tab: EducationNavId) => void;
+  /** Use full viewport height; inner panels scroll (class board, timetable, etc.). */
+  fillMainContent?: boolean;
 };
 
-export function EducationNavSidebar({ items, activeTab, children, tabHref, onTabChange }: Props) {
+export function EducationNavSidebar({
+  items,
+  activeTab,
+  children,
+  tabHref,
+  onTabChange,
+  fillMainContent = false,
+}: Props) {
   const useLinks = Boolean(tabHref);
 
   function navButton(item: EducationNavItem, mobile = false) {
@@ -106,11 +115,25 @@ export function EducationNavSidebar({ items, activeTab, children, tabHref, onTab
           </nav>
         </div>
       </aside>
-      <main className="education-content min-h-0 min-w-0 w-full flex-1 overscroll-y-contain overflow-y-auto px-4 py-6 sm:px-6">
-        <div className="mb-5 flex gap-1 overflow-x-auto border-b border-border pb-1 md:hidden">
+      <main
+        className={cn(
+          "education-content min-h-0 min-w-0 w-full flex-1 px-3 sm:px-4",
+          fillMainContent
+            ? "flex flex-col overflow-hidden py-1 sm:py-2"
+            : "overscroll-y-contain overflow-y-auto py-3 sm:py-4"
+        )}
+      >
+        <div
+          className={cn(
+            "flex shrink-0 gap-1 overflow-x-auto border-b border-border pb-1 md:hidden",
+            fillMainContent ? "mb-2" : "mb-4"
+          )}
+        >
           {items.map((item) => navButton(item, true))}
         </div>
-        {children}
+        <div className={fillMainContent ? "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" : undefined}>
+          {children}
+        </div>
       </main>
     </div>
   );

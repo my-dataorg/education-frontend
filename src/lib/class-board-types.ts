@@ -1,19 +1,21 @@
-export type DailyNoteAttachment = {
+export type ClassBoardAttachment = {
   id: string;
   name: string;
   contentType: string;
   dataUrl: string;
 };
 
-export type DailyNoteSheet = {
+export type ClassBoardSheet = {
   id: string | null;
   subjectId: string;
   content: string;
   noteDate: string;
   teacherId?: string | null;
   drawingJson: string;
-  attachments: DailyNoteAttachment[];
+  attachments: ClassBoardAttachment[];
   editable: boolean;
+  instituteToday?: string;
+  publishedAt?: string | null;
 };
 
 export function todayIsoDate(): string {

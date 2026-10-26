@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { SectionDailyNotesPanel } from "@/components/section-daily-notes-panel";
+import { SectionClassBoardPanel } from "@/components/section-class-board-panel";
 import type { Section } from "@/lib/api";
 
 type Props = { instituteId: string };
 
-export function DailyNotesTab({ instituteId }: Props) {
+export function ClassBoardTab({ instituteId }: Props) {
   const [sections, setSections] = useState<Section[]>([]);
   const [sectionId, setSectionId] = useState("");
   const [error, setError] = useState("");
@@ -32,10 +32,10 @@ export function DailyNotesTab({ instituteId }: Props) {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold">Daily notes</h1>
+        <h1 className="text-2xl font-semibold">Class board</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Admins, principals, and students open a class below to view boards. Class teachers (or
-          today&apos;s substitute) edit from <strong>Classes → Daily notes</strong>.
+          Students, parents, and staff only see boards after the subject teacher submits them.
+          Teachers edit from <strong>Classes → Class board</strong> (draft saves locally; submit to share).
         </p>
       </div>
       {error && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
@@ -62,7 +62,12 @@ export function DailyNotesTab({ instituteId }: Props) {
           {loading || !sectionId ? (
             <p className="text-sm text-muted-foreground">Loading…</p>
           ) : (
-            <SectionDailyNotesPanel instituteId={instituteId} sectionId={sectionId} canEdit={false} />
+            <SectionClassBoardPanel
+              instituteId={instituteId}
+              sectionId={sectionId}
+              canEdit={false}
+              fillHeight
+            />
           )}
         </div>
       </div>

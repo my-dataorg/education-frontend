@@ -256,14 +256,17 @@ export function TimetableOwnerView({
       }
       setLoading(true);
       setError("");
+      const timetableState = canEdit ? "draft" : "published";
       const qs =
         activeView === "school"
-          ? queryString(campusId, { view: "school", state: "draft" })
-          : queryString(campusId, { view: activeView, id: activeId, state: "draft" });
+          ? queryString(campusId, { view: "school", state: timetableState })
+          : queryString(campusId, { view: activeView, id: activeId, state: timetableState });
       const timetableRes = await fetch(`/api/institutes/${instituteId}/timetable${qs}`);
-      const clashesRes = await fetch(
-        `/api/institutes/${instituteId}/timetable/clashes${campusId ? `?campus_id=${campusId}` : ""}`
-      );
+      const clashesRes = canEdit
+        ? await fetch(
+            `/api/institutes/${instituteId}/timetable/clashes${campusId ? `?campus_id=${campusId}` : ""}`
+          )
+        : null;
       const warningsRes = embedded
         ? null
         : await fetch(
@@ -287,7 +290,7 @@ export function TimetableOwnerView({
         payload.cells.map((cell) => cell.room).filter((room): room is string => Boolean(room?.trim()))
       );
       setRoomsUsedInTimetable([...roomSet].sort());
-      if (clashesRes.ok) {
+      if (clashesRes?.ok) {
         const clashPayload = await clashesRes.json();
         const items = (clashPayload.items ?? []) as Record<string, unknown>[];
         setClashes(
@@ -320,7 +323,7 @@ export function TimetableOwnerView({
       }
       setLoading(false);
     },
-    [campusId, embedded, instituteId]
+    [campusId, canEdit, embedded, instituteId]
   );
 
   useEffect(() => {
@@ -799,6 +802,18 @@ export function TimetableOwnerView({
           {clashCount} scheduling clash{clashCount === 1 ? "" : "es"} — fix before publishing.
         </p>
       )}
+
+      {embedded &&
+        !canEdit &&
+        timetable &&
+        !loading &&
+        !timetable.published_at &&
+        !timetable.cells.some((cell) => cell.subject_name) && (
+          <p className="mb-2 shrink-0 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            Timetable not published yet. Ask the institute owner to publish from{" "}
+            <strong>Timetable</strong> in the sidebar.
+          </p>
+        )}
 
       <div
         className={
