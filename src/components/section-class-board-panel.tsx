@@ -415,7 +415,9 @@ export function SectionClassBoardPanel({
         <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-hidden">
           <div
             ref={splitRef}
-            className="flex min-h-0 flex-1 flex-col md:min-h-[18rem] md:flex-row"
+            className={`flex min-h-0 flex-col gap-1 overflow-hidden md:min-h-[18rem] md:flex-row ${
+              fillHeight ? "flex-1" : "max-h-[min(70vh,40rem)] md:max-h-[min(75vh,36rem)]"
+            }`}
           >
             <div
               className="flex min-h-0 min-w-0 flex-col overflow-hidden"

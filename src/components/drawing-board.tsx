@@ -26,8 +26,10 @@ function parseStrokes(raw: string): Stroke[] {
 }
 
 const MIN_CANVAS_HEIGHT = 480;
+const MAX_CANVAS_HEIGHT = 6000;
 const CANVAS_GROW_PADDING = 120;
 const GRID_STEP = 24;
+const MAX_VIEWPORT_MEASURE = 720;
 
 function maxStrokeY(rows: Stroke[], extra?: Stroke | null): number {
   let maxY = 0;
@@ -69,9 +71,14 @@ export function DrawingBoard({ value, onChange, readOnly = false, className = ""
   const drawing = useRef(false);
   const currentStroke = useRef<Stroke | null>(null);
 
-  const padHeight = Math.max(MIN_CANVAS_HEIGHT, viewportHeight * padPages);
   const contentHeight = heightForContent(strokes, currentStroke.current);
-  const canvasHeight = Math.max(padHeight, contentHeight);
+  const padHeight = readOnly
+    ? Math.max(MIN_CANVAS_HEIGHT, contentHeight || MIN_CANVAS_HEIGHT)
+    : Math.max(MIN_CANVAS_HEIGHT, viewportHeight * padPages);
+  const canvasHeight = Math.min(
+    MAX_CANVAS_HEIGHT,
+    readOnly ? padHeight : Math.max(padHeight, contentHeight)
+  );
 
   const redraw = useCallback(
     (rows: Stroke[], width: number, height: number) => {
@@ -114,7 +121,11 @@ export function DrawingBoard({ value, onChange, readOnly = false, className = ""
     if (!scrollEl) return;
     const measure = () => {
       const w = Math.max(320, Math.floor(scrollEl.clientWidth));
-      const h = Math.max(280, Math.floor(scrollEl.clientHeight));
+      const rawH = Math.floor(scrollEl.clientHeight);
+      const h = Math.min(
+        MAX_VIEWPORT_MEASURE,
+        Math.max(280, rawH > 0 && rawH < 4000 ? rawH : MIN_CANVAS_HEIGHT)
+      );
       setCanvasWidth(w);
       setViewportHeight(h);
     };
@@ -242,8 +253,8 @@ export function DrawingBoard({ value, onChange, readOnly = false, className = ""
       >
         <canvas
           ref={canvasRef}
-          style={{ width: canvasWidth, height: canvasHeight }}
-          className={`block w-full touch-none shadow-sm ${readOnly ? "cursor-default" : "cursor-crosshair"}`}
+          style={{ width: "100%", height: "auto", maxWidth: "100%" }}
+          className={`block touch-none shadow-sm ${readOnly ? "cursor-default" : "cursor-crosshair"}`}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
