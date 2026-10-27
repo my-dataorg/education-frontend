@@ -16,9 +16,11 @@ export async function GET(
   const days = request.nextUrl.searchParams.get("days");
   const endDate = request.nextUrl.searchParams.get("endDate");
   const summaryPeriod = request.nextUrl.searchParams.get("summaryPeriod");
+  const subjectId = request.nextUrl.searchParams.get("subjectId");
   if (days) url.searchParams.set("days", days);
   if (endDate) url.searchParams.set("endDate", endDate);
   if (summaryPeriod) url.searchParams.set("summaryPeriod", summaryPeriod);
+  if (subjectId !== null) url.searchParams.set("subjectId", subjectId);
 
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${session.accessToken}` },

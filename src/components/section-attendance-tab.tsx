@@ -6,12 +6,17 @@ import { formatUserName } from "@/components/user-identity";
 import { SectionAttendanceStudentDialog } from "@/components/section-attendance-student-dialog";
 import type { Member } from "@/lib/api";
 
+type AttendanceRegister = { subjectId: string; label: string };
+
 type Sheet = {
   dates: string[];
   students: Member[];
   statusByStudent: Record<string, Record<string, string>>;
   totalsByStudent: Record<string, Totals>;
   totalsLabel: string;
+  instituteToday?: string;
+  subjectId?: string;
+  registers?: AttendanceRegister[];
   canEditPastAttendance?: boolean;
   canTakeAttendanceToday?: boolean;
   publishStateByDate?: Record<string, string>;
@@ -147,6 +152,7 @@ export function SectionAttendanceTab({
   fillHeight?: boolean;
 }) {
   const [totalsRange, setTotalsRange] = useState<TotalsRange>("academic_year");
+  const [subjectId, setSubjectId] = useState("");
   const [sheet, setSheet] = useState<Sheet | null>(null);
   const [error, setError] = useState("");
   const [gridOpen, setGridOpen] = useState(false);
@@ -159,6 +165,7 @@ export function SectionAttendanceTab({
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [totalsMenuOpen, setTotalsMenuOpen] = useState(false);
   const totalsMenuRef = useRef<HTMLDivElement>(null);
+  const instituteEndRef = useRef(localDateIso());
 
   useEffect(() => {
     if (!totalsMenuOpen) return;
@@ -176,7 +183,8 @@ export function SectionAttendanceTab({
     const params = new URLSearchParams({
       days: "7",
       summaryPeriod: totalsRange,
-      endDate: localDateIso(),
+      endDate: instituteEndRef.current,
+      subjectId,
     });
     fetch(`/api/sections/${sectionId}/attendance-sheet?${params}`, {
       credentials: "include",
@@ -186,9 +194,16 @@ export function SectionAttendanceTab({
         if (!res.ok) throw new Error("Could not load attendance");
         return res.json() as Promise<Sheet>;
       })
-      .then(setSheet)
+      .then((data) => {
+        if (data.instituteToday) instituteEndRef.current = data.instituteToday;
+        setSheet(data);
+        if (data.registers?.length) {
+          const allowed = new Set(data.registers.map((r) => r.subjectId));
+          if (!allowed.has(subjectId)) setSubjectId(data.registers[0]?.subjectId ?? "");
+        }
+      })
       .catch((e) => setError(e instanceof Error ? e.message : "Could not load attendance"));
-  }, [sectionId, totalsRange]);
+  }, [sectionId, totalsRange, subjectId]);
 
   const loadLeave = useCallback(() => {
     fetch(`/api/sections/${sectionId}/leave-requests?status=pending`, {
@@ -205,7 +220,7 @@ export function SectionAttendanceTab({
     loadLeave();
   }, [loadSheet, loadLeave]);
 
-  const todayIso = useMemo(() => localDateIso(), []);
+  const todayIso = sheet?.instituteToday ?? localDateIso();
 
   const draftDates = useMemo(() => {
     if (!sheet) return [] as string[];
@@ -273,9 +288,14 @@ export function SectionAttendanceTab({
         presentStudentIds,
         excusedStudentIds,
         publishState,
+        subjectId,
       }),
     });
-    if (!res.ok) throw new Error("Could not save attendance");
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      const detail = typeof body?.detail === "string" ? body.detail : "";
+      throw new Error(detail || "Could not save attendance");
+    }
   }
 
   async function saveGrid(publishState: PublishState) {
@@ -384,6 +404,22 @@ export function SectionAttendanceTab({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {(sheet.registers?.length ?? 0) > 1 && (
+            <label className="flex items-center gap-2 text-sm">
+              <span className="text-muted-foreground">Register</span>
+              <select
+                value={subjectId}
+                onChange={(e) => setSubjectId(e.target.value)}
+                className="rounded-lg border border-border bg-card px-2 py-1.5"
+              >
+                {sheet.registers!.map((row) => (
+                  <option key={row.subjectId || "class"} value={row.subjectId}>
+                    {row.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           {sheet.canTakeAttendanceToday && (
             <button
               type="button"
