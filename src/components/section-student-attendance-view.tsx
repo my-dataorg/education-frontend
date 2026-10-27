@@ -17,7 +17,7 @@ type MonthData = {
   subjectId?: string;
 };
 
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const WEEKDAYS = ["S", "M", "T", "W", "T", "F", "S"];
 
 function monthLabel(year: number, month: number) {
   return new Date(year, month - 1, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" });
@@ -31,13 +31,13 @@ function leaveOnDate(leaveRows: LeaveRow[], iso: string): LeaveRow | undefined {
   return leaveRows.find((row) => row.startDate <= iso && iso <= row.endDate);
 }
 
-function cellStyle(status: string | undefined, leaveStatus: string | undefined) {
-  if (leaveStatus === "pending") return "bg-sky-100 text-sky-900 ring-sky-300";
-  if (leaveStatus === "approved") return "bg-violet-100 text-violet-900 ring-violet-300";
-  if (status === "present" || status === "late") return "bg-emerald-100 text-emerald-900 ring-emerald-300";
-  if (status === "absent") return "bg-red-100 text-red-900 ring-red-300";
-  if (status === "excused") return "bg-orange-100 text-orange-950 ring-orange-400";
-  return "bg-muted/50 text-muted-foreground ring-border";
+function cellDotClass(status: string | undefined, leaveStatus: string | undefined) {
+  if (leaveStatus === "pending") return "bg-sky-500";
+  if (leaveStatus === "approved") return "bg-violet-500";
+  if (status === "present" || status === "late") return "bg-emerald-500";
+  if (status === "absent") return "bg-red-500";
+  if (status === "excused") return "bg-orange-500";
+  return "bg-transparent";
 }
 
 function statusLabel(status: string | undefined, leaveStatus: string | undefined) {
@@ -47,7 +47,7 @@ function statusLabel(status: string | undefined, leaveStatus: string | undefined
   if (status === "late") return "Late";
   if (status === "absent") return "Absent";
   if (status === "excused") return "Excused";
-  return "—";
+  return "No record";
 }
 
 function attendanceRate(summary: Record<string, number>): number | null {
@@ -58,6 +58,19 @@ function attendanceRate(summary: Record<string, number>): number | null {
   const marked = present + late + absent + excused;
   if (!marked) return null;
   return Math.round(((present + late) / marked) * 100);
+}
+
+function countLeaveDaysInMonth(leaveRows: LeaveRow[], year: number, month: number) {
+  const last = daysInMonth(year, month);
+  let approved = 0;
+  let pending = 0;
+  for (let day = 1; day <= last; day++) {
+    const iso = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    const leave = leaveOnDate(leaveRows, iso);
+    if (leave?.status === "approved") approved += 1;
+    if (leave?.status === "pending") pending += 1;
+  }
+  return { approved, pending };
 }
 
 export function SectionStudentAttendanceView({
@@ -75,6 +88,7 @@ export function SectionStudentAttendanceView({
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth() + 1);
   const [subjectId, setSubjectId] = useState("");
+  const [registers, setRegisters] = useState<AttendanceRegister[]>([]);
   const [data, setData] = useState<MonthData | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -105,6 +119,7 @@ export function SectionStudentAttendanceView({
       .then((payload) => {
         setData(payload);
         if (payload.registers?.length) {
+          setRegisters(payload.registers);
           const allowed = new Set(payload.registers.map((r) => r.subjectId));
           if (!allowed.has(subjectId)) setSubjectId(payload.registers[0]?.subjectId ?? "");
         }
@@ -134,25 +149,30 @@ export function SectionStudentAttendanceView({
 
   const summary = data?.summary ?? { present: 0, absent: 0, late: 0, excused: 0 };
   const rate = attendanceRate(summary);
+  const markedDays =
+    (summary.present ?? 0) + (summary.late ?? 0) + (summary.absent ?? 0) + (summary.excused ?? 0);
+  const leaveInMonth = countLeaveDaysInMonth(data?.leaveRequests ?? [], year, month);
+  const registerLabel =
+    registers.find((r) => r.subjectId === subjectId)?.label ?? "This register";
 
   return (
-    <div className="flex min-h-0 flex-col">
+    <div className="flex min-h-0 flex-col gap-3">
       {showIdentity && student && (
-        <div className="mb-3">
+        <div>
           <UserIdentity user={student} role="student" />
           <p className="mt-1 text-xs text-muted-foreground">Monthly attendance</p>
         </div>
       )}
 
-      {(data?.registers?.length ?? 0) > 1 && (
-        <label className="mb-2 flex items-center gap-2 text-sm">
-          <span className="text-muted-foreground">Subject / teacher</span>
+      {registers.length > 0 && (
+        <label className="flex flex-col gap-1 text-sm sm:flex-row sm:items-center sm:gap-3">
+          <span className="shrink-0 font-medium text-foreground">Subject / register</span>
           <select
             value={subjectId}
             onChange={(e) => setSubjectId(e.target.value)}
-            className="min-w-0 flex-1 rounded-lg border border-border bg-card px-2 py-1.5"
+            className="w-full min-w-0 rounded-lg border border-border bg-background px-3 py-2 text-sm shadow-sm sm:max-w-md"
           >
-            {data!.registers!.map((row) => (
+            {registers.map((row) => (
               <option key={row.subjectId || "class"} value={row.subjectId}>
                 {row.label}
               </option>
@@ -161,113 +181,135 @@ export function SectionStudentAttendanceView({
         </label>
       )}
 
-      <div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/20 px-2 py-1.5">
-        <button
-          type="button"
-          onClick={() => shiftMonth(-1)}
-          className="rounded-lg px-3 py-1.5 text-sm hover:bg-muted"
-        >
-          ← Prev
-        </button>
-        <span className="text-sm font-semibold">{monthLabel(year, month)}</span>
-        <button
-          type="button"
-          onClick={() => shiftMonth(1)}
-          className="rounded-lg px-3 py-1.5 text-sm hover:bg-muted"
-        >
-          Next →
-        </button>
-      </div>
+      {loading && <p className="text-sm text-muted-foreground">Loading…</p>}
+      {error && (
+        <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+      )}
 
-      <div className="mt-3 min-h-0 flex-1">
-        {loading && <p className="text-sm text-muted-foreground">Loading…</p>}
-        {error && (
-          <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
-        )}
-        {!loading && !error && data && (
-          <>
-            <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
-              {rate != null && (
-                <span className="rounded-full bg-primary/10 px-2.5 py-1 font-semibold text-primary ring-1 ring-primary/20">
-                  {rate}% present
-                </span>
-              )}
-              <StatChip label="Present" value={summary.present ?? 0} tone="emerald" />
-              <StatChip label="Absent" value={summary.absent ?? 0} tone="red" />
-              <StatChip label="Late" value={summary.late ?? 0} tone="emerald" />
-              <StatChip label="Excused" value={summary.excused ?? 0} tone="orange" />
+      {!loading && !error && data && (
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+          <div className="w-full shrink-0 lg:max-w-[17rem]">
+            <div className="rounded-xl border border-border bg-muted/15 p-2.5">
+              <div className="mb-2 flex items-center justify-between gap-1 text-xs">
+                <button
+                  type="button"
+                  onClick={() => shiftMonth(-1)}
+                  className="rounded-md px-2 py-1 font-medium hover:bg-muted"
+                >
+                  ←
+                </button>
+                <span className="font-semibold text-foreground">{monthLabel(year, month)}</span>
+                <button
+                  type="button"
+                  onClick={() => shiftMonth(1)}
+                  className="rounded-md px-2 py-1 font-medium hover:bg-muted"
+                >
+                  →
+                </button>
+              </div>
+              <div className="grid grid-cols-7 gap-0.5 text-center text-[9px] font-medium text-muted-foreground">
+                {WEEKDAYS.map((d, i) => (
+                  <div key={`${d}-${i}`} className="py-0.5">{d}</div>
+                ))}
+              </div>
+              <div className="mt-0.5 grid grid-cols-7 gap-0.5">
+                {cells.map((day, index) => {
+                  if (day === null) {
+                    return <div key={`pad-${index}`} className="h-7" />;
+                  }
+                  const iso = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                  const status = statusByDate[iso];
+                  const leave = leaveOnDate(data.leaveRequests ?? [], iso);
+                  const leaveStatus = leave?.status;
+                  const dot = cellDotClass(status, leaveStatus);
+                  const hasMark = dot !== "bg-transparent";
+                  return (
+                    <div
+                      key={iso}
+                      title={statusLabel(status, leaveStatus)}
+                      className="flex h-7 flex-col items-center justify-center rounded-md text-[10px] text-foreground"
+                    >
+                      <span className="leading-none">{day}</span>
+                      <span className={`mt-0.5 h-1.5 w-1.5 rounded-full ${dot} ${hasMark ? "" : "opacity-0"}`} />
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="mt-2 flex flex-wrap gap-x-2 gap-y-0.5 text-[9px] text-muted-foreground">
+                <LegendDot className="bg-emerald-500" label="Present" />
+                <LegendDot className="bg-red-500" label="Absent" />
+                <LegendDot className="bg-orange-500" label="Excused" />
+                <LegendDot className="bg-violet-500" label="Leave" />
+              </div>
             </div>
+          </div>
 
-            <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-medium text-muted-foreground">
-              {WEEKDAYS.map((d) => (
-                <div key={d} className="py-1">{d}</div>
-              ))}
-            </div>
-            <div className="grid grid-cols-7 gap-1">
-              {cells.map((day, index) => {
-                if (day === null) {
-                  return <div key={`pad-${index}`} className="aspect-square" />;
-                }
-                const iso = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-                const status = statusByDate[iso];
-                const leave = leaveOnDate(data.leaveRequests ?? [], iso);
-                const leaveStatus = leave?.status;
-                return (
-                  <div
-                    key={iso}
-                    title={statusLabel(status, leaveStatus)}
-                    className={`flex aspect-square flex-col items-center justify-center rounded-lg text-[11px] font-medium ring-1 ${cellStyle(status, leaveStatus)}`}
-                  >
-                    <span>{day}</span>
-                    {status === "late" && <span className="text-[9px] opacity-80">L</span>}
-                  </div>
-                );
-              })}
-            </div>
+          <div className="min-w-0 flex-1 rounded-xl border border-border bg-gradient-to-br from-card via-card to-primary/5 p-4 shadow-sm">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">This month</p>
+            <h3 className="mt-1 text-base font-semibold leading-snug text-foreground">{registerLabel}</h3>
+
+            {rate != null ? (
+              <p className="mt-3 text-3xl font-bold tabular-nums text-primary">{rate}%</p>
+            ) : (
+              <p className="mt-3 text-2xl font-semibold text-muted-foreground">—</p>
+            )}
+            <p className="text-sm text-muted-foreground">attendance rate (present + late)</p>
+
+            <ul className="mt-4 space-y-2 text-sm">
+              <SummaryLine label="Days with a record" value={markedDays} />
+              <SummaryLine label="Present" value={summary.present ?? 0} accent="text-emerald-700" />
+              <SummaryLine label="Late" value={summary.late ?? 0} accent="text-emerald-600" />
+              <SummaryLine label="Absent" value={summary.absent ?? 0} accent="text-red-700" />
+              <SummaryLine label="Excused" value={summary.excused ?? 0} accent="text-orange-700" />
+              <SummaryLine label="Leave days (approved)" value={leaveInMonth.approved} accent="text-violet-700" />
+              <SummaryLine label="Leave days (pending)" value={leaveInMonth.pending} accent="text-sky-700" />
+            </ul>
 
             {data.leaveRequests.length > 0 && (
-              <section className="mt-4 rounded-xl border border-border bg-muted/20 p-3">
-                <h4 className="text-sm font-semibold">Leave in this month</h4>
-                <ul className="mt-2 space-y-2 text-sm">
+              <div className="mt-4 border-t border-border pt-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Leave requests</p>
+                <ul className="mt-2 space-y-1.5 text-xs">
                   {data.leaveRequests.map((row) => (
-                    <li key={row.id} className="rounded-lg bg-card px-3 py-2 ring-1 ring-border">
-                      <div className="flex justify-between gap-2">
-                        <span className="font-medium capitalize">{row.status}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {row.startDate} → {row.endDate}
-                        </span>
-                      </div>
-                      {row.reason && <p className="mt-1 text-xs text-muted-foreground">{row.reason}</p>}
+                    <li key={row.id} className="flex justify-between gap-2 rounded-lg bg-muted/30 px-2 py-1.5">
+                      <span className="font-medium capitalize">{row.status}</span>
+                      <span className="text-muted-foreground">{row.startDate} → {row.endDate}</span>
                     </li>
                   ))}
                 </ul>
-              </section>
+              </div>
             )}
-          </>
-        )}
-      </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function StatChip({
+function LegendDot({ className, label }: { className: string; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span className={`h-1.5 w-1.5 rounded-full ${className}`} />
+      {label}
+    </span>
+  );
+}
+
+function SummaryLine({
   label,
   value,
-  tone,
+  accent,
 }: {
   label: string;
   value: number;
-  tone: "emerald" | "red" | "orange";
+  accent?: string;
 }) {
-  const styles =
-    tone === "red"
-      ? "bg-red-50 text-red-900 ring-red-200"
-      : tone === "orange"
-        ? "bg-orange-50 text-orange-900 ring-orange-300"
-        : "bg-emerald-50 text-emerald-900 ring-emerald-200";
   return (
-    <span className={`rounded-full px-2.5 py-1 font-medium ring-1 ${styles}`}>
-      {label}: {value}
-    </span>
+    <li className="flex items-center justify-between gap-3 border-b border-border/60 pb-2 last:border-0 last:pb-0">
+      <span className="flex items-center gap-2 text-muted-foreground">
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70" />
+        {label}
+      </span>
+      <span className={`font-semibold tabular-nums ${accent ?? "text-foreground"}`}>{value}</span>
+    </li>
   );
 }

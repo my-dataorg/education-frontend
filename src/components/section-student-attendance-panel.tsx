@@ -34,8 +34,7 @@ export function SectionStudentAttendancePanel({
       <header className="mb-3 shrink-0">
         <h2 className="text-lg font-semibold">My attendance</h2>
         <p className="mt-0.5 text-sm text-muted-foreground">
-          Read-only record for {sectionLabel}. Choose a subject to see each teacher&apos;s register.
-          Submitted days only (drafts are hidden).
+          {sectionLabel} · pick a subject or class register below. Only submitted days are shown.
         </p>
       </header>
 
