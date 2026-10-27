@@ -66,7 +66,8 @@ async function loadWorkspace(token: string) {
   const name = files[0] ?? "";
   let source = "";
   if (name) {
-    const fileRes = await fetch(`${API}/v1/lab/files/${encodeURIComponent(name)}`, {
+    const filePath = name.split("/").map(encodeURIComponent).join("/");
+    const fileRes = await fetch(`${API}/v1/lab/files/${filePath}`, {
       headers,
       cache: "no-store",
     });

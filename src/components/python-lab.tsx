@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FileCode2, FolderOpen, Play, Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, FileCode2, Folder, FolderOpen, Play, Plus } from "lucide-react";
 
 type RunResult = {
   stdout: string;
@@ -21,10 +21,16 @@ type Library = {
 type Browse = {
   path: string;
   parent: string | null;
+  home: string;
   dirs: string[];
   venvs: string[];
   files: string[];
   isVenv: boolean;
+};
+
+type DirListing = {
+  dirs: string[];
+  files: string[];
 };
 
 type Props = {
@@ -78,19 +84,20 @@ export function PythonLab({
   const [packageName, setPackageName] = useState("");
   const [installing, setInstalling] = useState(false);
   const [messageText, setMessageText] = useState("");
+  const [treeRefresh, setTreeRefresh] = useState(0);
 
   const lineCount = Math.max(source.split("\n").length, 1);
 
   async function openFile(next: string) {
     if (next === name) return;
     if (name) {
-      await fetch(`/api/lab/files/${encodeURIComponent(name)}`, {
+      await fetch(labFileUrl(name), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ source }),
       });
     }
-    const res = await fetch(`/api/lab/files/${encodeURIComponent(next)}`);
+    const res = await fetch(labFileUrl(next));
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       setMessageText(readMessage(data, "Could not open the file"));
@@ -112,6 +119,7 @@ export function PythonLab({
     setBrowser({
       path: String(data.path ?? ""),
       parent: typeof data.parent === "string" ? data.parent : null,
+      home: String(data.home ?? ""),
       dirs: Array.isArray(data.dirs) ? data.dirs : [],
       venvs: Array.isArray(data.venvs) ? data.venvs : [],
       files: Array.isArray(data.files) ? data.files : [],
@@ -124,7 +132,11 @@ export function PythonLab({
     setChanging(false);
     setDialog(mode);
     const start =
-      mode === "venv-parent" ? createVenvDraft?.parent || folder : folder;
+      mode === "folder"
+        ? ""
+        : mode === "venv-parent"
+          ? createVenvDraft?.parent || folder
+          : folder;
     void loadBrowse(start);
   }
 
@@ -142,6 +154,7 @@ export function PythonLab({
     setVenvName(String(data.venv ?? ""));
     setFolderVenvs(Array.isArray(data.venvs) ? data.venvs.filter((item) => typeof item === "string") : []);
     setFiles(nextFiles);
+    setTreeRefresh((count) => count + 1);
     setDialog(null);
     setBrowser(null);
     setOpening(false);
@@ -152,7 +165,7 @@ export function PythonLab({
         setName("");
         setSource("");
       } else {
-        const fileRes = await fetch(`/api/lab/files/${encodeURIComponent(nextName)}`);
+        const fileRes = await fetch(labFileUrl(nextName));
         const file = await fileRes.json().catch(() => ({}));
         if (fileRes.ok) {
           setName(typeof file.name === "string" ? file.name : nextName);
@@ -170,7 +183,7 @@ export function PythonLab({
     setArrived("");
   }
 
-  async function openFolder(path: string) {
+  async function openFolder(path: string, fileToOpen?: string) {
     setOpening(true);
     setMessageText("");
     const res = await fetch("/api/lab/open", {
@@ -185,6 +198,14 @@ export function PythonLab({
       return;
     }
     await applyWorkspace(data, false);
+    if (fileToOpen) {
+      const fileRes = await fetch(labFileUrl(fileToOpen));
+      const file = await fileRes.json().catch(() => ({}));
+      if (fileRes.ok) {
+        setName(typeof file.name === "string" ? file.name : fileToOpen);
+        setSource(typeof file.source === "string" ? file.source : "");
+      }
+    }
   }
 
   async function chooseVenv(path: string) {
@@ -228,7 +249,7 @@ export function PythonLab({
     event.preventDefault();
     const fileName = newName.trim().endsWith(".py") ? newName.trim() : `${newName.trim()}.py`;
     if (fileName === ".py") return;
-    const res = await fetch(`/api/lab/files/${encodeURIComponent(fileName)}`, {
+    const res = await fetch(labFileUrl(fileName), {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ source: "" }),
@@ -243,6 +264,7 @@ export function PythonLab({
     setSource("");
     setNewName("");
     setMessageText("");
+    setTreeRefresh((count) => count + 1);
   }
 
   async function run() {
@@ -401,7 +423,7 @@ export function PythonLab({
       )}
 
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <aside className="flex max-h-64 shrink-0 flex-col border-b border-border bg-card md:max-h-none md:w-64 md:border-b-0 md:border-r">
+        <aside className="flex max-h-64 shrink-0 flex-col border-b border-border bg-card md:max-h-none md:w-72 md:border-b-0 md:border-r">
           <form
             onSubmit={createFile}
             className="flex items-center gap-2 border-b border-border px-2 py-2"
@@ -412,7 +434,7 @@ export function PythonLab({
             <input
               value={newName}
               onChange={(event) => setNewName(event.target.value)}
-              placeholder="new.py"
+              placeholder="path/new.py"
               aria-label="New file name"
               className="min-w-0 flex-1 rounded-lg border border-border bg-background px-2 py-1 font-mono text-xs"
             />
@@ -424,15 +446,20 @@ export function PythonLab({
               <Plus className="h-3.5 w-3.5" />
             </button>
           </form>
-          <PythonFileList files={files} name={name} onOpen={openFile} />
+          <FileExplorerTree
+            key={`${folder}-${treeRefresh}`}
+            workspaceRoot={folder}
+            activeFile={name}
+            onOpen={openFile}
+          />
         </aside>
 
         <section className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <div className="flex min-h-0 flex-[2] bg-card">
+          <div className="flex min-h-0 flex-[2] bg-card p-2">
             <pre
               ref={gutterRef}
               aria-hidden
-              className="w-12 shrink-0 overflow-hidden border-r border-border bg-muted/50 py-4 pr-3 text-right font-mono text-sm leading-6 text-muted-foreground/80"
+              className="w-12 shrink-0 overflow-hidden border-r border-border bg-muted/50 py-3 pl-1.5 pr-2.5 text-right font-mono text-sm leading-6 text-muted-foreground/80"
             >
               {Array.from({ length: lineCount }, (_, index) => String(index + 1)).join("\n")}
             </pre>
@@ -446,16 +473,16 @@ export function PythonLab({
               spellCheck={false}
               disabled={!name || running}
               aria-label="Python program"
-              className="min-h-0 w-full flex-1 resize-none bg-card py-4 pl-4 pr-4 font-mono text-sm leading-6 text-foreground outline-none disabled:opacity-60"
+              className="min-h-0 w-full flex-1 resize-none bg-card py-3 pl-3 pr-3 font-mono text-sm leading-6 text-foreground outline-none disabled:opacity-60"
             />
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-t border-shell bg-shell text-shell-foreground">
-            <div className="flex shrink-0 items-center justify-between px-4 py-2 text-xs">
+            <div className="flex shrink-0 items-center justify-between px-3 py-2 text-xs">
               <span className="font-medium tracking-wide">Output</span>
               <span className={statusClass(running || live, result)}>{statusLabel(running || live, result)}</span>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-10">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-2 pb-6">
               <pre className="whitespace-pre-wrap font-mono text-sm leading-6 text-shell-foreground/90">
                 {output || "Run a program to see output here."}
               </pre>
@@ -517,7 +544,7 @@ export function PythonLab({
             setDialog(null);
             setBrowser(null);
           }}
-          onOpenFolder={() => void openFolder(browser.path)}
+          onOpenFolder={(path, file) => void openFolder(path, file)}
           onUseVenv={(path) => void chooseVenv(path)}
           onSelectParent={(path) => {
             setCreateVenvDraft((current) => current && { ...current, parent: path });
@@ -530,36 +557,132 @@ export function PythonLab({
   );
 }
 
-function PythonFileList({
-  files,
-  name,
+function FileExplorerTree({
+  workspaceRoot,
+  activeFile,
   onOpen,
 }: {
-  files: string[];
-  name: string;
-  onOpen: (next: string) => void;
+  workspaceRoot: string;
+  activeFile: string;
+  onOpen: (rel: string) => void;
 }) {
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  const [entries, setEntries] = useState<Map<string, DirListing>>(new Map());
+
+  async function loadDir(rel: string) {
+    const abs = rel ? `${workspaceRoot}/${rel}` : workspaceRoot;
+    const res = await fetch(`/api/lab/browse?path=${encodeURIComponent(abs)}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return;
+    const venvs: string[] = Array.isArray(data.venvs) ? data.venvs : [];
+    const dirs: string[] = (Array.isArray(data.dirs) ? data.dirs : []).filter(
+      (dir: string) => dir !== ".venv" && !venvs.includes(dir)
+    );
+    const files: string[] = Array.isArray(data.files) ? data.files : [];
+    setEntries((current) => new Map(current).set(rel, { dirs, files }));
+  }
+
+  useEffect(() => {
+    setExpanded(new Set());
+    setEntries(new Map());
+    void loadDir("");
+  }, [workspaceRoot]);
+
+  useEffect(() => {
+    if (!activeFile.includes("/")) return;
+    const parts = activeFile.split("/");
+    const prefixes: string[] = [];
+    for (let index = 0; index < parts.length - 1; index += 1) {
+      prefixes.push(parts.slice(0, index + 1).join("/"));
+    }
+    if (prefixes.length === 0) return;
+    setExpanded((current) => {
+      const next = new Set(current);
+      for (const rel of prefixes) next.add(rel);
+      return next;
+    });
+    for (const rel of prefixes) void loadDir(rel);
+  }, [activeFile, workspaceRoot]);
+
+  function toggleDir(rel: string) {
+    const opening = !expanded.has(rel);
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (next.has(rel)) next.delete(rel);
+      else next.add(rel);
+      return next;
+    });
+    if (opening && !entries.has(rel)) void loadDir(rel);
+  }
+
+  function renderFileRow(fileRel: string, depth: number) {
+    const file = fileRel.split("/").pop() || fileRel;
+    const active = fileRel === activeFile;
+    return (
+      <li key={fileRel}>
+        <button
+          type="button"
+          onClick={() => onOpen(fileRel)}
+          className={`flex w-full items-center gap-1.5 rounded-lg py-1 pr-2 text-left font-mono text-xs ${
+            active
+              ? "bg-muted font-medium text-foreground"
+              : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+          }`}
+          style={{ paddingLeft: `${depth * 12 + 20}px` }}
+        >
+          <FileCode2 className={`h-3.5 w-3.5 shrink-0 ${active ? "text-primary" : ""}`} />
+          <span className="truncate">{file}</span>
+        </button>
+      </li>
+    );
+  }
+
+  function renderFolder(rel: string, name: string, depth: number) {
+    const listing = entries.get(rel);
+    const open = expanded.has(rel);
+    return (
+      <li key={rel}>
+        <button
+          type="button"
+          onClick={() => toggleDir(rel)}
+          className="flex w-full items-center gap-1 rounded-lg py-1 pr-2 text-left text-sm hover:bg-muted/60"
+          style={{ paddingLeft: `${depth * 12 + 8}px` }}
+        >
+          {open ? (
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          )}
+          <Folder className="h-3.5 w-3.5 shrink-0 text-primary" />
+          <span className="truncate font-mono text-xs">{name}</span>
+        </button>
+        {open && (
+          <ul>
+            {!listing ? (
+              <li className="px-3 py-1 text-xs text-muted-foreground" style={{ paddingLeft: `${(depth + 1) * 12 + 8}px` }}>
+                Loading…
+              </li>
+            ) : (
+              <>
+                {listing.files.map((file) => renderFileRow(rel ? `${rel}/${file}` : file, depth + 1))}
+                {listing.dirs.map((dir) => renderFolder(rel ? `${rel}/${dir}` : dir, dir, depth + 1))}
+              </>
+            )}
+          </ul>
+        )}
+      </li>
+    );
+  }
+
+  const root = entries.get("");
+  if (!root) {
+    return <p className="px-3 py-2 text-xs text-muted-foreground">Loading…</p>;
+  }
+
   return (
-    <ul className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2">
-      {files.map((file) => {
-        const active = file === name;
-        return (
-          <li key={file}>
-            <button
-              type="button"
-              onClick={() => onOpen(file)}
-              className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left font-mono text-sm ${
-                active
-                  ? "bg-muted font-medium text-foreground"
-                  : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-              }`}
-            >
-              <FileCode2 className={`h-3.5 w-3.5 shrink-0 ${active ? "text-primary" : ""}`} />
-              <span className="truncate">{file}</span>
-            </button>
-          </li>
-        );
-      })}
+    <ul className="min-h-0 flex-1 overflow-y-auto py-1">
+      {root.files.map((file) => renderFileRow(file, 0))}
+      {root.dirs.map((dir) => renderFolder(dir, dir, 0))}
     </ul>
   );
 }
@@ -812,6 +935,20 @@ function EnvironmentPrompt({
   );
 }
 
+type PickerSelection =
+  | { kind: "folder"; path: string }
+  | { kind: "file"; rel: string }
+  | { kind: "venv"; path: string };
+
+function joinBrowserPath(base: string, name: string) {
+  return `${base.replace(/\/$/, "")}/${name}`;
+}
+
+function folderLabel(path: string) {
+  const parts = path.split("/").filter(Boolean);
+  return parts[parts.length - 1] || path;
+}
+
 function FolderDialog({
   mode,
   browser,
@@ -827,11 +964,83 @@ function FolderDialog({
   opening: boolean;
   onBrowse: (path: string) => void;
   onCancel: () => void;
-  onOpenFolder: () => void;
+  onOpenFolder: (path: string, file?: string) => void;
   onUseVenv: (path: string) => void;
   onSelectParent: (path: string) => void;
 }) {
+  const [pathDraft, setPathDraft] = useState(browser.path);
+  const [selected, setSelected] = useState<PickerSelection | null>(null);
+
+  useEffect(() => {
+    setPathDraft(browser.path);
+    setSelected(null);
+  }, [browser.path]);
+
   const fileCount = browser.files.length;
+  const folderMode = mode === "folder";
+  const canUseFolder = folderMode && !browser.isVenv;
+
+  function goToPath() {
+    const next = pathDraft.trim();
+    if (next) onBrowse(next);
+  }
+
+  function rowClass(active: boolean) {
+    return `flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm ${
+      active ? "bg-primary/15 ring-1 ring-primary/30" : "hover:bg-muted"
+    }`;
+  }
+
+  function confirmFolder() {
+    if (selected?.kind === "file") {
+      onOpenFolder(browser.path, selected.rel);
+      return;
+    }
+    if (selected?.kind === "folder") {
+      onOpenFolder(selected.path);
+      return;
+    }
+    if (browser.isVenv && browser.parent) {
+      onOpenFolder(browser.parent);
+      return;
+    }
+    onOpenFolder(pathDraft.trim() || browser.path);
+  }
+
+  function confirmVenvParent() {
+    if (selected?.kind === "folder") {
+      onSelectParent(selected.path);
+      return;
+    }
+    if (browser.isVenv && browser.parent) {
+      onSelectParent(browser.parent);
+      return;
+    }
+    onSelectParent(pathDraft.trim() || browser.path);
+  }
+
+  function confirmVenv() {
+    if (selected?.kind === "venv") {
+      onUseVenv(selected.path);
+      return;
+    }
+    if (browser.isVenv) {
+      onUseVenv(browser.path);
+      return;
+    }
+    const path = pathDraft.trim();
+    if (path) onBrowse(path);
+  }
+
+  const primaryLabel =
+    folderMode && selected?.kind === "file"
+      ? "Open file"
+      : folderMode
+        ? "Use this folder"
+        : mode === "venv"
+          ? "Use this environment"
+          : "Use this folder";
+
   return (
     <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4">
       <div
@@ -839,17 +1048,17 @@ function FolderDialog({
         aria-modal="true"
         aria-label={
           mode === "folder"
-            ? "Change folder"
+            ? "Choose project folder"
             : mode === "venv-parent"
               ? "Choose folder for environment"
               : "Choose environment"
         }
-        className="flex max-h-[70vh] w-full max-w-md flex-col rounded-xl border border-border bg-card shadow-lg"
+        className="flex max-h-[70vh] w-full max-w-lg flex-col rounded-xl border border-border bg-card shadow-lg"
       >
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <h2 className="font-serif text-lg font-semibold">
             {mode === "folder"
-              ? "Change folder"
+              ? "Choose project folder"
               : mode === "venv-parent"
                 ? "Where to create the environment"
                 : "Choose environment"}
@@ -858,99 +1067,241 @@ function FolderDialog({
             Cancel
           </button>
         </div>
-        <p className="break-all px-4 py-2 font-mono text-[11px] leading-snug text-muted-foreground" title={browser.path}>
-          {browser.path}
+        <p className="border-b border-border px-4 py-2 text-xs text-muted-foreground">
+          {folderMode
+            ? "Single-click to select. Double-click a folder to go inside. Empty folders are fine."
+            : "Single-click to select. Double-click a folder to go inside."}
         </p>
-        {browser.isVenv ? (
-          <p className="px-4 py-6 text-sm text-muted-foreground">This folder is a Python environment.</p>
+        <div className="space-y-2 border-b border-border px-4 py-3">
+          <label className="text-xs font-medium text-muted-foreground">Folder path</label>
+          <div className="flex gap-2">
+            <input
+              value={pathDraft}
+              onChange={(event) => setPathDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  goToPath();
+                }
+              }}
+              className="min-w-0 flex-1 rounded-lg border border-border bg-background px-2 py-1.5 font-mono text-xs"
+              aria-label="Folder path"
+            />
+            <button
+              type="button"
+              onClick={goToPath}
+              className="shrink-0 rounded-lg border border-border px-2.5 py-1.5 text-xs hover:bg-muted"
+            >
+              Go
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {browser.home && (
+              <button
+                type="button"
+                onClick={() => onBrowse(browser.home)}
+                className="rounded-lg border border-border px-2 py-0.5 text-[11px] hover:bg-muted"
+              >
+                Home
+              </button>
+            )}
+            <button
+              type="button"
+              disabled={!browser.parent}
+              onClick={() => browser.parent && onBrowse(browser.parent)}
+              className="rounded-lg border border-border px-2 py-0.5 text-[11px] hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Parent folder
+            </button>
+          </div>
+        </div>
+        {browser.isVenv && folderMode ? (
+          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-2 py-2">
+            <p className="px-2 text-sm text-muted-foreground">
+              This is an environment folder. Select the parent project folder or go up.
+            </p>
+            <ul className="space-y-0.5">
+              {browser.parent && (
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => setSelected({ kind: "folder", path: browser.parent! })}
+                    onDoubleClick={() => onBrowse(browser.parent || "")}
+                    className={rowClass(selected?.kind === "folder" && selected.path === browser.parent)}
+                  >
+                    <FolderOpen className="h-3.5 w-3.5 shrink-0" />
+                    <span className="font-mono">..</span>
+                    <span className="text-xs text-muted-foreground">parent folder</span>
+                  </button>
+                </li>
+              )}
+            </ul>
+          </div>
         ) : (
-          <ul className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 pb-2">
+          <ul className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 py-2">
+            {browser.isVenv && mode === "venv" && (
+              <li>
+                <button
+                  type="button"
+                  onClick={() => setSelected({ kind: "venv", path: browser.path })}
+                  className={rowClass(selected?.kind === "venv" && selected.path === browser.path)}
+                >
+                  <FolderOpen className="h-3.5 w-3.5 shrink-0 text-primary" />
+                  <span className="truncate font-mono">{folderLabel(browser.path)}</span>
+                  <span className="ml-auto text-xs text-muted-foreground">this environment</span>
+                </button>
+              </li>
+            )}
             {browser.parent && (
               <li>
                 <button
                   type="button"
-                  onClick={() => onBrowse(browser.parent || "")}
-                  className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-muted-foreground hover:bg-muted"
+                  onClick={() => setSelected({ kind: "folder", path: browser.parent! })}
+                  onDoubleClick={() => onBrowse(browser.parent || "")}
+                  className={rowClass(selected?.kind === "folder" && selected.path === browser.parent)}
                 >
-                  <FolderOpen className="h-3.5 w-3.5 shrink-0" />
-                  ..
+                  <FolderOpen className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <span className="font-mono">..</span>
+                  <span className="text-xs text-muted-foreground">parent folder</span>
                 </button>
               </li>
             )}
-            {browser.dirs.map((dir) => (
-              <li key={dir}>
+            {(folderMode || mode === "venv-parent") && !browser.isVenv && (
+              <li>
                 <button
                   type="button"
-                  onClick={() => onBrowse(`${browser.path}/${dir}`)}
-                  className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-muted"
+                  onClick={() => setSelected({ kind: "folder", path: browser.path })}
+                  className={rowClass(selected?.kind === "folder" && selected.path === browser.path)}
                 >
-                  <FolderOpen className="h-3.5 w-3.5 shrink-0 text-primary" />
-                  <span className="truncate">{dir}</span>
+                  <Folder className="h-3.5 w-3.5 shrink-0 text-primary" />
+                  <span className="truncate font-mono text-xs">{folderLabel(browser.path)}</span>
+                  <span className="ml-auto text-xs text-muted-foreground">this folder</span>
                 </button>
               </li>
-            ))}
-            {browser.venvs.map((item) => (
-              <li key={item}>
-                <button
-                  type="button"
-                  onClick={() =>
-                    mode === "venv"
-                      ? onUseVenv(`${browser.path}/${item}`)
-                      : onBrowse(`${browser.path}/${item}`)
-                  }
-                  className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-sm hover:bg-muted"
+            )}
+            {browser.dirs.map((dir) => {
+              const full = joinBrowserPath(browser.path, dir);
+              return (
+                <li key={dir}>
+                  <button
+                    type="button"
+                    onClick={() => setSelected({ kind: "folder", path: full })}
+                    onDoubleClick={() => onBrowse(full)}
+                    className={rowClass(selected?.kind === "folder" && selected.path === full)}
+                  >
+                    <FolderOpen className="h-3.5 w-3.5 shrink-0 text-primary" />
+                    <span className="truncate">{dir}</span>
+                  </button>
+                </li>
+              );
+            })}
+            {browser.venvs.map((item) => {
+              const full = joinBrowserPath(browser.path, item);
+              const active = selected?.kind === "venv" && selected.path === full;
+              if (mode === "venv") {
+                return (
+                  <li key={item}>
+                    <button
+                      type="button"
+                      onClick={() => setSelected({ kind: "venv", path: full })}
+                      onDoubleClick={() => onUseVenv(full)}
+                      className={rowClass(active)}
+                    >
+                      <FolderOpen className="h-3.5 w-3.5 shrink-0 text-primary" />
+                      <span className="truncate font-mono">{item}</span>
+                      <span className="ml-auto text-[10px] uppercase tracking-wide text-muted-foreground">venv</span>
+                    </button>
+                  </li>
+                );
+              }
+              return (
+                <li
+                  key={item}
+                  className="flex items-center justify-between rounded-lg px-2 py-1.5 text-sm text-muted-foreground"
                 >
                   <span className="flex min-w-0 items-center gap-2">
-                    <FolderOpen className="h-3.5 w-3.5 shrink-0 text-primary" />
+                    <FolderOpen className="h-3.5 w-3.5 shrink-0 opacity-60" />
                     <span className="truncate font-mono">{item}</span>
                   </span>
-                  {mode === "venv" && <span className="shrink-0 text-xs text-primary">Use</span>}
-                </button>
-              </li>
-            ))}
+                  <span className="shrink-0 text-[10px] uppercase tracking-wide">venv</span>
+                </li>
+              );
+            })}
+            {folderMode &&
+              browser.files.map((file) => (
+                <li key={file}>
+                  <button
+                    type="button"
+                    onClick={() => setSelected({ kind: "file", rel: file })}
+                    onDoubleClick={() => onOpenFolder(browser.path, file)}
+                    className={rowClass(selected?.kind === "file" && selected.rel === file)}
+                  >
+                    <FileCode2 className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate font-mono text-xs">{file}</span>
+                  </button>
+                </li>
+              ))}
           </ul>
         )}
         <div className="space-y-2 border-t border-border p-3">
-          {mode === "folder" && (
+          {folderMode && (
             <>
               <p className="px-1 text-[11px] text-muted-foreground">
-                {fileCount === 0 ? "No Python files" : `${fileCount} Python file${fileCount === 1 ? "" : "s"}`}
-                {browser.venvs.length > 0 ? ` · ${browser.venvs.join(", ")}` : ""}
+                {selected
+                  ? selected.kind === "file"
+                    ? `Selected file: ${selected.rel}`
+                    : `Selected folder: ${selected.path}`
+                  : canUseFolder
+                    ? fileCount === 0
+                      ? "No selection — the path above will be used."
+                      : `${fileCount} Python file${fileCount === 1 ? "" : "s"} in this folder`
+                    : "Choose a project folder, not a venv."}
               </p>
-              {fileCount > 0 && (
-                <p className="truncate px-1 font-mono text-[11px] text-muted-foreground" title={browser.files.join(", ")}>
-                  {browser.files.slice(0, 3).join(", ")}
-                </p>
-              )}
               <button
                 type="button"
-                disabled={opening}
-                onClick={onOpenFolder}
+                disabled={opening || (!canUseFolder && !browser.parent)}
+                onClick={confirmFolder}
                 className="w-full rounded-lg bg-primary px-2.5 py-1.5 text-sm text-primary-foreground disabled:opacity-50"
               >
-                {opening ? "Opening…" : "Open folder"}
+                {opening ? "Opening…" : primaryLabel}
               </button>
             </>
           )}
           {mode === "venv-parent" && (
-            <button
-              type="button"
-              disabled={opening || browser.isVenv}
-              onClick={() => onSelectParent(browser.path)}
-              className="w-full rounded-lg bg-primary px-2.5 py-1.5 text-sm text-primary-foreground disabled:opacity-50"
-            >
-              Use this folder
-            </button>
+            <>
+              <p className="px-1 text-[11px] text-muted-foreground">
+                {selected?.kind === "folder"
+                  ? `Selected folder: ${selected.path}`
+                  : "No selection — the path above will be used."}
+              </p>
+              <button
+                type="button"
+                disabled={opening || browser.isVenv}
+                onClick={confirmVenvParent}
+                className="w-full rounded-lg bg-primary px-2.5 py-1.5 text-sm text-primary-foreground disabled:opacity-50"
+              >
+                {opening ? "Working…" : primaryLabel}
+              </button>
+            </>
           )}
           {mode === "venv" && (
-            <button
-              type="button"
-              disabled={opening || !browser.isVenv}
-              onClick={() => onUseVenv(browser.path)}
-              className="w-full rounded-lg bg-primary px-2.5 py-1.5 text-sm text-primary-foreground disabled:opacity-50"
-            >
-              {opening ? "Opening…" : "Use this environment"}
-            </button>
+            <>
+              <p className="px-1 text-[11px] text-muted-foreground">
+                {selected?.kind === "venv"
+                  ? `Selected environment: ${selected.path}`
+                  : browser.isVenv
+                    ? "Current folder is an environment."
+                    : "Select a venv folder or browse to one."}
+              </p>
+              <button
+                type="button"
+                disabled={opening || (!browser.isVenv && selected?.kind !== "venv")}
+                onClick={confirmVenv}
+                className="w-full rounded-lg bg-primary px-2.5 py-1.5 text-sm text-primary-foreground disabled:opacity-50"
+              >
+                {opening ? "Opening…" : primaryLabel}
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -970,6 +1321,10 @@ function statusClass(running: boolean, result: RunResult | null) {
   if (result?.timedOut || result?.exitCode) return "text-red-300";
   if (result && !running) return "text-emerald-300";
   return "text-shell-foreground/70";
+}
+
+function labFileUrl(relPath: string) {
+  return `/api/lab/files/${relPath.split("/").map(encodeURIComponent).join("/")}`;
 }
 
 function resolveVenvPath(projectFolder: string, venv: string) {

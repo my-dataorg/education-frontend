@@ -3,12 +3,16 @@ import { NextRequest, NextResponse } from "next/server";
 
 const API = process.env.EDUCATION_API_URL || "http://localhost:8010";
 
-async function forward(name: string, init: RequestInit) {
+function apiPath(segments: string[]) {
+  return segments.map((part) => encodeURIComponent(part)).join("/");
+}
+
+async function forward(segments: string[], init: RequestInit) {
   const session = await auth();
   if (!session?.accessToken) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const res = await fetch(`${API}/v1/lab/files/${encodeURIComponent(name)}`, {
+  const res = await fetch(`${API}/v1/lab/files/${apiPath(segments)}`, {
     ...init,
     headers: {
       Authorization: `Bearer ${session.accessToken}`,
@@ -21,19 +25,19 @@ async function forward(name: string, init: RequestInit) {
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: Promise<{ name: string }> }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  const { name } = await params;
-  return forward(name, { method: "GET" });
+  const { path } = await params;
+  return forward(path, { method: "GET" });
 }
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: Promise<{ name: string }> }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  const { name } = await params;
+  const { path } = await params;
   const body = await req.json();
-  return forward(name, {
+  return forward(path, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ source: body.source ?? "" }),

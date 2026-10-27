@@ -4,17 +4,14 @@ import { fetchPendingJoinRequests } from "@/lib/fetch-join-requests";
 import { fetchPendingInvitations } from "@/lib/fetch-invitations";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { BookOpen, Building2, KeyRound, Plus, Terminal } from "lucide-react";
 import { EduNavGate } from "@/components/edu-nav-gate";
-import { InstituteActionsBar } from "@/components/institute-actions-bar";
+import { PageHeader } from "@/components/shell/page-header";
 import { InvitationsList } from "@/components/invitations-list";
-import { ModuleCard } from "@/components/shell/module-card";
+import { EducationDashboard } from "@/components/education-dashboard";
 import { isSubscriptionError } from "@/components/subscription-required";
-import { CreateInstituteModule } from "@/components/create-institute-module";
 import { isInvalidSessionError } from "@/lib/auth-errors";
 import { reauthAfterInvalidSession } from "@/lib/auth-actions";
 import { cookies } from "next/headers";
-import { ROLE_LABELS } from "@/lib/roles";
 
 export default async function InstitutesPage({
   searchParams,
@@ -50,13 +47,9 @@ export default async function InstitutesPage({
     <>
       <EduNavGate pendingInviteCount={pendingInvites.length} />
       <main className="mx-auto max-w-6xl bg-background px-4 py-8 sm:px-6">
-        <InstituteActionsBar
+        <PageHeader
           title="Dashboard"
-          subtitle={
-            institutes.length === 0
-              ? "Create an institute or join with a code to get started."
-              : "Use Learning hub or Lab, or open an institute below."
-          }
+          subtitle="Your institutes are on the left. Learning hub, Lab, and join tools are on the right."
         />
 
         {pendingJoinRequests.length > 0 && (
@@ -79,12 +72,6 @@ export default async function InstitutesPage({
           </section>
         )}
 
-        {showInviteFirst && (
-          <div className="grid gap-4 sm:grid-cols-2">
-            <PracticeCards />
-          </div>
-        )}
-
         {error && !showInviteFirst && (
           <p className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
             {error}
@@ -103,75 +90,19 @@ export default async function InstitutesPage({
           </p>
         )}
 
-        {institutes.length === 0 && !showInviteFirst ? (
-          <EmptyState />
-        ) : institutes.length > 0 ? (
-          <MultipleInstitutes institutes={institutes} />
-        ) : null}
+        {!showInviteFirst && <EducationDashboard institutes={institutes} />}
+
+        {showInviteFirst && (
+          <p className="text-sm text-muted-foreground">
+            Accept an invitation above to join an institute, or use the tools on the dashboard after
+            you decline.
+          </p>
+        )}
+
+        <Link href="/invitations" className="mt-8 inline-block text-sm text-primary hover:underline">
+          View all invitations
+        </Link>
       </main>
-    </>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div>
-      <h2 className="mb-4 font-serif text-xl font-semibold">Quick access</h2>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <CreateInstituteModule />
-        <ModuleCard
-          href="/institutes/join"
-          icon={<KeyRound className="h-6 w-6" />}
-          title="Join with code"
-          description="Enter a join code from your institute admin to request access."
-        />
-        <PracticeCards />
-      </div>
-      <Link href="/invitations" className="mt-6 inline-block text-sm text-primary hover:underline">
-        View invitations
-      </Link>
-    </div>
-  );
-}
-
-function MultipleInstitutes({ institutes }: { institutes: Institute[] }) {
-  return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {institutes.map((inst) => (
-        <ModuleCard
-          key={inst.id}
-          href={`/institutes/${inst.id}`}
-          icon={<Building2 className="h-6 w-6" />}
-          title={inst.name}
-          description={`Your role: ${ROLE_LABELS[inst.role] || inst.role}`}
-        />
-      ))}
-      <ModuleCard
-        href="/institutes/join"
-        icon={<Plus className="h-6 w-6" />}
-        title="Join another"
-        description="Request to join an institute with a code."
-      />
-      <PracticeCards />
-    </div>
-  );
-}
-
-function PracticeCards() {
-  return (
-    <>
-      <ModuleCard
-        href="/learning-hub"
-        icon={<BookOpen className="h-6 w-6" />}
-        title="Learning hub"
-        description="Lessons will be added here."
-      />
-      <ModuleCard
-        href="/lab"
-        icon={<Terminal className="h-6 w-6" />}
-        title="Lab"
-        description="Write Python files on this computer and run them."
-      />
     </>
   );
 }

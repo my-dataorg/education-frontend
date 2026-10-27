@@ -8,7 +8,7 @@ import { createInstituteAction } from "@/lib/institute-actions";
 import { contactReady, emptyContact, type ContactInput } from "@/lib/contact";
 import { ModuleCard } from "@/components/shell/module-card";
 
-export function CreateInstituteModule() {
+export function CreateInstituteModule({ compact = false }: { compact?: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -35,12 +35,28 @@ export function CreateInstituteModule() {
 
   return (
     <>
-      <ModuleCard
-        icon={<Plus className="h-6 w-6" />}
-        title="Create institute"
-        description="You will be the owner and can add sections, teachers, and students."
-        onClick={() => setOpen(true)}
-      />
+      {compact ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="flex w-full gap-3 rounded-xl border border-border bg-muted/30 px-3 py-3 text-left transition hover:border-primary/30 hover:bg-muted/50"
+        >
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-shell text-shell-foreground">
+            <Plus className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-medium">Create institute</p>
+            <p className="text-xs leading-snug text-muted-foreground">You will be the owner.</p>
+          </div>
+        </button>
+      ) : (
+        <ModuleCard
+          icon={<Plus className="h-6 w-6" />}
+          title="Create institute"
+          description="You will be the owner and can add sections, teachers, and students."
+          onClick={() => setOpen(true)}
+        />
+      )}
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <button
