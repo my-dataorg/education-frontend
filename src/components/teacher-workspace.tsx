@@ -11,6 +11,8 @@ import { TeacherTimetableTab } from "@/components/teacher-timetable-tab";
 import { TeacherShell } from "@/components/teacher-shell";
 import type { EducationNavId } from "@/lib/education-nav";
 import { TeacherModuleTab } from "@/components/teacher-module-tab";
+import { MyAttendanceLeavePage } from "@/components/my-attendance-leave-page";
+import { LeaveApprovalInbox } from "@/components/leave-approval-inbox";
 import { EducationContextReporter } from "@/components/education-context-reporter";
 import type { Assignment, InstitutePost, Member, Section } from "@/lib/api";
 
@@ -203,7 +205,20 @@ export function TeacherWorkspace({
         />
       )}
 
-      {["assignments", "attendance"].includes(tab) && (
+      {tab === "attendance" && (
+        <div className="mt-6">
+          <MyAttendanceLeavePage mode="staff" instituteId={instituteId} userId={currentUserId} />
+        </div>
+      )}
+
+      {tab === "leave" && (
+        <div className="mt-6 space-y-6">
+          <LeaveApprovalInbox instituteId={instituteId} />
+          <MyAttendanceLeavePage mode="staff" instituteId={instituteId} userId={currentUserId} />
+        </div>
+      )}
+
+      {tab === "assignments" && (
         <ClassesBrowseTab
           instituteId={instituteId}
           sections={sections}
@@ -261,8 +276,8 @@ export function TeacherWorkspace({
         </div>
       )}
 
-      {(["exams", "class-teacher", "leave", "calendar"] as const).includes(
-        tab as "exams" | "class-teacher" | "leave" | "calendar"
+      {(["exams", "class-teacher", "calendar"] as const).includes(
+        tab as "exams" | "class-teacher" | "calendar"
       ) && (
         <TeacherModuleTab
           module={
@@ -270,7 +285,7 @@ export function TeacherWorkspace({
               ? "marks"
               : tab === "calendar"
                 ? "notices"
-                : (tab as "class-teacher" | "leave")
+                : "class-teacher"
           }
           posts={tab === "calendar" ? posts : []}
         />

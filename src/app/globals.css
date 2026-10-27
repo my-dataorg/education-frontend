@@ -57,6 +57,20 @@ html[data-embed="1"] body.embed-mode {
   overflow-y: auto;
 }
 
+html[data-embed="1"]:has(.lab-screen),
+html[data-embed="1"] body.embed-mode:has(.lab-screen) {
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow: hidden;
+}
+
+html[data-embed="1"] .lab-screen {
+  height: 100% !important;
+  max-height: 100% !important;
+  padding-bottom: 1rem;
+  box-sizing: border-box;
+}
+
 html[data-embed="1"] .institute-shell {
   min-height: 0 !important;
   height: calc(100vh - 3.5rem) !important;
@@ -119,7 +133,26 @@ html[data-embed="1"] .institute-shell {
   animation: edu-tab-enter 0.28s ease-out;
 }
 
+@keyframes lab-library-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.lab-library-in {
+  animation: lab-library-in 0.35s ease-out;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .lab-library-in {
+    animation: none;
+  }
+
   .edu-interactive:active:not(:disabled) {
     transform: none;
   }

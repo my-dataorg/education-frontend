@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { Attendance, Member, Section } from "@/lib/api";
 import { DataTable, KpiCard, ModuleHeader, Panel } from "@/components/institute-tabs/module-tab-ui";
+import { LeaveApprovalInbox } from "@/components/leave-approval-inbox";
 
 type SectionOverview = { students?: Member[] };
 
@@ -277,6 +278,7 @@ export function AttendanceTab({
       >
         Save attendance
       </button>
+      <LeaveApprovalInbox instituteId={instituteId} />
     </section>
   );
 }

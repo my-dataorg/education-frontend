@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Assignment, Attendance, InstitutePost, Member, Section } from "@/lib/api";
+import type { Assignment, InstitutePost, Member, Section } from "@/lib/api";
 import { EducationNavSidebar } from "@/components/education-nav-sidebar";
 import { EducationContextReporter } from "@/components/education-context-reporter";
 import { ClassesBrowseTab } from "@/components/classes-browse-tab";
@@ -12,6 +12,7 @@ import {
 } from "@/components/classes-mobile-header";
 import { StudentModuleTab, type CalendarEvent, type Exam } from "@/components/student-module-tab";
 import { StudentTimetableTab } from "@/components/student-timetable-tab";
+import { MyAttendanceLeavePage } from "@/components/my-attendance-leave-page";
 import { getEducationNavItems, type EducationNavId } from "@/lib/education-nav";
 
 export type StudentTab = EducationNavId;
@@ -53,8 +54,6 @@ export function StudentWorkspace({
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [subjects, setSubjects] = useState<Record<string, string>>({});
   const [sectionData, setSectionData] = useState<Record<string, SectionData>>({});
-  const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().slice(0, 10));
-  const [attendance, setAttendance] = useState<Attendance | null>(null);
   const [selectedAssignmentId, setSelectedAssignmentId] = useState("");
   const [submission, setSubmission] = useState("");
   const [submissionMessage, setSubmissionMessage] = useState("");
@@ -119,17 +118,6 @@ export function StudentWorkspace({
       .catch((reason) => setError(reason instanceof Error ? reason.message : "Could not load student workspace"));
   }, [instituteId, sections]);
 
-  useEffect(() => {
-    if (!selectedSectionId) return;
-    fetch(
-      `/api/sections/${selectedSectionId}/students/${studentId}/attendance?attendanceDate=${attendanceDate}`,
-      { credentials: "include" }
-    )
-      .then((response) => (response.ok ? response.json() : []))
-      .then((rows: Attendance[]) => setAttendance(rows[0] || null))
-      .catch(() => setAttendance(null));
-  }, [attendanceDate, selectedSectionId, studentId]);
-
   const today = new Date().getDay() || 7;
   const todaySchedule = useMemo(() => {
     if (!schedule || !selectedSectionId) return [];
@@ -161,11 +149,6 @@ export function StudentWorkspace({
         schedulePublished={schedulePublished}
         subjects={subjects}
         allAssignments={allAssignments}
-        selectedSectionId={selectedSectionId}
-        setSelectedSectionId={setSelectedSectionId}
-        attendanceDate={attendanceDate}
-        setAttendanceDate={setAttendanceDate}
-        attendance={attendance}
         selectedAssignmentId={selectedAssignmentId}
         setSelectedAssignmentId={setSelectedAssignmentId}
         submission={submission}
@@ -195,11 +178,6 @@ function StudentWorkspaceBody({
   schedulePublished,
   subjects,
   allAssignments,
-  selectedSectionId,
-  setSelectedSectionId,
-  attendanceDate,
-  setAttendanceDate,
-  attendance,
   selectedAssignmentId,
   setSelectedAssignmentId,
   submission,
@@ -224,11 +202,6 @@ function StudentWorkspaceBody({
   schedulePublished: boolean;
   subjects: Record<string, string>;
   allAssignments: Array<Assignment & { submitted?: boolean }>;
-  selectedSectionId: string;
-  setSelectedSectionId: (id: string) => void;
-  attendanceDate: string;
-  setAttendanceDate: (d: string) => void;
-  attendance: Attendance | null;
   selectedAssignmentId: string;
   setSelectedAssignmentId: (id: string) => void;
   submission: string;
@@ -345,30 +318,12 @@ function StudentWorkspaceBody({
           )}
 
           {tab === "attendance" && (
-            <Card title="Attendance">
-              <div className="flex flex-wrap items-center gap-3">
-                <select
-                  value={selectedSectionId}
-                  onChange={(event) => setSelectedSectionId(event.target.value)}
-                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
-                >
-                  {sections.map((section) => (
-                    <option key={section.id} value={section.id}>{section.className} · {section.name}</option>
-                  ))}
-                </select>
-                <input
-                  type="date"
-                  value={attendanceDate}
-                  onChange={(event) => setAttendanceDate(event.target.value)}
-                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
-                />
-              </div>
-              <p className="mt-5 rounded-lg bg-muted/40 px-4 py-3 text-sm">
-                {attendance
-                  ? `You were marked ${attendance.status} on ${attendance.attendanceDate}.`
-                  : "No attendance record has been marked for this date."}
-              </p>
-            </Card>
+            <MyAttendanceLeavePage
+              mode="student"
+              instituteId={instituteId}
+              sections={sections}
+              userId={studentId}
+            />
           )}
 
           {tab === "fees" && (

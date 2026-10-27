@@ -4,7 +4,7 @@ import { fetchPendingJoinRequests } from "@/lib/fetch-join-requests";
 import { fetchPendingInvitations } from "@/lib/fetch-invitations";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Building2, KeyRound, Plus } from "lucide-react";
+import { BookOpen, Building2, KeyRound, Plus, Terminal } from "lucide-react";
 import { EduNavGate } from "@/components/edu-nav-gate";
 import { InstituteActionsBar } from "@/components/institute-actions-bar";
 import { InvitationsList } from "@/components/invitations-list";
@@ -44,15 +44,6 @@ export default async function InstitutesPage({
     await reauthAfterInvalidSession(embedded);
   }
 
-  if (
-    institutes.length === 1 &&
-    pendingInvites.length === 0 &&
-    pendingJoinRequests.length === 0 &&
-    query.stay !== "1"
-  ) {
-    redirect(`/institutes/${institutes[0].id}`);
-  }
-
   const showInviteFirst = pendingInvites.length > 0 && institutes.length === 0;
 
   return (
@@ -60,11 +51,11 @@ export default async function InstitutesPage({
       <EduNavGate pendingInviteCount={pendingInvites.length} />
       <main className="mx-auto max-w-6xl bg-background px-4 py-8 sm:px-6">
         <InstituteActionsBar
-          title={institutes.length === 0 ? "Dashboard" : "Your institutes"}
+          title="Dashboard"
           subtitle={
             institutes.length === 0
               ? "Create an institute or join with a code to get started."
-              : "Pick one to open it as owner, teacher, student, or parent. One account can hold several roles."
+              : "Use Learning hub or Lab, or open an institute below."
           }
         />
 
@@ -86,6 +77,12 @@ export default async function InstitutesPage({
           <section className="mb-10">
             <InvitationsList invites={pendingInvites} variant="prominent" />
           </section>
+        )}
+
+        {showInviteFirst && (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <PracticeCards />
+          </div>
         )}
 
         {error && !showInviteFirst && (
@@ -128,6 +125,7 @@ function EmptyState() {
           title="Join with code"
           description="Enter a join code from your institute admin to request access."
         />
+        <PracticeCards />
       </div>
       <Link href="/invitations" className="mt-6 inline-block text-sm text-primary hover:underline">
         View invitations
@@ -154,6 +152,26 @@ function MultipleInstitutes({ institutes }: { institutes: Institute[] }) {
         title="Join another"
         description="Request to join an institute with a code."
       />
+      <PracticeCards />
     </div>
+  );
+}
+
+function PracticeCards() {
+  return (
+    <>
+      <ModuleCard
+        href="/learning-hub"
+        icon={<BookOpen className="h-6 w-6" />}
+        title="Learning hub"
+        description="Lessons will be added here."
+      />
+      <ModuleCard
+        href="/lab"
+        icon={<Terminal className="h-6 w-6" />}
+        title="Lab"
+        description="Write Python files on this computer and run them."
+      />
+    </>
   );
 }
