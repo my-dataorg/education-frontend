@@ -169,33 +169,37 @@ export function SectionWorkspace({
         aria-label="Class section"
         className="flex w-full shrink-0 gap-1 overflow-x-auto border-b border-border [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:flex-wrap md:gap-0 md:overflow-visible"
       >
-        {visibleTabs.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => {
-              setTab(t.id);
-              onTabChange?.(t.id);
-            }}
-            className={`shrink-0 whitespace-nowrap border-b-2 px-3 py-2 text-xs font-medium transition md:px-4 md:text-sm ${
-              tab === t.id
-                ? "border-primary text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <span className="md:hidden">{t.shortLabel}</span>
-            <span className="hidden md:inline">{t.label}</span>
-          </button>
-        ))}
+        {visibleTabs.map((t) => {
+          const active = tab === t.id;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => {
+                setTab(t.id);
+                onTabChange?.(t.id);
+              }}
+              className={`edu-interactive shrink-0 whitespace-nowrap border-b-2 px-3 py-2 text-xs font-medium transition-all duration-200 ease-out md:px-4 md:text-sm ${
+                active
+                  ? "border-primary text-foreground scale-[1.02] md:text-[0.95rem]"
+                  : "border-transparent text-muted-foreground hover:scale-[1.01] hover:text-foreground"
+              }`}
+            >
+              <span className="md:hidden">{t.shortLabel}</span>
+              <span className="hidden md:inline">{t.label}</span>
+            </button>
+          );
+        })}
       </nav>
 
       <div
+        key={tab}
         className={
           stretchClassBoard
-            ? "mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
+            ? "edu-tab-panel mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
             : stretchPanel
-              ? "mt-1 flex min-h-0 flex-1 flex-col overflow-hidden max-md:mt-2 max-md:overflow-visible max-md:flex-none"
-              : "mt-2 md:mt-4"
+              ? "edu-tab-panel mt-1 flex min-h-0 flex-1 flex-col overflow-hidden max-md:mt-2 max-md:overflow-visible max-md:flex-none"
+              : "edu-tab-panel mt-2 pb-8 md:mt-4 md:pb-10"
         }
       >
         {tab === "overview" && (

@@ -90,3 +90,41 @@ html[data-embed="1"] .institute-shell {
   flex: 1 1 0%;
   flex-direction: column;
 }
+
+.edu-interactive {
+  transition:
+    transform 0.15s ease-out,
+    box-shadow 0.15s ease-out,
+    background-color 0.15s ease-out,
+    color 0.15s ease-out,
+    border-color 0.15s ease-out;
+}
+
+.edu-interactive:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+@keyframes edu-tab-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.992);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.edu-tab-panel {
+  animation: edu-tab-enter 0.28s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .edu-interactive:active:not(:disabled) {
+    transform: none;
+  }
+
+  .edu-tab-panel {
+    animation: none;
+  }
+}

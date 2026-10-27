@@ -4,7 +4,10 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { Member, Section } from "@/lib/api";
 import { SectionWorkspace, type SectionWorkspaceTab } from "@/components/section-workspace";
-import { useRegisterClassesMobileHeader } from "@/components/classes-mobile-header";
+import {
+  useRegisterClassesDesktopHeader,
+  useRegisterClassesMobileHeader,
+} from "@/components/classes-mobile-header";
 import { buildInstitutePathFromSearch } from "@/lib/embed-href";
 
 type SectionOverview = {
@@ -147,6 +150,27 @@ export function ClassesBrowseTab({
   const selectedSection = sections.find((s) => s.id === selectedSectionId);
   const selectedOverview = selectedSectionId ? overviews[selectedSectionId] : undefined;
 
+  const classPicker =
+    sections.length > 0
+      ? (
+          <select
+            value={selectedSectionId}
+            onChange={(e) => {
+              setSelectedSectionId(e.target.value);
+              syncClassesUrl(e.target.value);
+            }}
+            className="edu-interactive w-full min-w-[12rem] max-w-full truncate rounded-lg border border-border bg-background px-3 py-2 text-sm shadow-sm md:min-w-[14rem]"
+            aria-label="Select class"
+          >
+            {sections.map((section) => (
+              <option key={section.id} value={section.id}>
+                {sectionLabel(section, overviews[section.id])}
+              </option>
+            ))}
+          </select>
+        )
+      : null;
+
   useRegisterClassesMobileHeader(
     () =>
       sections.length ? (
@@ -156,7 +180,7 @@ export function ClassesBrowseTab({
             setSelectedSectionId(e.target.value);
             syncClassesUrl(e.target.value);
           }}
-          className="w-full min-w-0 truncate rounded-md border border-border bg-background px-2 py-1 text-xs font-medium"
+          className="edu-interactive w-full min-w-0 truncate rounded-md border border-border bg-background px-2 py-1 text-xs font-medium"
           aria-label="Select class"
         >
           {sections.map((section) => (
@@ -168,6 +192,8 @@ export function ClassesBrowseTab({
       ) : null,
     [sections, selectedSectionId, overviews]
   );
+
+  useRegisterClassesDesktopHeader(() => classPicker, [sections, selectedSectionId, overviews]);
 
   const stretchTimetable =
     fitTimetable && urlSectionTab === "timetable" && !!selectedSection && !!selectedOverview;
@@ -199,42 +225,6 @@ export function ClassesBrowseTab({
             : "mt-0 space-y-0 sm:mt-4 sm:space-y-4"
       }
     >
-      <div
-        className={`hidden shrink-0 md:flex md:flex-row md:items-center md:justify-between ${
-          stretchGrid ? "gap-2 py-0" : "md:items-start"
-        }`}
-      >
-        <div className={stretchGrid ? "min-w-0" : undefined}>
-          <h2 className={stretchGrid ? "text-lg font-semibold leading-tight" : "text-xl font-semibold"}>
-            Classes
-          </h2>
-          {!stretchGrid && (
-            <p className="mt-1 text-sm text-muted-foreground">
-              {loadAllSections ? "All class sections in this institute." : "Your class sections."}
-            </p>
-          )}
-        </div>
-        {sections.length > 0 && (
-          <label className="flex w-full flex-col gap-1 sm:w-auto sm:min-w-[14rem] sm:items-end">
-            <span className="text-xs font-medium text-muted-foreground">Class</span>
-            <select
-              value={selectedSectionId}
-              onChange={(e) => {
-            setSelectedSectionId(e.target.value);
-            syncClassesUrl(e.target.value);
-          }}
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-            >
-              {sections.map((section) => (
-                <option key={section.id} value={section.id}>
-                  {sectionLabel(section, overviews[section.id])}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-      </div>
-
       {error && (
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>
       )}

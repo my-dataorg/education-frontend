@@ -6,6 +6,10 @@ import type { Assignment, Attendance, InstitutePost, Member, Section } from "@/l
 import { EducationNavSidebar } from "@/components/education-nav-sidebar";
 import { EducationContextReporter } from "@/components/education-context-reporter";
 import { ClassesBrowseTab } from "@/components/classes-browse-tab";
+import {
+  ClassesMobileHeaderProvider,
+  useClassesDesktopHeaderSlot,
+} from "@/components/classes-mobile-header";
 import { StudentModuleTab, type CalendarEvent, type Exam } from "@/components/student-module-tab";
 import { StudentTimetableTab } from "@/components/student-timetable-tab";
 import { getEducationNavItems, type EducationNavId } from "@/lib/education-nav";
@@ -142,12 +146,115 @@ export function StudentWorkspace({
   const schedulePublished = Boolean(schedule?.publishedAt);
 
   return (
-    <>
+    <ClassesMobileHeaderProvider>
       <EducationContextReporter instituteName={instituteName} role="student" />
+      <StudentWorkspaceBody
+        instituteId={instituteId}
+        instituteName={instituteName}
+        studentName={studentName}
+        sections={sections}
+        tab={tab}
+        changeTab={changeTab}
+        navItems={navItems}
+        error={error}
+        todaySchedule={todaySchedule}
+        schedulePublished={schedulePublished}
+        subjects={subjects}
+        allAssignments={allAssignments}
+        selectedSectionId={selectedSectionId}
+        setSelectedSectionId={setSelectedSectionId}
+        attendanceDate={attendanceDate}
+        setAttendanceDate={setAttendanceDate}
+        attendance={attendance}
+        selectedAssignmentId={selectedAssignmentId}
+        setSelectedAssignmentId={setSelectedAssignmentId}
+        submission={submission}
+        setSubmission={setSubmission}
+        submissionMessage={submissionMessage}
+        setSubmissionMessage={setSubmissionMessage}
+        exams={exams}
+        posts={posts}
+        events={events}
+        teachers={teachers}
+        studentId={studentId}
+      />
+    </ClassesMobileHeaderProvider>
+  );
+}
+
+function StudentWorkspaceBody({
+  instituteId,
+  instituteName,
+  studentName,
+  sections,
+  tab,
+  changeTab,
+  navItems,
+  error,
+  todaySchedule,
+  schedulePublished,
+  subjects,
+  allAssignments,
+  selectedSectionId,
+  setSelectedSectionId,
+  attendanceDate,
+  setAttendanceDate,
+  attendance,
+  selectedAssignmentId,
+  setSelectedAssignmentId,
+  submission,
+  setSubmission,
+  submissionMessage,
+  setSubmissionMessage,
+  exams,
+  posts,
+  events,
+  teachers,
+  studentId,
+}: {
+  instituteId: string;
+  instituteName: string;
+  studentName: string;
+  sections: Section[];
+  tab: EducationNavId;
+  changeTab: (tab: EducationNavId) => void;
+  navItems: ReturnType<typeof getEducationNavItems>;
+  error: string;
+  todaySchedule: Array<{ slot: { start: string; end: string; label: string }; subjectId: string }>;
+  schedulePublished: boolean;
+  subjects: Record<string, string>;
+  allAssignments: Array<Assignment & { submitted?: boolean }>;
+  selectedSectionId: string;
+  setSelectedSectionId: (id: string) => void;
+  attendanceDate: string;
+  setAttendanceDate: (d: string) => void;
+  attendance: Attendance | null;
+  selectedAssignmentId: string;
+  setSelectedAssignmentId: (id: string) => void;
+  submission: string;
+  setSubmission: (s: string) => void;
+  submissionMessage: string;
+  setSubmissionMessage: (m: string) => void;
+  exams: Exam[];
+  posts: InstitutePost[];
+  events: CalendarEvent[];
+  teachers: Member[];
+  studentId: string;
+}) {
+  const classHeaderSlot = useClassesDesktopHeaderSlot();
+
+  return (
       <EducationNavSidebar items={navItems} activeTab={tab} onTabChange={changeTab}>
-          <header className="mt-0 md:mt-0">
-            <p className="text-sm text-muted-foreground">Welcome back, {studentName}</p>
-            <h1 className="mt-1 text-2xl font-semibold">{instituteName}</h1>
+          <header className="mt-0 flex flex-col gap-3 md:flex-row md:items-end md:justify-between md:gap-4">
+            <div className="min-w-0">
+              <p className="text-sm text-muted-foreground">Welcome back, {studentName}</p>
+              <h1 className="mt-1 font-serif text-2xl font-semibold tracking-tight md:text-3xl">
+                {instituteName}
+              </h1>
+            </div>
+            {tab === "classes" && classHeaderSlot ? (
+              <div className="hidden shrink-0 md:block">{classHeaderSlot}</div>
+            ) : null}
           </header>
 
           {error && (
@@ -286,7 +393,6 @@ export function StudentWorkspace({
             />
           )}
       </EducationNavSidebar>
-    </>
   );
 }
 

@@ -78,8 +78,9 @@ export function EducationNavSidebar({
     return cn(
       "flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition",
       active
-        ? "bg-sidebar-active font-medium text-primary-foreground"
-        : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+        ? "bg-sidebar-active font-medium text-primary-foreground shadow-sm"
+        : "text-muted-foreground hover:bg-muted/60 hover:text-foreground active:scale-[0.98]",
+      "duration-200 ease-out active:transition-transform"
     );
   }
 
@@ -187,7 +188,7 @@ export function EducationNavSidebar({
             "min-h-0 min-w-0 w-full flex-1 px-3 sm:px-4",
             fillMainContent
               ? "flex min-h-0 flex-col overflow-hidden py-1 sm:py-2"
-              : "overscroll-y-contain overflow-y-auto py-3 sm:py-4"
+              : "overscroll-y-contain overflow-y-auto py-3 pb-10 sm:py-4 sm:pb-12"
           )}
         >
           <div

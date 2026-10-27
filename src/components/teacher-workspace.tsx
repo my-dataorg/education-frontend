@@ -3,6 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ClassesBrowseTab } from "@/components/classes-browse-tab";
+import {
+  ClassesMobileHeaderProvider,
+  useClassesDesktopHeaderSlot,
+} from "@/components/classes-mobile-header";
 import { TeacherTimetableTab } from "@/components/teacher-timetable-tab";
 import { TeacherShell } from "@/components/teacher-shell";
 import type { EducationNavId } from "@/lib/education-nav";
@@ -142,6 +146,7 @@ export function TeacherWorkspace({
   const fitClassBoard = tab === "classes" && classesSectionTab === "class-board";
 
   return (
+    <ClassesMobileHeaderProvider>
     <TeacherShell
       role={role}
       activeTab={tab}
@@ -154,6 +159,7 @@ export function TeacherWorkspace({
       }}
     >
       <EducationContextReporter instituteName={instituteName} role={role} />
+      <TeacherClassesHeader instituteName={instituteName} show={tab === "classes"} />
 
       {error && <p className="mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
 
@@ -270,6 +276,20 @@ export function TeacherWorkspace({
         />
       )}
     </TeacherShell>
+    </ClassesMobileHeaderProvider>
+  );
+}
+
+function TeacherClassesHeader({ instituteName, show }: { instituteName: string; show: boolean }) {
+  const classHeaderSlot = useClassesDesktopHeaderSlot();
+  if (!show) return null;
+  return (
+    <header className="mt-0 hidden flex-col gap-3 md:flex md:flex-row md:items-end md:justify-between md:gap-4">
+      <h1 className="font-serif text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
+        {instituteName}
+      </h1>
+      {classHeaderSlot ? <div className="shrink-0">{classHeaderSlot}</div> : null}
+    </header>
   );
 }
 

@@ -100,7 +100,7 @@ export function PersonRow({
     .join("");
 
   return (
-    <li className="flex items-center justify-between gap-3 rounded-lg bg-muted/30 px-3 py-2.5">
+    <li className="edu-interactive flex items-center justify-between gap-2 rounded-lg bg-muted/30 px-2.5 py-2 sm:gap-3 sm:px-3">
       <div className="flex min-w-0 items-center gap-3">
         <span
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary"
