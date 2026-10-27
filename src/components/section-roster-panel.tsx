@@ -50,6 +50,8 @@ export function SectionRosterPanel({
       setTeachers(overview.teachers ?? []);
       setStudents(overview.students ?? []);
       setClassTeacher(overview.classTeacherUserId ?? "");
+    } else {
+      setError("Could not load class roster.");
     }
     if (staffRes.ok) setStaff(await staffRes.json());
     if (studentRes.ok) setAllStudents(await studentRes.json());
