@@ -1,5 +1,5 @@
-import { auth } from "@/auth";
 import { NextRequest, NextResponse } from "next/server";
+import { educationAccessToken, SESSION_UNAUTHORIZED } from "@/lib/education-session";
 
 const API = process.env.EDUCATION_API_URL || "http://localhost:8010";
 
@@ -8,16 +8,17 @@ function apiPath(segments: string[]) {
 }
 
 async function forward(segments: string[], init: RequestInit) {
-  const session = await auth();
-  if (!session?.accessToken) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const accessToken = await educationAccessToken();
+  if (!accessToken) {
+    return NextResponse.json({ error: SESSION_UNAUTHORIZED }, { status: 401 });
   }
   const res = await fetch(`${API}/v1/lab/files/${apiPath(segments)}`, {
     ...init,
     headers: {
-      Authorization: `Bearer ${session.accessToken}`,
+      Authorization: `Bearer ${accessToken}`,
       ...(init.headers ?? {}),
     },
+    cache: "no-store",
   });
   const data = await res.json().catch(() => ({}));
   return NextResponse.json(data, { status: res.status });

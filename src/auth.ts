@@ -63,6 +63,8 @@ async function platformTokenStatus(accessToken: string) {
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  trustHost: true,
+  session: { strategy: "jwt", maxAge: 60 * 60 * 12 },
   providers: [
     Credentials({
       id: "platform-handoff",
@@ -97,13 +99,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (user && (user as { accessToken?: string }).accessToken) {
         token.accessToken = (user as { accessToken: string }).accessToken;
         token.userId = user.id;
-        token.expiresAt = Math.floor(Date.now() / 1000) + 3600;
         return token;
       }
       const accessToken = token.accessToken as string | undefined;
-      const expiresAt = token.expiresAt as number | undefined;
-      if (expiresAt && Math.floor(Date.now() / 1000) > expiresAt) return null;
-      if (accessToken && (await platformTokenStatus(accessToken)) === "invalid") return null;
+      if (!accessToken) return token;
+      const checkedAt = (token.platformCheckedAt as number | undefined) ?? 0;
+      const now = Math.floor(Date.now() / 1000);
+      if (now - checkedAt < 300) return token;
+      token.platformCheckedAt = now;
+      if ((await platformTokenStatus(accessToken)) === "invalid") return null;
       return token;
     },
     async session({ session, token }) {
