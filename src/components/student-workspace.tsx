@@ -217,7 +217,13 @@ function StudentWorkspaceBody({
   const classHeaderSlot = useClassesDesktopHeaderSlot();
 
   return (
-      <EducationNavSidebar items={navItems} activeTab={tab} onTabChange={changeTab}>
+      <EducationNavSidebar
+        items={navItems}
+        activeTab={tab}
+        onTabChange={changeTab}
+        fillMainContent={tab === "classes"}
+      >
+          {tab !== "classes" && (
           <header className="mt-0 flex flex-col gap-3 md:flex-row md:items-end md:justify-between md:gap-4">
             <div className="min-w-0">
               <p className="text-sm text-muted-foreground">Welcome back, {studentName}</p>
@@ -225,21 +231,35 @@ function StudentWorkspaceBody({
                 {instituteName}
               </h1>
             </div>
-            {tab === "classes" && classHeaderSlot ? (
-              <div className="hidden shrink-0 md:block">{classHeaderSlot}</div>
-            ) : null}
           </header>
-
-          {error && (
-            <p className="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>
           )}
 
           {tab === "classes" && (
-            <ClassesBrowseTab
-              instituteId={instituteId}
-              sections={sections}
-              workspaceRole="student"
-            />
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <header className="mb-2 hidden shrink-0 flex-col gap-3 md:flex md:flex-row md:items-end md:justify-between md:gap-4">
+                <div className="min-w-0">
+                  <p className="text-sm text-muted-foreground">Welcome back, {studentName}</p>
+                  <h1 className="mt-1 font-serif text-2xl font-semibold tracking-tight md:text-3xl">
+                    {instituteName}
+                  </h1>
+                </div>
+                {classHeaderSlot ? <div className="shrink-0">{classHeaderSlot}</div> : null}
+              </header>
+              {error ? (
+                <p className="mb-2 shrink-0 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {error}
+                </p>
+              ) : null}
+              <ClassesBrowseTab
+                instituteId={instituteId}
+                sections={sections}
+                workspaceRole="student"
+              />
+            </div>
+          )}
+
+          {error && tab !== "classes" && (
+            <p className="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>
           )}
 
           {tab === "overview" && (

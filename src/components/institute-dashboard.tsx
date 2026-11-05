@@ -157,6 +157,7 @@ export function InstituteDashboard({
   const fitClassSubjects = activeTab === "classes" && classesSectionTab === "subjects";
   const fitClassSyllabus = activeTab === "classes" && classesSectionTab === "syllabus";
   const fitClassBoard = activeTab === "classes" && classesSectionTab === "class-board";
+  const fitClassWorkspace = activeTab === "classes";
   const fitClassSectionPanel =
     fitClassTimetable ||
     fitClassRoster ||
@@ -183,13 +184,13 @@ export function InstituteDashboard({
       sectionTabs={tabs}
       activeTab={activeTab}
       tabHref={tabHref}
-      fillMainContent={fitClassSectionPanel}
+      fillMainContent={fitClassWorkspace}
     >
       <div
         className={`px-2 sm:px-4 ${
-          fitClassSectionPanel
+          fitClassWorkspace
             ? "flex min-h-0 flex-1 flex-col overflow-hidden pb-2 pt-0 sm:pt-2"
-            : `pb-4 ${activeTab === "classes" ? "pt-0 sm:pt-2" : "pt-1 sm:pt-2"}`
+            : "pb-4 pt-1 sm:pt-2"
         }`}
       >
         <div className="shrink-0">
@@ -213,13 +214,11 @@ export function InstituteDashboard({
           <Tabs
             value={educationNavActiveId(activeTab)}
             className={`w-full min-w-0 ${
-              fitClassSectionPanel
+              fitClassWorkspace
                 ? "mt-0 flex min-h-0 flex-1 flex-col"
-                : activeTab === "classes"
-                  ? "mt-0"
-                  : activeTab === "overview"
-                    ? "mt-1"
-                    : "mt-4"
+                : activeTab === "overview"
+                  ? "mt-1"
+                  : "mt-4"
             }`}
           >
             <TabsContent value="overview" className="w-full">
@@ -276,7 +275,7 @@ export function InstituteDashboard({
                 <TabsContent
                   value="classes"
                   className={
-                    fitClassSectionPanel
+                    fitClassWorkspace
                       ? "mt-0 flex min-h-0 w-full flex-1 flex-col overflow-hidden sm:mt-2"
                       : "mt-0 w-full sm:mt-2"
                   }
@@ -302,7 +301,7 @@ export function InstituteDashboard({
                     classesSectionTab !== "syllabus" &&
                     classesSectionTab !== "attendance" &&
                     classesSectionTab !== "class-board" && (
-                    <p className="mt-6 text-sm text-muted-foreground">
+                    <p className="mt-6 shrink-0 text-sm text-muted-foreground">
                       To create sections, subjects, or map subjects to classes, use{" "}
                       <button
                         type="button"

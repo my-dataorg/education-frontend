@@ -85,12 +85,19 @@ html[data-embed="1"] .institute-shell {
 }
 
 @media (min-width: 768px) {
-  .institute-shell .education-content {
+  .institute-shell .education-content:not(.education-content--fill) {
     width: 100%;
     min-height: 0;
     flex: 1 1 0%;
     overflow-y: auto;
     overscroll-behavior: contain;
+  }
+
+  .institute-shell .education-content.education-content--fill {
+    width: 100%;
+    min-height: 0;
+    flex: 1 1 0%;
+    overflow: hidden;
   }
 
   .institute-shell > aside {

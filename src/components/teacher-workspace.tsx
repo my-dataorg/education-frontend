@@ -152,7 +152,7 @@ export function TeacherWorkspace({
     <TeacherShell
       role={role}
       activeTab={tab}
-      fillMainContent={fitClassBoard}
+      fillMainContent={tab === "classes"}
       onTabChange={(nextTab) => {
         setTab(nextTab);
         const params = new URLSearchParams(window.location.search);
@@ -161,7 +161,6 @@ export function TeacherWorkspace({
       }}
     >
       <EducationContextReporter instituteName={instituteName} role={role} />
-      <TeacherClassesHeader instituteName={instituteName} show={tab === "classes"} />
 
       {error && <p className="mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
 
@@ -197,12 +196,15 @@ export function TeacherWorkspace({
       )}
 
       {tab === "classes" && (
-        <ClassesBrowseTab
-          instituteId={instituteId}
-          sections={sections}
-          workspaceRole="teacher"
-          fitClassBoard={fitClassBoard}
-        />
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <TeacherClassesHeader instituteName={instituteName} show />
+          <ClassesBrowseTab
+            instituteId={instituteId}
+            sections={sections}
+            workspaceRole="teacher"
+            fitClassBoard={fitClassBoard}
+          />
+        </div>
       )}
 
       {tab === "attendance" && (
@@ -299,7 +301,7 @@ function TeacherClassesHeader({ instituteName, show }: { instituteName: string; 
   const classHeaderSlot = useClassesDesktopHeaderSlot();
   if (!show) return null;
   return (
-    <header className="mt-0 hidden flex-col gap-3 md:flex md:flex-row md:items-end md:justify-between md:gap-4">
+    <header className="mb-2 hidden shrink-0 flex-col gap-3 md:flex md:flex-row md:items-end md:justify-between md:gap-4">
       <h1 className="font-serif text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
         {instituteName}
       </h1>

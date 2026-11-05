@@ -160,14 +160,10 @@ export function SectionWorkspace({
     stretchClassBoard;
 
   return (
-    <div
-      className={
-        stretchPanel ? "mt-0 flex min-h-0 flex-1 flex-col overflow-hidden md:mt-1" : "mt-0 md:mt-4"
-      }
-    >
+    <div className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden md:mt-1">
       <nav
         aria-label="Class section"
-        className="flex w-full shrink-0 gap-1 overflow-x-auto border-b border-border [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:flex-wrap md:gap-0 md:overflow-visible"
+        className="flex w-full shrink-0 flex-wrap gap-x-0 gap-y-0 border-b border-border bg-background"
       >
         {visibleTabs.map((t) => {
           const active = tab === t.id;
@@ -195,11 +191,9 @@ export function SectionWorkspace({
       <div
         key={tab}
         className={
-          stretchClassBoard
-            ? "edu-tab-panel mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
-            : stretchPanel
-              ? "edu-tab-panel mt-1 flex min-h-0 flex-1 flex-col overflow-hidden max-md:mt-2 max-md:overflow-visible max-md:flex-none"
-              : "edu-tab-panel mt-2 pb-8 md:mt-4 md:pb-10"
+          stretchPanel
+            ? "edu-tab-panel mt-1 flex min-h-0 flex-1 flex-col overflow-hidden max-md:mt-2"
+            : "edu-tab-panel mt-2 flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain pb-6 md:mt-3 md:pb-8"
         }
       >
         {tab === "overview" && (
