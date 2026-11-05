@@ -36,6 +36,17 @@ export function useClassesDesktopHeaderSlot() {
   return useContext(DesktopSlotContext);
 }
 
+/** Renders the class select on md+ (owner institute Classes tab). */
+export function ClassesDesktopHeaderBar({ show }: { show: boolean }) {
+  const classHeaderSlot = useClassesDesktopHeaderSlot();
+  if (!show || !classHeaderSlot) return null;
+  return (
+    <div className="mb-2 hidden shrink-0 md:flex md:justify-end">
+      <div className="w-full max-w-md">{classHeaderSlot}</div>
+    </div>
+  );
+}
+
 export function useRegisterClassesMobileHeader(render: () => ReactNode, deps: DependencyList) {
   const setSlot = useContext(SetMobileSlotContext);
   useEffect(() => {
