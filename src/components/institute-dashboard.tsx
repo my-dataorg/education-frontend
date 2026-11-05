@@ -171,7 +171,7 @@ export function InstituteDashboard({
       instituteName={detail.name}
       subtitle={branches.length > 1 ? selectedBranch?.name : undefined}
       role={ROLE_LABELS[detail.role] || detail.role}
-      showManageInstitutes={canAdminWorkspace}
+      showManageInstitutes={false}
     />
     <div className="flex min-h-0 flex-1 flex-col">
     <ClassesMobileHeaderProvider>

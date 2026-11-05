@@ -281,7 +281,9 @@ export function PythonLab({
     const data = await res.json().catch(() => ({}));
     setRunning(false);
     if (!res.ok) {
-      setOutput(readMessage(data, "Could not run the program"));
+      const message = readMessage(data, "Could not run the program");
+      setMessageText(message);
+      setOutput(message);
       return;
     }
     const next = data as RunResult;
