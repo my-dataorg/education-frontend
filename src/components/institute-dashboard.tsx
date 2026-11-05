@@ -27,7 +27,7 @@ import {
 } from "@/lib/institute-tabs";
 import { INSTITUTE_ADMIN_ROLES, ROLE_LABELS } from "@/lib/roles";
 import { EducationContextReporter } from "@/components/education-context-reporter";
-import { ClassesMobileHeaderProvider } from "@/components/classes-mobile-header";
+import { ClassesMobileHeaderProvider, ClassesDesktopHeaderBar } from "@/components/classes-mobile-header";
 
 export type InstituteDetail = {
   id: string;
@@ -200,6 +200,7 @@ export function InstituteDashboard({
             searchParams={searchParams}
             activeTab={activeTab}
           />
+          <ClassesDesktopHeaderBar show={activeTab === "classes"} />
         </div>
 
         {loading ? (
