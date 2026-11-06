@@ -14,6 +14,7 @@ import { StudentModuleTab, type CalendarEvent, type Exam } from "@/components/st
 import { StudentTimetableTab } from "@/components/student-timetable-tab";
 import { MyAttendanceLeavePage } from "@/components/my-attendance-leave-page";
 import { getEducationNavItems, type EducationNavId } from "@/lib/education-nav";
+import { useNavAccessOverrides } from "@/hooks/use-nav-access-overrides";
 
 export type StudentTab = EducationNavId;
 
@@ -49,7 +50,8 @@ export function StudentWorkspace({
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<EducationNavId>(initialTab);
-  const navItems = getEducationNavItems("student");
+  const navOverrides = useNavAccessOverrides(instituteId);
+  const navItems = getEducationNavItems("student", navOverrides);
   const [selectedSectionId, setSelectedSectionId] = useState(sections[0]?.id || "");
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [subjects, setSubjects] = useState<Record<string, string>>({});

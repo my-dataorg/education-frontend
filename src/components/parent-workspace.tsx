@@ -10,6 +10,7 @@ import {
   resolveEducationNavTab,
   type EducationNavId,
 } from "@/lib/education-nav";
+import { useNavAccessOverrides } from "@/hooks/use-nav-access-overrides";
 import { cn } from "@/lib/utils";
 
 type GuardianChild = { studentId: string; instituteIds: string[] };
@@ -38,9 +39,10 @@ export function ParentWorkspace({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const navItems = getEducationNavItems("parent");
+  const navOverrides = useNavAccessOverrides(instituteId);
+  const navItems = getEducationNavItems("parent", navOverrides);
   const [tab, setTab] = useState<EducationNavId>(() =>
-    resolveEducationNavTab("parent", searchParams.get("tab"))
+    resolveEducationNavTab("parent", searchParams.get("tab"), null, navOverrides)
   );
   const [children, setChildren] = useState<GuardianChild[]>([]);
   const [childId, setChildId] = useState("");
