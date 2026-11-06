@@ -10,6 +10,7 @@ import {
 } from "@/lib/education-nav-config-labels";
 import type { NavAccessOverrides } from "@/lib/nav-access";
 import { ModuleHeader, Panel } from "@/components/institute-tabs/module-tab-ui";
+import { cn } from "@/lib/utils";
 
 type MatrixResponse = {
   featureIds: string[];
@@ -33,30 +34,51 @@ function AccessCells({
   featureId,
   overrides,
   setRule,
+  parentNavId,
 }: {
   featureId: string;
   overrides: NavAccessOverrides;
   setRule: (featureId: string, role: string, patch: Partial<{ visible: boolean; editable: boolean }>) => void;
+  /** When parent sidebar Show is off, nest rows are N/A — gray out and disable. */
+  parentNavId?: string;
 }) {
   return (
     <>
       {NAV_ACCESS_MATRIX_ROLES.map((role) => {
         const rule = ruleFor(overrides, featureId, role);
+        const parentHidden =
+          parentNavId != null && !ruleFor(overrides, parentNavId, role).visible;
+        const showDisabled = parentHidden;
+        const editDisabled = parentHidden || !rule.visible;
         return (
-          <td key={role} className="px-2 py-2 align-top">
-            <label className="flex items-center gap-1">
+          <td
+            key={role}
+            className={cn("px-2 py-2 align-top", parentHidden && "opacity-45")}
+            title={
+              parentHidden
+                ? "Turn on Show for Classes above to configure these tabs."
+                : undefined
+            }
+          >
+            <label className={cn("flex items-center gap-1", parentHidden && "cursor-not-allowed")}>
               <input
                 type="checkbox"
                 checked={rule.visible}
+                disabled={showDisabled}
                 onChange={(e) => setRule(featureId, role, { visible: e.target.checked })}
               />
               Show
             </label>
-            <label className="mt-1 flex items-center gap-1 text-muted-foreground">
+            <label
+              className={cn(
+                "mt-1 flex items-center gap-1 text-muted-foreground",
+                parentHidden && "cursor-not-allowed"
+              )}
+            >
               <input
                 type="checkbox"
                 checked={rule.editable}
-                disabled={!rule.visible}
+                disabled={editDisabled}
                 onChange={(e) => setRule(featureId, role, { editable: e.target.checked })}
               />
               Edit
@@ -162,6 +184,7 @@ export function FeatureAccessTab({ instituteId }: { instituteId: string }) {
           <>
             <p className="mb-3 text-xs text-muted-foreground">
               Empty cells use the app default for that role. Uncheck Show to hide; uncheck Edit for view-only where the screen supports it.
+              When <strong>Classes</strong> Show is off for a role, sub-tabs under Classes are disabled for that role until you turn Classes back on.
             </p>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[640px] border-collapse text-left text-xs">
@@ -205,7 +228,12 @@ export function FeatureAccessTab({ instituteId }: { instituteId: string }) {
                               <td className="py-2 pr-3 pl-8 text-muted-foreground">
                                 {labelForConfigFeature(tabId)}
                               </td>
-                              <AccessCells featureId={tabId} overrides={overrides} setRule={setRule} />
+                              <AccessCells
+                                featureId={tabId}
+                                overrides={overrides}
+                                setRule={setRule}
+                                parentNavId="classes"
+                              />
                             </tr>
                           ))
                         : null}
