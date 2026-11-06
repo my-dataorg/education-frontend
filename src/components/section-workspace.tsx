@@ -16,6 +16,8 @@ import { formatUserName } from "@/components/user-identity";
 import type { Member } from "@/lib/api";
 import type { SectionSubject } from "@/lib/api";
 import { INSTITUTE_ADMIN_ROLES } from "@/lib/roles";
+import type { NavAccessOverrides } from "@/lib/nav-access";
+import { isClassSectionTabEditable, isClassSectionTabVisible } from "@/lib/education-nav";
 import { teacherUserId } from "@/lib/section-subject-teachers";
 
 export type SectionWorkspaceTab =
@@ -69,6 +71,7 @@ export function SectionWorkspace({
   fillSubjects = false,
   fillSyllabus = false,
   fillClassBoard = false,
+  navOverrides,
 }: {
   instituteId: string;
   sectionId: string;
@@ -81,6 +84,7 @@ export function SectionWorkspace({
   fillSubjects?: boolean;
   fillSyllabus?: boolean;
   fillClassBoard?: boolean;
+  navOverrides?: NavAccessOverrides | null;
   overview: Overview;
   assignments: {
     id: string;
@@ -127,15 +131,61 @@ export function SectionWorkspace({
   }, [instituteId, sectionId]);
 
   const tabs: { id: Tab; label: string; shortLabel: string; show: boolean }[] = [
-    { id: "overview", label: "Overview", shortLabel: "Summary", show: true },
-    { id: "roster", label: "Teachers & students", shortLabel: "People", show: canViewRosterSubjects },
-    { id: "subjects", label: "Subjects", shortLabel: "Subjects", show: canViewRosterSubjects },
-    { id: "syllabus", label: "Syllabus", shortLabel: "Syllabus", show: canViewRosterSubjects },
-    { id: "timetable", label: "Timetable", shortLabel: "Schedule", show: canViewRosterSubjects },
-    { id: "attendance", label: "Attendance", shortLabel: "Attendance", show: isTeacher || isStudent },
-    { id: "assignments", label: "Assignments", shortLabel: "Tasks", show: true },
-    { id: "class-board", label: "Class board", shortLabel: "Board", show: true },
-    { id: "progress", label: "Progress", shortLabel: "Progress", show: true },
+    {
+      id: "overview",
+      label: "Overview",
+      shortLabel: "Summary",
+      show: isClassSectionTabVisible(role, "overview", navOverrides),
+    },
+    {
+      id: "roster",
+      label: "Teachers & students",
+      shortLabel: "People",
+      show: canViewRosterSubjects && isClassSectionTabVisible(role, "roster", navOverrides),
+    },
+    {
+      id: "subjects",
+      label: "Subjects",
+      shortLabel: "Subjects",
+      show: canViewRosterSubjects && isClassSectionTabVisible(role, "subjects", navOverrides),
+    },
+    {
+      id: "syllabus",
+      label: "Syllabus",
+      shortLabel: "Syllabus",
+      show: canViewRosterSubjects && isClassSectionTabVisible(role, "syllabus", navOverrides),
+    },
+    {
+      id: "timetable",
+      label: "Timetable",
+      shortLabel: "Schedule",
+      show: canViewRosterSubjects && isClassSectionTabVisible(role, "timetable", navOverrides),
+    },
+    {
+      id: "attendance",
+      label: "Attendance",
+      shortLabel: "Attendance",
+      show:
+        (isTeacher || isStudent) && isClassSectionTabVisible(role, "attendance", navOverrides),
+    },
+    {
+      id: "assignments",
+      label: "Assignments",
+      shortLabel: "Tasks",
+      show: isClassSectionTabVisible(role, "assignments", navOverrides),
+    },
+    {
+      id: "class-board",
+      label: "Class board",
+      shortLabel: "Board",
+      show: isClassSectionTabVisible(role, "class-board", navOverrides),
+    },
+    {
+      id: "progress",
+      label: "Progress",
+      shortLabel: "Progress",
+      show: isClassSectionTabVisible(role, "progress", navOverrides),
+    },
   ];
 
   async function refreshOverview() {
@@ -145,6 +195,25 @@ export function SectionWorkspace({
   }
 
   const visibleTabs = tabs.filter((t) => t.show);
+  const rosterMayEdit = canManage && isClassSectionTabEditable(role, "roster", navOverrides);
+  const subjectsMayEdit = canManage && isClassSectionTabEditable(role, "subjects", navOverrides);
+  const syllabusMayEdit =
+    (canManage || isTeacher) && isClassSectionTabEditable(role, "syllabus", navOverrides);
+  const timetableMayEdit = canManage && isClassSectionTabEditable(role, "timetable", navOverrides);
+  const boardMayEdit =
+    canEditNotes && isClassSectionTabEditable(role, "class-board", navOverrides);
+  const assignmentsTeacherMayEdit =
+    isTeacher && isClassSectionTabEditable(role, "assignments", navOverrides);
+
+  const visibleTabIdsKey = visibleTabs.map((t) => t.id).join("|");
+  useEffect(() => {
+    const ids = visibleTabs.map((t) => t.id);
+    if (!ids.length || ids.includes(tab)) return;
+    const next = ids[0];
+    setTab(next);
+    onTabChange?.(next);
+  }, [tab, visibleTabIdsKey, visibleTabs, onTabChange]);
+
   const stretchTimetable = fillTimetable && tab === "timetable" && canViewRosterSubjects;
   const stretchRoster = fillRoster && tab === "roster" && canViewRosterSubjects;
   const stretchAttendance = fillAttendance && tab === "attendance" && (isTeacher || isStudent);
@@ -233,7 +302,7 @@ export function SectionWorkspace({
             instituteId={instituteId}
             sectionId={sectionId}
             sectionLabel={sectionLabel}
-            canManage={canManage}
+            canManage={rosterMayEdit}
             classTeacherUserId={overview.classTeacherUserId}
             onRosterChanged={() => void refreshOverview()}
             fillHeight={stretchRoster}
@@ -245,7 +314,7 @@ export function SectionWorkspace({
             instituteId={instituteId}
             sectionId={sectionId}
             sectionLabel={sectionLabel}
-            canManage={canManage}
+            canManage={subjectsMayEdit}
             fillHeight={stretchSubjects}
           />
         )}
@@ -254,7 +323,7 @@ export function SectionWorkspace({
           <SectionSyllabusPanel
             instituteId={instituteId}
             sectionId={sectionId}
-            mode={syllabusMode}
+            mode={syllabusMayEdit ? syllabusMode : "viewer"}
             fillHeight={stretchSyllabus}
           />
         )}
@@ -263,7 +332,7 @@ export function SectionWorkspace({
           <SectionTimetablePanel
             instituteId={instituteId}
             sectionId={sectionId}
-            canEdit={canManage}
+            canEdit={timetableMayEdit}
           />
         )}
 
@@ -280,14 +349,18 @@ export function SectionWorkspace({
         )}
 
         {tab === "assignments" && (
-          <SectionAssignmentsTab sectionId={sectionId} isTeacher={isTeacher} />
+          <SectionAssignmentsTab
+            sectionId={sectionId}
+            isTeacher={isTeacher}
+            allowTeacherAuthoring={assignmentsTeacherMayEdit}
+          />
         )}
 
         {tab === "class-board" && (
           <SectionClassBoardPanel
             instituteId={instituteId}
             sectionId={sectionId}
-            canEdit={canEditNotes}
+            canEdit={boardMayEdit}
             fillHeight
           />
         )}

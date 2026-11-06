@@ -67,6 +67,22 @@ export const CONFIGURABLE_NAV_IDS: EducationNavId[] = [
   "profile",
 ];
 
+/** Sub-tabs under Classes (section workspace); keys match API `classes.*`. */
+export const CLASS_SECTION_TAB_ACCESS_IDS = [
+  "classes.overview",
+  "classes.roster",
+  "classes.subjects",
+  "classes.syllabus",
+  "classes.timetable",
+  "classes.attendance",
+  "classes.assignments",
+  "classes.class-board",
+  "classes.progress",
+] as const;
+
+/** Full matrix: main sidebar items + class section tabs */
+export const CONFIGURABLE_ACCESS_IDS = [...CONFIGURABLE_NAV_IDS, ...CLASS_SECTION_TAB_ACCESS_IDS];
+
 export const NAV_ACCESS_MATRIX_ROLES = [
   "owner",
   "admin",
@@ -245,17 +261,26 @@ export function normalizeEducationRole(role: string): RoleKey | null {
   return null;
 }
 
+/** Map member role to matrix column (lecturer/professor use teacher overrides). */
+export function navMatrixRoleKey(role: string): string | null {
+  const key = normalizeEducationRole(role);
+  if (!key) return null;
+  if (key === "lecturer" || key === "professor") return "teacher";
+  return key;
+}
+
 function applyNavAccessOverrides(
   role: string,
   items: EducationNavItem[],
   overrides?: NavAccessOverrides | null
 ): EducationNavItem[] {
   if (!overrides || Object.keys(overrides).length === 0) return items;
-  const key = normalizeEducationRole(role);
-  if (!key) return items;
+  const matrixKey = navMatrixRoleKey(role);
+  if (!matrixKey) return items;
+  const navKey = normalizeEducationRole(role);
   return items.filter((item) => {
-    if (OWNER_ONLY_NAV_IDS.has(item.id)) return key === "owner";
-    const rule = overrides[item.id]?.[key];
+    if (OWNER_ONLY_NAV_IDS.has(item.id)) return navKey === "owner";
+    const rule = overrides[item.id]?.[matrixKey];
     if (!rule || rule.visible === undefined) return true;
     return rule.visible;
   });
@@ -266,16 +291,76 @@ export function isNavFeatureEditable(
   tabId: EducationNavId,
   overrides?: NavAccessOverrides | null
 ): boolean {
-  const key = normalizeEducationRole(role);
-  if (!key) return false;
-  if (key === "owner" || key === "admin") {
-    const rule = overrides?.[tabId]?.[key];
+  const matrixKey = navMatrixRoleKey(role);
+  if (!matrixKey) return false;
+  if (matrixKey === "owner" || matrixKey === "admin") {
+    const rule = overrides?.[tabId]?.[matrixKey];
     if (rule?.editable === false) return false;
     return true;
   }
-  const rule = overrides?.[tabId]?.[key];
+  const rule = overrides?.[tabId]?.[matrixKey];
   if (rule?.editable === false) return false;
   return true;
+}
+
+/** Section tab id e.g. `overview` → feature key `classes.overview` */
+export function classSectionTabAccessKey(sectionTab: string): string {
+  return `classes.${sectionTab}`;
+}
+
+export function isClassSectionTabVisible(
+  role: string,
+  sectionTab: string,
+  overrides?: NavAccessOverrides | null
+): boolean {
+  const matrixKey = navMatrixRoleKey(role);
+  if (!matrixKey) return true;
+  const featureKey = classSectionTabAccessKey(sectionTab);
+  const rule = overrides?.[featureKey]?.[matrixKey];
+  if (!rule || rule.visible === undefined) return true;
+  return rule.visible;
+}
+
+export function isClassSectionTabEditable(
+  role: string,
+  sectionTab: string,
+  overrides?: NavAccessOverrides | null
+): boolean {
+  const matrixKey = navMatrixRoleKey(role);
+  if (!matrixKey) return true;
+  const featureKey = classSectionTabAccessKey(sectionTab);
+  const rule = overrides?.[featureKey]?.[matrixKey];
+  if (!rule || rule.editable === undefined) return true;
+  return rule.editable;
+}
+
+export const SECTION_WORKSPACE_TAB_ORDER: readonly string[] = [
+  "overview",
+  "roster",
+  "subjects",
+  "syllabus",
+  "timetable",
+  "attendance",
+  "assignments",
+  "class-board",
+  "progress",
+];
+
+/** First section tab visible for role (defaults + owner config). */
+export function resolveVisibleSectionWorkspaceTab(
+  role: string,
+  preferred: string,
+  overrides?: NavAccessOverrides | null
+): string {
+  const normalized =
+    preferred === "notes" ? "class-board" : preferred || "overview";
+  if (isClassSectionTabVisible(role, normalized, overrides)) {
+    return normalized;
+  }
+  for (const id of SECTION_WORKSPACE_TAB_ORDER) {
+    if (isClassSectionTabVisible(role, id, overrides)) return id;
+  }
+  return "overview";
 }
 
 export function getEducationNavItems(role: string, overrides?: NavAccessOverrides | null): EducationNavItem[] {
