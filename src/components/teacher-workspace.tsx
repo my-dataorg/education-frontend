@@ -10,6 +10,7 @@ import {
 import { TeacherTimetableTab } from "@/components/teacher-timetable-tab";
 import { TeacherShell } from "@/components/teacher-shell";
 import type { EducationNavId } from "@/lib/education-nav";
+import { useNavAccessOverrides } from "@/hooks/use-nav-access-overrides";
 import { TeacherModuleTab } from "@/components/teacher-module-tab";
 import { MyAttendanceLeavePage } from "@/components/my-attendance-leave-page";
 import { LeaveApprovalInbox } from "@/components/leave-approval-inbox";
@@ -81,6 +82,7 @@ export function TeacherWorkspace({
   const searchParams = useSearchParams();
   const classesSectionTab = searchParams.get("sectionTab");
   const [tab, setTab] = useState<EducationNavId>(initialTab);
+  const navOverrides = useNavAccessOverrides(instituteId);
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [allSections, setAllSections] = useState<Section[]>(sections);
   const [staff, setStaff] = useState<Member[]>([]);
@@ -151,6 +153,7 @@ export function TeacherWorkspace({
     <ClassesMobileHeaderProvider>
     <TeacherShell
       role={role}
+      navOverrides={navOverrides}
       activeTab={tab}
       fillMainContent={tab === "classes"}
       onTabChange={(nextTab) => {

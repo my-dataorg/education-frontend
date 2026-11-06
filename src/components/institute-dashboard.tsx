@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { ConfigureTab } from "@/components/institute-tabs/configure-tab";
+import { FeatureAccessTab } from "@/components/institute-tabs/feature-access-tab";
 import { ProfileTab } from "@/components/institute-tabs/profile-tab";
 import { AssociationTab } from "@/components/institute-tabs/association-tab";
 import { ClassesBrowseTab } from "@/components/classes-browse-tab";
@@ -26,6 +27,7 @@ import {
   type InstituteTabId,
 } from "@/lib/institute-tabs";
 import { INSTITUTE_ADMIN_ROLES, ROLE_LABELS } from "@/lib/roles";
+import { useNavAccessOverrides } from "@/hooks/use-nav-access-overrides";
 import { EducationContextReporter } from "@/components/education-context-reporter";
 import { ClassesMobileHeaderProvider, ClassesDesktopHeaderBar } from "@/components/classes-mobile-header";
 
@@ -71,13 +73,15 @@ export function InstituteDashboard({
   const [inviteRefreshKey, setInviteRefreshKey] = useState(0);
   const [joinCode, setJoinCode] = useState(detail.joinCode);
 
-  const tabs = getInstituteTabs(detail.role);
+  const navOverrides = useNavAccessOverrides(instituteId);
+  const tabs = getInstituteTabs(detail.role, navOverrides);
   const tabParam = searchParams.get("tab");
   const classesSectionTab = searchParams.get("sectionTab");
   const activeTab = resolveInstituteTab(
     detail.role,
     tabParam,
-    searchParams.get("enrollmentModule")
+    searchParams.get("enrollmentModule"),
+    navOverrides
   );
 
   const branches = summary?.branches ?? [];
@@ -258,6 +262,11 @@ export function InstituteDashboard({
                       branches={branches}
                       showRoles={isOwner}
                     />
+                  </TabsContent>
+                )}
+                {isOwner && (
+                  <TabsContent value="feature-config" className="w-full">
+                    <FeatureAccessTab instituteId={instituteId} />
                   </TabsContent>
                 )}
                 <TabsContent value="association" className="w-full">

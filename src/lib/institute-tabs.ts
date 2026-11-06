@@ -20,8 +20,8 @@ export type InstituteTab = {
   group: InstituteTabGroup;
 };
 
-export function getInstituteTabs(role: string): InstituteTab[] {
-  return getEducationNavItems(role);
+export function getInstituteTabs(role: string, overrides?: import("@/lib/nav-access").NavAccessOverrides | null): InstituteTab[] {
+  return getEducationNavItems(role, overrides);
 }
 
 export function resolveLegacyTab(
@@ -34,9 +34,10 @@ export function resolveLegacyTab(
 export function resolveInstituteTab(
   role: string,
   tabParam: string | null,
-  enrollmentModule?: string | null
+  enrollmentModule?: string | null,
+  overrides?: import("@/lib/nav-access").NavAccessOverrides | null
 ): InstituteTabId {
-  return resolveEducationNavTab(role, tabParam, enrollmentModule);
+  return resolveEducationNavTab(role, tabParam, enrollmentModule, overrides);
 }
 
 export function legacyTabQueryOverrides(

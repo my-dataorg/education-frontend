@@ -3,10 +3,13 @@
  * visibility and labels are filtered per role. Page content scopes data by role.
  */
 
+import type { NavAccessOverrides } from "@/lib/nav-access";
+
 export const EDUCATION_NAV_IDS = [
   "overview",
   "profile",
   "configure",
+  "feature-config",
   "association",
   "calendar",
   "timetable",
@@ -47,10 +50,37 @@ type RoleKey =
   | "student"
   | "parent";
 
+export const OWNER_ONLY_NAV_IDS: ReadonlySet<EducationNavId> = new Set(["feature-config"]);
+
+export const CONFIGURABLE_NAV_IDS: EducationNavId[] = [
+  "overview",
+  "classes",
+  "exams",
+  "timetable",
+  "attendance",
+  "fees",
+  "reports",
+  "calendar",
+  "configure",
+  "association",
+  "class-board",
+  "profile",
+];
+
+export const NAV_ACCESS_MATRIX_ROLES = [
+  "owner",
+  "admin",
+  "principal",
+  "teacher",
+  "student",
+  "parent",
+] as const;
+
 const LABELS: Record<EducationNavId, string> = {
   overview: "Overview",
   profile: "Profile",
   configure: "Configure",
+  "feature-config": "Config",
   association: "Association",
   calendar: "Holidays & events",
   timetable: "Timetable",
@@ -215,19 +245,56 @@ export function normalizeEducationRole(role: string): RoleKey | null {
   return null;
 }
 
-export function getEducationNavItems(role: string): EducationNavItem[] {
+function applyNavAccessOverrides(
+  role: string,
+  items: EducationNavItem[],
+  overrides?: NavAccessOverrides | null
+): EducationNavItem[] {
+  if (!overrides || Object.keys(overrides).length === 0) return items;
+  const key = normalizeEducationRole(role);
+  if (!key) return items;
+  return items.filter((item) => {
+    if (OWNER_ONLY_NAV_IDS.has(item.id)) return key === "owner";
+    const rule = overrides[item.id]?.[key];
+    if (!rule || rule.visible === undefined) return true;
+    return rule.visible;
+  });
+}
+
+export function isNavFeatureEditable(
+  role: string,
+  tabId: EducationNavId,
+  overrides?: NavAccessOverrides | null
+): boolean {
+  const key = normalizeEducationRole(role);
+  if (!key) return false;
+  if (key === "owner" || key === "admin") {
+    const rule = overrides?.[tabId]?.[key];
+    if (rule?.editable === false) return false;
+    return true;
+  }
+  const rule = overrides?.[tabId]?.[key];
+  if (rule?.editable === false) return false;
+  return true;
+}
+
+export function getEducationNavItems(role: string, overrides?: NavAccessOverrides | null): EducationNavItem[] {
   const key = normalizeEducationRole(role);
   if (!key) return [];
   const allowed = VISIBILITY[key];
-  const order = ROLE_ORDER[key];
+  let order = ROLE_ORDER[key];
+  if (key === "owner") {
+    order = [...OWNER_ORDER, "feature-config"];
+  }
   const labels = ROLE_LABEL_OVERRIDES[key] ?? {};
-  return order
-    .filter((id) => allowed.has(id))
+  const items = order
+    .filter((id) => allowed.has(id) || (key === "owner" && OWNER_ONLY_NAV_IDS.has(id)))
     .map((id) => ({
       id,
       label: labels[id] ?? LABELS[id],
       group: "main" as const,
     }));
+  return applyNavAccessOverrides(role, items, overrides);
 }
 
 export function getEducationNavScope(role: string, tabId: EducationNavId): EducationNavScope {
@@ -273,9 +340,10 @@ export function resolveLegacyEducationTab(
 export function resolveEducationNavTab(
   role: string,
   tabParam: string | null,
-  enrollmentModule?: string | null
+  enrollmentModule?: string | null,
+  overrides?: NavAccessOverrides | null
 ): EducationNavId {
-  const items = getEducationNavItems(role);
+  const items = getEducationNavItems(role, overrides);
   const fallback = items[0]?.id ?? "overview";
   const resolved = resolveLegacyEducationTab(tabParam, enrollmentModule) ?? tabParam;
   const roleKey = normalizeEducationRole(role);
@@ -293,6 +361,10 @@ export function resolveEducationNavTab(
   return fallback;
 }
 
-export function educationNavTabVisible(role: string, tabId: string): boolean {
-  return getEducationNavItems(role).some((t) => t.id === tabId);
+export function educationNavTabVisible(
+  role: string,
+  tabId: string,
+  overrides?: NavAccessOverrides | null
+): boolean {
+  return getEducationNavItems(role, overrides).some((t) => t.id === tabId);
 }

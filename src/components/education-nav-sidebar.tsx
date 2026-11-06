@@ -31,6 +31,7 @@ const NAV_ICONS: Record<EducationNavId, React.ComponentType<{ className?: string
   overview: LayoutDashboard,
   profile: UserRound,
   configure: Settings2,
+  "feature-config": Settings2,
   association: Link2,
   classes: School,
   associates: Users,
