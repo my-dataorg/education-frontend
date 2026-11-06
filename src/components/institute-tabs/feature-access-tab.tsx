@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import {
-  CONFIGURABLE_ACCESS_IDS,
-  LABELS_FOR_CONFIG,
+  CONFIG_MATRIX_CLASS_TAB_IDS,
+  CONFIG_MATRIX_SIDEBAR_IDS,
+  labelForConfigFeature,
   NAV_ACCESS_MATRIX_ROLES,
 } from "@/lib/education-nav-config-labels";
 import type { NavAccessOverrides } from "@/lib/nav-access";
@@ -27,12 +29,52 @@ function ruleFor(
   };
 }
 
+function AccessCells({
+  featureId,
+  overrides,
+  setRule,
+}: {
+  featureId: string;
+  overrides: NavAccessOverrides;
+  setRule: (featureId: string, role: string, patch: Partial<{ visible: boolean; editable: boolean }>) => void;
+}) {
+  return (
+    <>
+      {NAV_ACCESS_MATRIX_ROLES.map((role) => {
+        const rule = ruleFor(overrides, featureId, role);
+        return (
+          <td key={role} className="px-2 py-2 align-top">
+            <label className="flex items-center gap-1">
+              <input
+                type="checkbox"
+                checked={rule.visible}
+                onChange={(e) => setRule(featureId, role, { visible: e.target.checked })}
+              />
+              Show
+            </label>
+            <label className="mt-1 flex items-center gap-1 text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={rule.editable}
+                disabled={!rule.visible}
+                onChange={(e) => setRule(featureId, role, { editable: e.target.checked })}
+              />
+              Edit
+            </label>
+          </td>
+        );
+      })}
+    </>
+  );
+}
+
 export function FeatureAccessTab({ instituteId }: { instituteId: string }) {
   const [overrides, setOverrides] = useState<NavAccessOverrides>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [classesExpanded, setClassesExpanded] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -53,8 +95,6 @@ export function FeatureAccessTab({ instituteId }: { instituteId: string }) {
   useEffect(() => {
     void load();
   }, [load]);
-
-  const features = useMemo(() => CONFIGURABLE_ACCESS_IDS, []);
 
   function setRule(featureId: string, role: string, patch: Partial<{ visible: boolean; editable: boolean }>) {
     setOverrides((prev) => {
@@ -105,7 +145,7 @@ export function FeatureAccessTab({ instituteId }: { instituteId: string }) {
     <section className="space-y-5">
       <ModuleHeader
         title="Config"
-        description="Choose which sidebar features each role sees and whether they can edit or view only."
+        description="Choose which sidebar features each role sees and whether they can edit or view only. Expand Classes to configure tabs inside the class workspace."
       />
       {error && (
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>
@@ -121,8 +161,7 @@ export function FeatureAccessTab({ instituteId }: { instituteId: string }) {
         ) : (
           <>
             <p className="mb-3 text-xs text-muted-foreground">
-              Empty cells use the app default for that role. Uncheck Visible to hide a menu item; uncheck Editable
-              for view-only (where the screen supports it).
+              Empty cells use the app default for that role. Uncheck Show to hide; uncheck Edit for view-only where the screen supports it.
             </p>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[640px] border-collapse text-left text-xs">
@@ -137,34 +176,40 @@ export function FeatureAccessTab({ instituteId }: { instituteId: string }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {features.map((featureId) => (
-                    <tr key={featureId} className="border-b border-border/60">
-                      <td className="py-2 pr-3 font-medium">{LABELS_FOR_CONFIG[featureId] ?? featureId}</td>
-                      {NAV_ACCESS_MATRIX_ROLES.map((role) => {
-                        const rule = ruleFor(overrides, featureId, role);
-                        return (
-                          <td key={role} className="px-2 py-2 align-top">
-                            <label className="flex items-center gap-1">
-                              <input
-                                type="checkbox"
-                                checked={rule.visible}
-                                onChange={(e) => setRule(featureId, role, { visible: e.target.checked })}
-                              />
-                              Show
-                            </label>
-                            <label className="mt-1 flex items-center gap-1 text-muted-foreground">
-                              <input
-                                type="checkbox"
-                                checked={rule.editable}
-                                disabled={!rule.visible}
-                                onChange={(e) => setRule(featureId, role, { editable: e.target.checked })}
-                              />
-                              Edit
-                            </label>
-                          </td>
-                        );
-                      })}
-                    </tr>
+                  {CONFIG_MATRIX_SIDEBAR_IDS.map((featureId) => (
+                    <Fragment key={featureId}>
+                      <tr className="border-b border-border/60">
+                        <td className="py-2 pr-3 font-medium">
+                          {featureId === "classes" ? (
+                            <button
+                              type="button"
+                              onClick={() => setClassesExpanded((e) => !e)}
+                              className="inline-flex items-center gap-1.5 text-left font-medium hover:text-foreground"
+                            >
+                              {classesExpanded ? (
+                                <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                              )}
+                              {labelForConfigFeature(featureId)}
+                            </button>
+                          ) : (
+                            labelForConfigFeature(featureId)
+                          )}
+                        </td>
+                        <AccessCells featureId={featureId} overrides={overrides} setRule={setRule} />
+                      </tr>
+                      {featureId === "classes" && classesExpanded
+                        ? CONFIG_MATRIX_CLASS_TAB_IDS.map((tabId) => (
+                            <tr key={tabId} className="border-b border-border/40 bg-muted/20">
+                              <td className="py-2 pr-3 pl-8 text-muted-foreground">
+                                {labelForConfigFeature(tabId)}
+                              </td>
+                              <AccessCells featureId={tabId} overrides={overrides} setRule={setRule} />
+                            </tr>
+                          ))
+                        : null}
+                    </Fragment>
                   ))}
                 </tbody>
               </table>
