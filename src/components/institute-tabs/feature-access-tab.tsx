@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  CONFIGURABLE_NAV_IDS,
+  CONFIGURABLE_ACCESS_IDS,
   LABELS_FOR_CONFIG,
   NAV_ACCESS_MATRIX_ROLES,
 } from "@/lib/education-nav-config-labels";
@@ -54,10 +54,7 @@ export function FeatureAccessTab({ instituteId }: { instituteId: string }) {
     void load();
   }, [load]);
 
-  const features = useMemo(
-    () => CONFIGURABLE_NAV_IDS.filter((id) => id !== "feature-config"),
-    []
-  );
+  const features = useMemo(() => CONFIGURABLE_ACCESS_IDS, []);
 
   function setRule(featureId: string, role: string, patch: Partial<{ visible: boolean; editable: boolean }>) {
     setOverrides((prev) => {

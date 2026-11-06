@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { Member, Section } from "@/lib/api";
 import { SectionWorkspace, type SectionWorkspaceTab } from "@/components/section-workspace";
+import { useNavAccessOverrides } from "@/hooks/use-nav-access-overrides";
+import { resolveVisibleSectionWorkspaceTab } from "@/lib/education-nav";
 import {
   useRegisterClassesDesktopHeader,
   useRegisterClassesMobileHeader,
@@ -71,12 +73,18 @@ export function ClassesBrowseTab({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const navOverrides = useNavAccessOverrides(instituteId);
   const urlSectionId = searchParams.get("sectionId");
   const rawSectionTab = searchParams.get("sectionTab") as SectionWorkspaceTab | null;
-  const urlSectionTab =
+  const rawNormalized: SectionWorkspaceTab =
     rawSectionTab === "notes"
       ? "class-board"
       : rawSectionTab || sectionWorkspaceTab || "overview";
+  const urlSectionTab = resolveVisibleSectionWorkspaceTab(
+    workspaceRole,
+    rawNormalized,
+    navOverrides
+  ) as SectionWorkspaceTab;
 
   const [sections, setSections] = useState<Section[]>(initialSections);
   const [selectedSectionId, setSelectedSectionId] = useState(
@@ -125,6 +133,12 @@ export function ClassesBrowseTab({
       })
     );
   }
+
+  useEffect(() => {
+    if (rawNormalized === urlSectionTab) return;
+    if (!selectedSectionId) return;
+    syncClassesUrl(selectedSectionId, urlSectionTab);
+  }, [rawNormalized, urlSectionTab, selectedSectionId]);
 
   useEffect(() => {
     if (!sections.length) return;
@@ -238,6 +252,7 @@ export function ClassesBrowseTab({
           role={workspaceRole}
           initialTab={urlSectionTab}
           onTabChange={(tab) => syncClassesUrl(selectedSection.id, tab)}
+          navOverrides={navOverrides}
           overview={selectedOverview}
           assignments={selectedOverview.assignments}
           notes={[]}

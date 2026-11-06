@@ -33,9 +33,12 @@ const BUCKETS = [
 export function SectionAssignmentsTab({
   sectionId,
   isTeacher,
+  allowTeacherAuthoring = true,
 }: {
   sectionId: string;
   isTeacher: boolean;
+  /** When false, teacher sees list only (view-only per institute config). */
+  allowTeacherAuthoring?: boolean;
 }) {
   const [bucket, setBucket] = useState<string>("draft");
   const [works, setWorks] = useState<Work[]>([]);
@@ -47,7 +50,7 @@ export function SectionAssignmentsTab({
   const [submissions, setSubmissions] = useState<SubmissionRow[]>([]);
 
   const loadTeacher = useCallback((bucketOverride?: string) => {
-    if (!isTeacher) return;
+    if (!isTeacher || !allowTeacherAuthoring) return;
     const activeBucket = bucketOverride ?? bucket;
     fetch(`/api/sections/${sectionId}/assignment-works?bucket=${activeBucket}`, {
       credentials: "include",
@@ -59,7 +62,7 @@ export function SectionAssignmentsTab({
       })
       .then(setWorks)
       .catch((e) => setError(e instanceof Error ? e.message : "Error"));
-  }, [sectionId, bucket, isTeacher]);
+  }, [sectionId, bucket, isTeacher, allowTeacherAuthoring]);
 
   const loadStudent = useCallback(() => {
     if (isTeacher) return;
@@ -111,6 +114,14 @@ export function SectionAssignmentsTab({
       body: JSON.stringify({ scoresVisible: true, responses: [] }),
     });
     openSubmissions(assignmentId);
+  }
+
+  if (isTeacher && !allowTeacherAuthoring) {
+    return (
+      <div className="rounded-xl border border-border bg-muted/30 p-6 text-sm text-muted-foreground">
+        Assignments are view-only for your role in this institute.
+      </div>
+    );
   }
 
   if (editId) {
