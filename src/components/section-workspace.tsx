@@ -152,6 +152,13 @@ export function SectionWorkspace({
       show: canViewRosterSubjects && isClassSectionTabVisible(role, "subjects", navOverrides),
     },
     {
+      id: "fees",
+      label: "Fees",
+      shortLabel: "Fees",
+      show:
+        canManage && isClassSectionTabVisible(role, "fees", navOverrides),
+    },
+    {
       id: "syllabus",
       label: "Syllabus",
       shortLabel: "Syllabus",
@@ -187,12 +194,6 @@ export function SectionWorkspace({
       label: "Progress",
       shortLabel: "Progress",
       show: isClassSectionTabVisible(role, "progress", navOverrides),
-    },
-    {
-      id: "fees",
-      label: "Fees",
-      shortLabel: "Fees",
-      show: canManage && isClassSectionTabVisible(role, "fees", navOverrides),
     },
   ];
 
@@ -241,7 +242,7 @@ export function SectionWorkspace({
     <div className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden md:mt-1">
       <nav
         aria-label="Class section"
-        className="flex w-full shrink-0 flex-wrap gap-x-0 gap-y-0 border-b border-border bg-background"
+        className="flex w-full shrink-0 gap-x-0 gap-y-0 overflow-x-auto border-b border-border bg-background md:flex-wrap"
       >
         {visibleTabs.map((t) => {
           const active = tab === t.id;

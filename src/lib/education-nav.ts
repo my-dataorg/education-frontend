@@ -4,6 +4,7 @@
  */
 
 import type { NavAccessOverrides } from "@/lib/nav-access";
+import { INSTITUTE_ADMIN_ROLES } from "@/lib/roles";
 
 export const EDUCATION_NAV_IDS = [
   "overview",
@@ -313,6 +314,8 @@ export function isClassSectionTabVisible(
   sectionTab: string,
   overrides?: NavAccessOverrides | null
 ): boolean {
+  // Class fee defaults are institute admin work — always show for owner/admin/principal.
+  if (sectionTab === "fees" && INSTITUTE_ADMIN_ROLES.has(role)) return true;
   const matrixKey = navMatrixRoleKey(role);
   if (!matrixKey) return true;
   const featureKey = classSectionTabAccessKey(sectionTab);
@@ -326,6 +329,7 @@ export function isClassSectionTabEditable(
   sectionTab: string,
   overrides?: NavAccessOverrides | null
 ): boolean {
+  if (sectionTab === "fees" && INSTITUTE_ADMIN_ROLES.has(role)) return true;
   const matrixKey = navMatrixRoleKey(role);
   if (!matrixKey) return true;
   const featureKey = classSectionTabAccessKey(sectionTab);
@@ -338,13 +342,13 @@ export const SECTION_WORKSPACE_TAB_ORDER: readonly string[] = [
   "overview",
   "roster",
   "subjects",
+  "fees",
   "syllabus",
   "timetable",
   "attendance",
   "assignments",
   "class-board",
   "progress",
-  "fees",
 ];
 
 /** First section tab visible for role (defaults + owner config). */
