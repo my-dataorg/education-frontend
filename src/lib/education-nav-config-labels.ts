@@ -35,7 +35,7 @@ const CLASS_TAB_LABELS: Record<string, string> = {
   "classes.assignments": "Assignments",
   "classes.class-board": "Class board",
   "classes.progress": "Progress",
-  "classes.fees": "Fees (class default)",
+  "classes.fees": "Fees (class default; owner/admin/principal always see tab)",
 };
 
 export function labelForConfigFeature(featureId: string): string {
