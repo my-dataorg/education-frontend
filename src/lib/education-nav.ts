@@ -75,6 +75,7 @@ export const CLASS_SECTION_TAB_ACCESS_IDS = [
   "classes.assignments",
   "classes.class-board",
   "classes.progress",
+  "classes.fees",
 ] as const;
 
 /** Full matrix: main sidebar items + class section tabs */
@@ -98,7 +99,7 @@ const LABELS: Record<EducationNavId, string> = {
   timetable: "Timetable",
   attendance: "Attendance",
   exams: "Exam results",
-  fees: "Fees",
+  fees: "Finance",
   reports: "Reports",
   classes: "Classes",
   associates: "Associates",
@@ -138,6 +139,7 @@ const TEACHING_ROLES: ReadonlySet<RoleKey> = new Set(["teacher", "lecturer", "pr
 
 const ROLE_LABEL_OVERRIDES: Partial<Record<RoleKey, Partial<Record<EducationNavId, string>>>> = {
   teacher: {
+    fees: "My pay",
     exams: "Marks & gradebook",
     reports: "Student progress",
     calendar: "Notices & events",
@@ -145,6 +147,7 @@ const ROLE_LABEL_OVERRIDES: Partial<Record<RoleKey, Partial<Record<EducationNavI
     leave: "Leave inbox",
   },
   lecturer: {
+    fees: "My pay",
     exams: "Marks & gradebook",
     reports: "Student progress",
     calendar: "Notices & events",
@@ -152,6 +155,7 @@ const ROLE_LABEL_OVERRIDES: Partial<Record<RoleKey, Partial<Record<EducationNavI
     leave: "Leave inbox",
   },
   professor: {
+    fees: "My pay",
     exams: "Marks & gradebook",
     reports: "Student progress",
     calendar: "Notices & events",
@@ -167,7 +171,7 @@ const ROLE_LABEL_OVERRIDES: Partial<Record<RoleKey, Partial<Record<EducationNavI
   parent: {
     overview: "Home",
     attendance: "Attendance & leave",
-    fees: "Fees & receipts",
+    fees: "Finance & receipts",
     calendar: "Notices & PTM",
     profile: "Profile & children",
     exams: "Academics",
@@ -189,9 +193,9 @@ const ROLE_ORDER: Record<RoleKey, EducationNavId[]> = {
     "fees",
     "reports",
   ],
-  teacher: ["overview", "classes", "calendar", "timetable", "class-teacher", "attendance", "leave"],
-  lecturer: ["overview", "classes", "calendar", "timetable", "class-teacher", "attendance", "leave"],
-  professor: ["overview", "classes", "calendar", "timetable", "class-teacher", "attendance", "leave"],
+  teacher: ["overview", "classes", "calendar", "timetable", "class-teacher", "attendance", "fees", "leave"],
+  lecturer: ["overview", "classes", "calendar", "timetable", "class-teacher", "attendance", "fees", "leave"],
+  professor: ["overview", "classes", "calendar", "timetable", "class-teacher", "attendance", "fees", "leave"],
   student: [
     "overview",
     "classes",
@@ -340,6 +344,7 @@ export const SECTION_WORKSPACE_TAB_ORDER: readonly string[] = [
   "assignments",
   "class-board",
   "progress",
+  "fees",
 ];
 
 /** First section tab visible for role (defaults + owner config). */

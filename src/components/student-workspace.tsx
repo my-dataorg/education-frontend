@@ -13,6 +13,7 @@ import {
 import { StudentModuleTab, type CalendarEvent, type Exam } from "@/components/student-module-tab";
 import { StudentTimetableTab } from "@/components/student-timetable-tab";
 import { MyAttendanceLeavePage } from "@/components/my-attendance-leave-page";
+import { StudentFinancePanel } from "@/components/student-finance-panel";
 import { getEducationNavItems, type EducationNavId } from "@/lib/education-nav";
 import { useNavAccessOverrides } from "@/hooks/use-nav-access-overrides";
 
@@ -349,10 +350,8 @@ function StudentWorkspaceBody({
           )}
 
           {tab === "fees" && (
-            <Card title="Fees">
-              <p className="text-sm text-muted-foreground">
-                Fee balances and receipts will appear here when your school enables online fee viewing.
-              </p>
+            <Card title="Finance">
+              <StudentFinancePanel instituteId={instituteId} />
             </Card>
           )}
 

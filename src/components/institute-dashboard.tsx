@@ -11,7 +11,7 @@ import { OverviewTab } from "@/components/institute-tabs/overview-tab";
 import { ScheduleTab } from "@/components/institute-tabs/schedule-tab";
 import { AttendanceTab } from "@/components/institute-tabs/attendance-tab";
 import { ExamsTab } from "@/components/institute-tabs/exams-tab";
-import { FeesTab } from "@/components/institute-tabs/fees-tab";
+import { FinanceTab } from "@/components/institute-tabs/finance-tab";
 import { NoticesTab } from "@/components/institute-tabs/notices-tab";
 import { ReportsTab } from "@/components/institute-tabs/reports-tab";
 import { BranchPills, InstituteShell } from "@/components/institute-shell";
@@ -343,7 +343,7 @@ export function InstituteDashboard({
                   <ExamsTab instituteId={instituteId} />
                 </TabsContent>
                 <TabsContent value="fees" className="w-full">
-                  <FeesTab instituteId={instituteId} />
+                  <FinanceTab instituteId={instituteId} role={detail.role} />
                 </TabsContent>
                 <TabsContent value="reports" className="w-full">
                   <ReportsTab instituteId={instituteId} branchId={selectedBranchId} />

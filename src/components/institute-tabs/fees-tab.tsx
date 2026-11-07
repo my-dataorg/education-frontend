@@ -9,6 +9,10 @@ type DueRow = {
   amountPaise: number;
   paidPaise: number;
   balancePaise: number;
+  feePlanName?: string | null;
+  installmentCount?: number;
+  discountPercent?: number;
+  installmentAmountPaise?: number;
 };
 
 type FeeStructure = { id: string; name: string; amountPaise: number };
@@ -91,8 +95,8 @@ export function FeesTab({ instituteId }: { instituteId: string }) {
   return (
     <section className="space-y-5">
       <ModuleHeader
-        title="Fees"
-        description="Track collections, concessions, receipts, and dues"
+        title="Student fees"
+        description="Assignments, payment plans, receipts, and outstanding balances"
         action={
           <button
             type="button"
@@ -161,13 +165,17 @@ export function FeesTab({ instituteId }: { instituteId: string }) {
       </Panel>
       <Panel title="Collection & dues">
         <DataTable
-          headers={["Student", "Fee", "Due", "Paid", "Status"]}
+          headers={["Student", "Fee", "Plan", "Billed", "Paid", "Balance", "Status"]}
           rows={dues.map((row) => [
             row.studentId,
             structureNameById(row.feeStructureId),
+            row.feePlanName
+              ? `${row.feePlanName} (${row.installmentCount}×${row.discountPercent ? `, ${row.discountPercent}% off` : ""})`
+              : "—",
             formatPaise(row.amountPaise),
             formatPaise(row.paidPaise),
-            row.balancePaise === 0 ? "Paid" : row.paidPaise > 0 ? "Part paid" : "Overdue",
+            formatPaise(row.balancePaise),
+            row.balancePaise === 0 ? "Paid" : row.paidPaise > 0 ? "Part paid" : "Due",
           ])}
         />
         {dues.length === 0 && <p className="mt-2 text-sm text-muted-foreground">No student fees assigned yet.</p>}
