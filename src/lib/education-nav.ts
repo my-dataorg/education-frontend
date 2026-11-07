@@ -9,7 +9,6 @@ export const EDUCATION_NAV_IDS = [
   "overview",
   "profile",
   "configure",
-  "feature-config",
   "association",
   "calendar",
   "timetable",
@@ -49,8 +48,6 @@ type RoleKey =
   | "professor"
   | "student"
   | "parent";
-
-export const OWNER_ONLY_NAV_IDS: ReadonlySet<EducationNavId> = new Set(["feature-config"]);
 
 export const CONFIGURABLE_NAV_IDS: EducationNavId[] = [
   "overview",
@@ -96,7 +93,6 @@ const LABELS: Record<EducationNavId, string> = {
   overview: "Overview",
   profile: "Profile",
   configure: "Configure",
-  "feature-config": "Config",
   association: "Association",
   calendar: "Holidays & events",
   timetable: "Timetable",
@@ -232,6 +228,7 @@ const LEGACY_TAB_ALIASES: Record<string, EducationNavId | "enrollment-split"> = 
   "subject-teachers": "classes",
   "academic-year": "configure",
   "roles-settings": "configure",
+  "feature-config": "configure",
   campuses: "profile",
   notices: "calendar",
   schedule: "timetable",
@@ -279,7 +276,6 @@ function applyNavAccessOverrides(
   if (!matrixKey) return items;
   const navKey = normalizeEducationRole(role);
   return items.filter((item) => {
-    if (OWNER_ONLY_NAV_IDS.has(item.id)) return navKey === "owner";
     const rule = overrides[item.id]?.[matrixKey];
     if (!rule || rule.visible === undefined) return true;
     return rule.visible;
@@ -367,13 +363,10 @@ export function getEducationNavItems(role: string, overrides?: NavAccessOverride
   const key = normalizeEducationRole(role);
   if (!key) return [];
   const allowed = VISIBILITY[key];
-  let order = ROLE_ORDER[key];
-  if (key === "owner") {
-    order = [...OWNER_ORDER, "feature-config"];
-  }
+  const order = ROLE_ORDER[key];
   const labels = ROLE_LABEL_OVERRIDES[key] ?? {};
   const items = order
-    .filter((id) => allowed.has(id) || (key === "owner" && OWNER_ONLY_NAV_IDS.has(id)))
+    .filter((id) => allowed.has(id))
     .map((id) => ({
       id,
       label: labels[id] ?? LABELS[id],

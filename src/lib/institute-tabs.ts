@@ -109,7 +109,7 @@ export function legacyTabQueryOverrides(
   const patch: Record<string, string | undefined> = { tab: canonical };
 
   if (tabParam === "academic-year") patch.configureTab = "academic-year";
-  if (tabParam === "roles-settings") patch.configureTab = "roles";
+  if (tabParam === "roles-settings" || tabParam === "feature-config") patch.configureTab = "roles";
   if (tabParam === "notices") {
     patch.calendarView = searchParams.get("calendarView") || "month";
   }
