@@ -16,7 +16,7 @@ const SIDEBAR_LABELS: Record<string, string> = {
   exams: "Exams / results",
   timetable: "Timetable",
   attendance: "Attendance",
-  fees: "Fees",
+  fees: "Finance",
   reports: "Reports",
   calendar: "Holidays & events",
   configure: "Configure (master data)",
@@ -35,6 +35,7 @@ const CLASS_TAB_LABELS: Record<string, string> = {
   "classes.assignments": "Assignments",
   "classes.class-board": "Class board",
   "classes.progress": "Progress",
+  "classes.fees": "Fees (class default)",
 };
 
 export function labelForConfigFeature(featureId: string): string {

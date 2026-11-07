@@ -13,6 +13,7 @@ import type { EducationNavId } from "@/lib/education-nav";
 import { useNavAccessOverrides } from "@/hooks/use-nav-access-overrides";
 import { TeacherModuleTab } from "@/components/teacher-module-tab";
 import { MyAttendanceLeavePage } from "@/components/my-attendance-leave-page";
+import { FinanceExpensesPanel } from "@/components/institute-tabs/finance-expenses-panel";
 import { LeaveApprovalInbox } from "@/components/leave-approval-inbox";
 import { EducationContextReporter } from "@/components/education-context-reporter";
 import type { Assignment, InstitutePost, Member, Section } from "@/lib/api";
@@ -206,6 +207,17 @@ export function TeacherWorkspace({
             sections={sections}
             workspaceRole="teacher"
             fitClassBoard={fitClassBoard}
+          />
+        </div>
+      )}
+
+      {tab === "fees" && (
+        <div className="mt-6">
+          <FinanceExpensesPanel
+            instituteId={instituteId}
+            category="staff"
+            canManage={false}
+            teacherOnly
           />
         </div>
       )}

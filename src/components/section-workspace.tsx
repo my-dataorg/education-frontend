@@ -12,6 +12,7 @@ import { SectionSyllabusPanel } from "@/components/section-syllabus-panel";
 import type { SyllabusMode } from "@/lib/syllabus-types";
 import { SectionClassBoardPanel } from "@/components/section-class-board-panel";
 import { SectionTimetablePanel } from "@/components/section-timetable-panel";
+import { SectionFeesPanel } from "@/components/section-fees-panel";
 import { formatUserName } from "@/components/user-identity";
 import type { Member } from "@/lib/api";
 import type { SectionSubject } from "@/lib/api";
@@ -31,6 +32,7 @@ export type SectionWorkspaceTab =
   | "class-board"
   | "notes"
   | "progress"
+  | "fees"
   | "students";
 
 type Tab = SectionWorkspaceTab;
@@ -186,6 +188,12 @@ export function SectionWorkspace({
       shortLabel: "Progress",
       show: isClassSectionTabVisible(role, "progress", navOverrides),
     },
+    {
+      id: "fees",
+      label: "Fees",
+      shortLabel: "Fees",
+      show: canManage && isClassSectionTabVisible(role, "fees", navOverrides),
+    },
   ];
 
   async function refreshOverview() {
@@ -204,6 +212,7 @@ export function SectionWorkspace({
     canEditNotes && isClassSectionTabEditable(role, "class-board", navOverrides);
   const assignmentsTeacherMayEdit =
     isTeacher && isClassSectionTabEditable(role, "assignments", navOverrides);
+  const feesMayEdit = canManage && isClassSectionTabEditable(role, "fees", navOverrides);
 
   const visibleTabIdsKey = visibleTabs.map((t) => t.id).join("|");
   useEffect(() => {
@@ -363,6 +372,10 @@ export function SectionWorkspace({
             canEdit={boardMayEdit}
             fillHeight
           />
+        )}
+
+        {tab === "fees" && canManage && (
+          <SectionFeesPanel instituteId={instituteId} sectionId={sectionId} canEdit={feesMayEdit} />
         )}
 
         {tab === "progress" && (
