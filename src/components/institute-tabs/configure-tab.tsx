@@ -5,7 +5,7 @@ import type { InstituteSummary } from "@/lib/api";
 import { buildInstitutePathFromSearch } from "@/lib/embed-href";
 import { AcademicYearTab } from "@/components/institute-tabs/academic-year-tab";
 import { ClassesTab } from "@/components/institute-tabs/classes-tab";
-import { RolesSettingsTab } from "@/components/institute-tabs/roles-settings-tab";
+import { FeatureAccessTab } from "@/components/institute-tabs/feature-access-tab";
 
 const CONFIGURE_TABS = [
   { id: "academic-year", label: "Academic year" },
@@ -69,7 +69,7 @@ export function ConfigureTab({ instituteId, branches, showRoles }: Props) {
       </div>
 
       {active === "academic-year" && <AcademicYearTab instituteId={instituteId} />}
-      {active === "roles" && showRoles && <RolesSettingsTab instituteId={instituteId} />}
+      {active === "roles" && showRoles && <FeatureAccessTab instituteId={instituteId} />}
       {(["sections", "subjects", "activities", "rooms"] as const).includes(
         active as "sections" | "subjects" | "activities" | "rooms"
       ) && (

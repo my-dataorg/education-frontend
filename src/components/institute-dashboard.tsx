@@ -3,7 +3,6 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { ConfigureTab } from "@/components/institute-tabs/configure-tab";
-import { FeatureAccessTab } from "@/components/institute-tabs/feature-access-tab";
 import { ProfileTab } from "@/components/institute-tabs/profile-tab";
 import { AssociationTab } from "@/components/institute-tabs/association-tab";
 import { ClassesBrowseTab } from "@/components/classes-browse-tab";
@@ -262,11 +261,6 @@ export function InstituteDashboard({
                       branches={branches}
                       showRoles={isOwner}
                     />
-                  </TabsContent>
-                )}
-                {isOwner && (
-                  <TabsContent value="feature-config" className="w-full">
-                    <FeatureAccessTab instituteId={instituteId} />
                   </TabsContent>
                 )}
                 <TabsContent value="association" className="w-full">

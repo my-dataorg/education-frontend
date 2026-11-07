@@ -166,7 +166,7 @@ export function FeatureAccessTab({ instituteId }: { instituteId: string }) {
   return (
     <section className="space-y-5">
       <ModuleHeader
-        title="Config"
+        title="Roles & permissions"
         description="Choose which sidebar features each role sees and whether they can edit or view only. Expand Classes to configure tabs inside the class workspace."
       />
       {error && (
