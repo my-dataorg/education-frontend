@@ -13,6 +13,7 @@ type FeePlan = {
   dueScheduleNotes?: string;
   sectionId?: string | null;
   appliesToLabel?: string;
+  installments?: { sequence: number; dueDate: string; amountPaise: number | null }[];
 };
 
 function plansForSection(plans: FeePlan[], sectionId: string): FeePlan[] {
@@ -30,7 +31,18 @@ type SectionRow = {
 
 type FeeStructure = { id: string; name: string; amountPaise: number };
 
-type SetupStep = "classes" | "plans" | "overrides" | "heads";
+type SetupStep = "standard" | "plans" | "students" | "advanced";
+
+type LadderDefault = {
+  amountPaise: number;
+  feePlanId: string | null;
+  feeStructureId?: string | null;
+  className?: string;
+};
+
+type InstallmentDraft = { dueDate: string; amountRupees: string };
+
+type RosterStudent = { userId: string; name?: string; memberType?: string };
 
 async function apiErrorMessage(response: Response, fallback: string): Promise<string> {
   const body = await response.json().catch(() => ({}));
@@ -42,14 +54,25 @@ async function apiErrorMessage(response: Response, fallback: string): Promise<st
 }
 
 const STEPS: { id: SetupStep; label: string; hint: string }[] = [
-  { id: "classes", label: "1. Class fees", hint: "One row per class — annual amount and payment plan" },
-  { id: "plans", label: "2. Payment plans", hint: "Installments, due dates, late fine" },
-  { id: "overrides", label: "3. Student overrides", hint: "Custom amount or plan for one student" },
-  { id: "heads", label: "4. Fee heads", hint: "What you bill (e.g. tuition)" },
+  {
+    id: "standard",
+    label: "Standard fees",
+    hint: "Institute → class → section; student overrides win (step 3). Save each row, then Bill class.",
+  },
+  { id: "plans", label: "Payment plans", hint: "Templates with installment due dates; generic or one class." },
+  { id: "students", label: "Student exceptions", hint: "Pick a student and set custom fee, plan, or schedule." },
+  { id: "advanced", label: "Advanced", hint: "Fee heads (line items) — usually one Annual tuition is enough." },
 ];
 
 export function ConfigureFeesTab({ instituteId }: { instituteId: string }) {
-  const [step, setStep] = useState<SetupStep>("classes");
+  const [step, setStep] = useState<SetupStep>("standard");
+  const [instituteDefault, setInstituteDefault] = useState<LadderDefault>({ amountPaise: 0, feePlanId: null });
+  const [classDefaults, setClassDefaults] = useState<LadderDefault[]>([]);
+  const [planInstallmentDrafts, setPlanInstallmentDrafts] = useState<InstallmentDraft[]>([{ dueDate: "", amountRupees: "" }]);
+  const [overrideSectionId, setOverrideSectionId] = useState("");
+  const [rosterStudents, setRosterStudents] = useState<RosterStudent[]>([]);
+  const [overridePaymentNotes, setOverridePaymentNotes] = useState("");
+  const [studentInstallmentDrafts, setStudentInstallmentDrafts] = useState<InstallmentDraft[]>([]);
   const [plans, setPlans] = useState<FeePlan[]>([]);
   const [sections, setSections] = useState<SectionRow[]>([]);
   const [structures, setStructures] = useState<FeeStructure[]>([]);
@@ -71,12 +94,16 @@ export function ConfigureFeesTab({ instituteId }: { instituteId: string }) {
   const [message, setMessage] = useState("");
 
   const load = useCallback(async () => {
-    const [plansRes, sectionsRes, structRes] = await Promise.all([
+    const [plansRes, sectionsRes, structRes, instRes, classRes] = await Promise.all([
       fetch(`/api/institutes/${instituteId}/fee-plans`, { credentials: "include" }),
       fetch(`/api/institutes/${instituteId}/section-fee-defaults`, { credentials: "include" }),
       fetch(`/api/institutes/${instituteId}/fee-structures`, { credentials: "include" }),
+      fetch(`/api/institutes/${instituteId}/fee-default`, { credentials: "include" }),
+      fetch(`/api/institutes/${instituteId}/class-fee-defaults`, { credentials: "include" }),
     ]);
-    if (!plansRes.ok || !sectionsRes.ok || !structRes.ok) throw new Error("Could not load fee setup");
+    if (!plansRes.ok || !sectionsRes.ok || !structRes.ok || !instRes.ok || !classRes.ok) {
+      throw new Error("Could not load fee setup");
+    }
     setPlans(await plansRes.json());
     const sectionRows: SectionRow[] = await sectionsRes.json();
     setSections(sectionRows);
@@ -88,11 +115,41 @@ export function ConfigureFeesTab({ instituteId }: { instituteId: string }) {
       setApplyStructureId((prev) => prev || headId);
       setOverrideStructureId((prev) => prev || headId);
     }
+    const inst = await instRes.json();
+    setInstituteDefault({
+      amountPaise: inst.amountPaise ?? 0,
+      feePlanId: inst.feePlanId ?? null,
+      feeStructureId: inst.feeStructureId ?? null,
+    });
+    setClassDefaults(await classRes.json());
+    if (sectionRows[0]) setOverrideSectionId((prev) => prev || sectionRows[0].sectionId);
   }, [instituteId]);
 
   useEffect(() => {
     load().catch(() => setError("Could not load fee configuration"));
   }, [load]);
+
+  useEffect(() => {
+    const n = Math.max(1, Math.min(24, Number(installments) || 1));
+    setPlanInstallmentDrafts((rows) => {
+      const next = [...rows];
+      while (next.length < n) next.push({ dueDate: "", amountRupees: "" });
+      while (next.length > n) next.pop();
+      return next;
+    });
+  }, [installments]);
+
+  useEffect(() => {
+    if (!overrideSectionId) return;
+    fetch(`/api/sections/${overrideSectionId}`, { credentials: "include" })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const data = await res.json();
+        const list = (data.students as RosterStudent[] | undefined) ?? [];
+        setRosterStudents(list);
+      })
+      .catch(() => setRosterStudents([]));
+  }, [overrideSectionId]);
 
   function clearFeedback() {
     setError("");
@@ -113,6 +170,13 @@ export function ConfigureFeesTab({ instituteId }: { instituteId: string }) {
         lateFeePaise: rupeesInputToPaise(lateFeeRupees),
         dueScheduleNotes: dueScheduleNotes.trim(),
         sectionId: planScope === "section" && planSectionId ? planSectionId : null,
+        installments: planInstallmentDrafts
+          .filter((d) => d.dueDate)
+          .map((d, i) => ({
+            sequence: i + 1,
+            dueDate: d.dueDate,
+            amountPaise: d.amountRupees.trim() ? rupeesInputToPaise(d.amountRupees) : null,
+          })),
       }),
     });
     if (!response.ok) {
@@ -191,10 +255,53 @@ export function ConfigureFeesTab({ instituteId }: { instituteId: string }) {
     setMessage(`Updated fee accounts for ${body.studentsUpdated} students. View balances under Classes → Fees.`);
   }
 
+  async function saveInstituteDefault() {
+    clearFeedback();
+    const response = await fetch(`/api/institutes/${instituteId}/fee-default`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        amountPaise: instituteDefault.amountPaise,
+        feePlanId: instituteDefault.feePlanId,
+        feeStructureId: applyStructureId || null,
+      }),
+    });
+    if (!response.ok) {
+      setError(await apiErrorMessage(response, "Could not save institute default"));
+      return;
+    }
+    setMessage("Institute-wide default saved");
+    await load();
+  }
+
+  async function saveClassDefault(className: string, row: LadderDefault) {
+    clearFeedback();
+    const response = await fetch(
+      `/api/institutes/${instituteId}/classes/${encodeURIComponent(className)}/fee-default`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          amountPaise: row.amountPaise,
+          feePlanId: row.feePlanId,
+          feeStructureId: applyStructureId || null,
+        }),
+      }
+    );
+    if (!response.ok) {
+      setError(await apiErrorMessage(response, "Could not save class default"));
+      return;
+    }
+    setMessage(`Saved class ${className} default`);
+    await load();
+  }
+
   async function saveStudentOverride() {
     clearFeedback();
     if (!overrideStudentId.trim() || !overrideStructureId) {
-      setError("Student ID and fee head are required");
+      setError("Select a student and fee head");
       return;
     }
     const amountPaise = overrideRupees.trim() ? rupeesInputToPaise(overrideRupees) : null;
@@ -207,6 +314,15 @@ export function ConfigureFeesTab({ instituteId }: { instituteId: string }) {
         feeStructureId: overrideStructureId,
         amountPaise,
         feePlanId: overridePlanId || null,
+        sectionId: overrideSectionId || null,
+        paymentNotes: overridePaymentNotes.trim(),
+        installments: studentInstallmentDrafts
+          .filter((d) => d.dueDate)
+          .map((d, i) => ({
+            sequence: i + 1,
+            dueDate: d.dueDate,
+            amountPaise: d.amountRupees.trim() ? rupeesInputToPaise(d.amountRupees) : null,
+          })),
       }),
     });
     if (!response.ok) {
@@ -225,7 +341,7 @@ export function ConfigureFeesTab({ instituteId }: { instituteId: string }) {
     <section className="space-y-5">
       <ModuleHeader
         title="Fees & plans"
-        description="Set class fees first, then payment plans and optional per-student exceptions. Day-to-day collections stay under Classes → Fees."
+        description="Standard fees ladder, payment plans, and student exceptions. Collections and balances stay under Classes → Fees."
       />
       {error && <p className="text-sm text-red-600">{error}</p>}
       {message && <p className="text-sm text-emerald-700">{message}</p>}
@@ -246,11 +362,104 @@ export function ConfigureFeesTab({ instituteId }: { instituteId: string }) {
       </nav>
       <p className="text-xs text-muted-foreground">{activeHint}</p>
 
-      {step === "classes" && (
-        <Panel title="Fee per class">
+      {step === "standard" && (
+        <Panel title="Standard fees">
+          <p className="mb-3 text-sm text-muted-foreground">
+            Priority: student exception → section → class name → institute. Set each layer you need; lower layers apply when
+            higher ones are empty.
+          </p>
+          <div className="mb-4 rounded-lg border border-border bg-muted/20 p-3">
+            <p className="text-xs font-medium text-foreground">Institute default (all classes)</p>
+            <div className="mt-2 flex flex-wrap items-end gap-2">
+              <LabeledInput
+                label="Annual fee (₹)"
+                value={paiseToRupeesInput(instituteDefault.amountPaise)}
+                onChange={(v) =>
+                  setInstituteDefault((d) => ({ ...d, amountPaise: rupeesInputToPaise(v) }))
+                }
+              />
+              <label className="text-xs font-medium text-foreground">
+                Payment plan
+                <select
+                  value={instituteDefault.feePlanId ?? ""}
+                  onChange={(e) =>
+                    setInstituteDefault((d) => ({ ...d, feePlanId: e.target.value || null }))
+                  }
+                  className="mt-1.5 block rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">Pay in full</option>
+                  {plans.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                onClick={() => void saveInstituteDefault()}
+                className="rounded-lg border px-3 py-2 text-sm"
+              >
+                Save institute
+              </button>
+            </div>
+          </div>
+          {classDefaults.length > 0 && (
+            <div className="mb-4 space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">Class defaults (same fee for all sections in a class)</p>
+              {classDefaults.map((row) => (
+                <div
+                  key={row.className}
+                  className="flex flex-wrap items-end gap-2 rounded-lg border border-border p-2 text-sm"
+                >
+                  <span className="min-w-[6rem] font-medium">Class {row.className}</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={paiseToRupeesInput(row.amountPaise)}
+                    onChange={(e) => {
+                      const v = rupeesInputToPaise(e.target.value);
+                      setClassDefaults((rows) =>
+                        rows.map((r) => (r.className === row.className ? { ...r, amountPaise: v } : r))
+                      );
+                    }}
+                    className="w-28 rounded-lg border px-2 py-1"
+                  />
+                  <select
+                    value={row.feePlanId ?? ""}
+                    onChange={(e) => {
+                      const pid = e.target.value || null;
+                      setClassDefaults((rows) =>
+                        rows.map((r) => (r.className === row.className ? { ...r, feePlanId: pid } : r))
+                      );
+                    }}
+                    className="rounded-lg border bg-background px-2 py-1"
+                  >
+                    <option value="">Plan</option>
+                    {plans.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const current = classDefaults.find((r) => r.className === row.className);
+                      if (current) void saveClassDefault(row.className!, current);
+                    }}
+                    className="rounded-lg border px-2 py-1 text-xs"
+                  >
+                    Save class
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <h3 className="mb-2 mt-4 text-sm font-semibold">Sections</h3>
           <p className="mb-3 text-sm text-muted-foreground">
             Choose the fee head used when you bill the class roster. If none exist yet, we create Annual tuition
-            automatically; add more heads in step 4 if needed.
+            automatically; add more heads under Advanced if needed.
           </p>
           <label className="mb-3 flex flex-wrap items-center gap-2 text-sm">
             <span className="text-muted-foreground">Bill students under</span>
@@ -389,11 +598,44 @@ export function ConfigureFeesTab({ instituteId }: { instituteId: string }) {
               onChange={setLateFeeRupees}
             />
             <LabeledInput
-              label="Installment due dates"
-              hint="When each installment is due, e.g. 1 Apr, 1 Jul, 1 Oct"
+              label="Notes (optional)"
+              hint="Extra notes shown to staff; structured dates go in the grid below"
               value={dueScheduleNotes}
               onChange={setDueScheduleNotes}
             />
+            <div className="sm:col-span-2 lg:col-span-3 space-y-2 rounded-lg border border-dashed border-border p-3">
+              <p className="text-xs font-medium text-foreground">Installment due dates and amounts</p>
+              <p className="text-xs text-muted-foreground">Leave amount blank to split the fee evenly across installments.</p>
+              {planInstallmentDrafts.map((row, index) => (
+                <div key={`inst-${index}`} className="flex flex-wrap gap-2">
+                  <span className="w-6 pt-2 text-xs text-muted-foreground">#{index + 1}</span>
+                  <input
+                    type="date"
+                    value={row.dueDate}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setPlanInstallmentDrafts((rows) =>
+                        rows.map((r, i) => (i === index ? { ...r, dueDate: v } : r))
+                      );
+                    }}
+                    className="rounded-lg border border-border px-2 py-1.5 text-sm"
+                  />
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={row.amountRupees}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setPlanInstallmentDrafts((rows) =>
+                        rows.map((r, i) => (i === index ? { ...r, amountRupees: v } : r))
+                      );
+                    }}
+                    placeholder="₹ (optional)"
+                    className="w-28 rounded-lg border border-border px-2 py-1.5 text-sm"
+                  />
+                </div>
+              ))}
+            </div>
             <div className="flex items-end">
               <button
                 type="button"
@@ -424,21 +666,44 @@ export function ConfigureFeesTab({ instituteId }: { instituteId: string }) {
         </Panel>
       )}
 
-      {step === "overrides" && (
-        <Panel title="Override for one student">
+      {step === "students" && (
+        <Panel title="Student exception">
           <p className="mb-3 text-sm text-muted-foreground">
             Use when a student&apos;s fee differs from their class default — scholarship, sibling discount, or a different
             plan. Leave amount blank to use the fee head&apos;s default.
           </p>
           <div className="flex flex-wrap items-end gap-2">
-            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-              Student user ID
-              <input
+            <label className="flex flex-col gap-1 text-xs font-medium text-foreground">
+              Class section
+              <select
+                value={overrideSectionId}
+                onChange={(e) => {
+                  setOverrideSectionId(e.target.value);
+                  setOverrideStudentId("");
+                }}
+                className="min-w-[10rem] rounded-lg border border-border bg-background px-3 py-2 text-sm"
+              >
+                {sections.map((s) => (
+                  <option key={s.sectionId} value={s.sectionId}>
+                    {s.className} · {s.sectionName}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-xs font-medium text-foreground">
+              Student
+              <select
                 value={overrideStudentId}
                 onChange={(e) => setOverrideStudentId(e.target.value)}
-                className="min-w-[14rem] rounded-lg border border-border px-3 py-2 text-sm text-foreground"
-                placeholder="Platform user id"
-              />
+                className="min-w-[14rem] rounded-lg border border-border bg-background px-3 py-2 text-sm"
+              >
+                <option value="">Select student…</option>
+                {rosterStudents.map((s) => (
+                  <option key={s.userId} value={s.userId}>
+                    {s.name || s.userId}
+                  </option>
+                ))}
+              </select>
             </label>
             <label className="flex flex-col gap-1 text-xs text-muted-foreground">
               Fee head
@@ -480,6 +745,48 @@ export function ConfigureFeesTab({ instituteId }: { instituteId: string }) {
                 ))}
               </select>
             </label>
+            <LabeledInput
+              label="Payment notes"
+              hint="Internal notes for this student’s schedule"
+              value={overridePaymentNotes}
+              onChange={setOverridePaymentNotes}
+            />
+            <div className="w-full space-y-2 rounded-lg border border-dashed p-3">
+              <p className="text-xs font-medium">Custom installment schedule (optional)</p>
+              {[0, 1, 2].map((index) => (
+                <div key={`sinst-${index}`} className="flex gap-2">
+                  <input
+                    type="date"
+                    value={studentInstallmentDrafts[index]?.dueDate ?? ""}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setStudentInstallmentDrafts((rows) => {
+                        const next = [...rows];
+                        while (next.length <= index) next.push({ dueDate: "", amountRupees: "" });
+                        next[index] = { ...next[index], dueDate: v };
+                        return next;
+                      });
+                    }}
+                    className="rounded-lg border px-2 py-1 text-sm"
+                  />
+                  <input
+                    type="text"
+                    placeholder="₹"
+                    value={studentInstallmentDrafts[index]?.amountRupees ?? ""}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setStudentInstallmentDrafts((rows) => {
+                        const next = [...rows];
+                        while (next.length <= index) next.push({ dueDate: "", amountRupees: "" });
+                        next[index] = { ...next[index], amountRupees: v };
+                        return next;
+                      });
+                    }}
+                    className="w-24 rounded-lg border px-2 py-1 text-sm"
+                  />
+                </div>
+              ))}
+            </div>
             <button
               type="button"
               onClick={() => void saveStudentOverride()}
@@ -491,7 +798,7 @@ export function ConfigureFeesTab({ instituteId }: { instituteId: string }) {
         </Panel>
       )}
 
-      {step === "heads" && (
+      {step === "advanced" && (
         <Panel title="Fee heads">
           <p className="mb-3 text-sm text-muted-foreground">
             Each head is a line item you bill (usually one &quot;Annual tuition&quot; per institute). Class amounts in step 1 can
