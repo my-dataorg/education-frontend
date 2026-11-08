@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { InstituteSummary, Section, SectionSubject, Subject } from "@/lib/api";
 import { buildInstitutePathFromSearch } from "@/lib/embed-href";
+import { AcademicStructurePanel } from "@/components/configure-academic/academic-structure-panel";
 
 const CLASSES_TABS = ["sections", "subjects", "activities", "rooms", "section-subjects"] as const;
 type ClassesTabId = (typeof CLASSES_TABS)[number];
@@ -41,8 +42,6 @@ export function ClassesTab({ instituteId, branches, configureTab }: Props) {
   const [subjectName, setSubjectName] = useState("");
   const [activityName, setActivityName] = useState("");
   const [roomName, setRoomName] = useState("");
-  const [sectionName, setSectionName] = useState("");
-  const [className, setClassName] = useState("");
   const [linkSectionId, setLinkSectionId] = useState("");
   const [linkSubjectId, setLinkSubjectId] = useState("");
   const [linkWeeklyPeriods, setLinkWeeklyPeriods] = useState("5");
@@ -100,14 +99,6 @@ export function ClassesTab({ instituteId, branches, configureTab }: Props) {
     if (!subjectName.trim()) return;
     try { await change(`/api/institutes/${instituteId}/subjects`, { method: "POST", body: JSON.stringify({ name: subjectName }) }); setSubjectName(""); await load(); }
     catch (e) { setError(e instanceof Error ? e.message : "Could not create subject"); }
-  }
-
-  async function createSection() {
-    if (!sectionName.trim()) return;
-    try {
-      await change(`/api/institutes/${instituteId}/sections`, { method: "POST", body: JSON.stringify({ name: sectionName, className, branchId: branches[0]?.id || null }) });
-      setSectionName(""); setClassName(""); await load();
-    } catch (e) { setError(e instanceof Error ? e.message : "Could not create class"); }
   }
 
   async function createActivity() {
@@ -260,27 +251,28 @@ export function ClassesTab({ instituteId, branches, configureTab }: Props) {
       )}
 
       {activeTab === "sections" && (
-        <FormCard title="Classes and sections">
-          <div className="flex gap-2">
-            <input value={sectionName} onChange={(e) => setSectionName(e.target.value)} placeholder="Section name" className="min-w-0 flex-1 rounded-lg border border-border px-3 py-2 text-sm" />
-            <input value={className} onChange={(e) => setClassName(e.target.value)} placeholder="Class / grade" className="min-w-0 flex-1 rounded-lg border border-border px-3 py-2 text-sm" />
-          </div>
-          <button onClick={createSection} className="mt-2 rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground">Add</button>
-          <ul className="mt-3 space-y-1 text-sm">
-            {sections.map((section) => (
-              <li key={section.id} className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
-                <span>{section.className ? `${section.className}-${section.name}` : section.name}</span>
-                <button
-                  onClick={() => deleteSection(section.id)}
-                  className="text-xs text-destructive"
-                >
-                  Delete
-                </button>
-              </li>
-            ))}
-          </ul>
-          {!sections.length && <p className="mt-3 text-xs text-muted-foreground">No classes yet.</p>}
-        </FormCard>
+        <div className="space-y-4">
+          <AcademicStructurePanel instituteId={instituteId} />
+          {sections.length > 0 && (
+            <FormCard title="Remove a section">
+              <p className="mb-2 text-xs text-muted-foreground">Deleting here removes roster data for that section.</p>
+              <ul className="space-y-1 text-sm">
+                {sections.map((section) => (
+                  <li key={section.id} className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
+                    <span>{section.className ? `${section.className} · ${section.name}` : section.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => void deleteSection(section.id)}
+                      className="text-xs text-destructive"
+                    >
+                      Delete
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </FormCard>
+          )}
+        </div>
       )}
 
       {activeTab === "rooms" && (
