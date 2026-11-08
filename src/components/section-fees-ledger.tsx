@@ -11,6 +11,10 @@ type LedgerStudent = {
   paidPaise: number;
   balancePaise: number;
   status: string;
+  resolvedFromLabel?: string;
+  resolvedAmountPaise?: number;
+  nextDueDate?: string | null;
+  installments?: { sequence: number; dueDate: string; amountPaise: number | null }[];
   fees: {
     feePlanName?: string | null;
     amountPaise: number;
@@ -82,7 +86,7 @@ export function SectionFeesLedger({
           <table className="w-full text-left text-xs">
             <thead className="bg-muted/50 uppercase tracking-wide text-muted-foreground">
               <tr>
-                {["Student", "Plan", "Billed", "Paid", "Due", "Status", ""].map((h) => (
+                {["Student", "Source", "Plan", "Annual fee", "Paid", "Due", "Next due", ""].map((h) => (
                   <th key={h} className="px-3 py-2 font-medium">
                     {h}
                   </th>
@@ -93,13 +97,14 @@ export function SectionFeesLedger({
               {ledger.students.map((row) => (
                 <tr key={row.studentId} className="border-t border-border">
                   <td className="px-3 py-2.5">{labelFor(row.studentId)}</td>
+                  <td className="px-3 py-2.5">{row.resolvedFromLabel ?? "—"}</td>
                   <td className="px-3 py-2.5">{row.fees[0]?.feePlanName ?? "—"}</td>
-                  <td className="px-3 py-2.5">{formatPaise(row.billedPaise)}</td>
+                  <td className="px-3 py-2.5">
+                    {formatPaise(row.resolvedAmountPaise ?? row.billedPaise)}
+                  </td>
                   <td className="px-3 py-2.5">{formatPaise(row.paidPaise)}</td>
                   <td className="px-3 py-2.5">{formatPaise(row.balancePaise)}</td>
-                  <td className="px-3 py-2.5">
-                    {row.status === "paid" ? "Paid" : row.status === "due" ? "Due" : "Not assigned"}
-                  </td>
+                  <td className="px-3 py-2.5 text-muted-foreground">{row.nextDueDate ?? "—"}</td>
                   <td className="px-3 py-2.5">
                     <button
                       type="button"
@@ -124,6 +129,16 @@ export function SectionFeesLedger({
               .filter((s) => s.studentId === expanded)
               .map((row) => (
                 <div key={row.studentId} className="mt-4 rounded-lg border border-border bg-muted/20 p-3 text-sm">
+                  {row.installments?.length ? (
+                    <ul className="mb-2 list-disc pl-4 text-xs text-muted-foreground">
+                      {row.installments.map((inst) => (
+                        <li key={inst.sequence}>
+                          Installment {inst.sequence}: due {inst.dueDate}
+                          {inst.amountPaise != null ? ` · ${formatPaise(inst.amountPaise)}` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
                   <p className="font-medium">{labelFor(row.studentId)} — payment history</p>
                   {row.payments.length ? (
                     <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
