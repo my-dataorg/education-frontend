@@ -9,6 +9,7 @@ import {
   SectionAssignmentShell,
 } from "@/components/section-assignment-shell";
 import { SectionMemberPickerDialog } from "@/components/section-member-picker-dialog";
+import { StudentFeesPanel } from "@/components/student-fees-panel";
 
 type RosterTab = "teachers" | "students";
 
@@ -36,6 +37,7 @@ export function SectionRosterPanel({
   const [classTeacher, setClassTeacher] = useState(classTeacherUserId ?? "");
   const [activeTab, setActiveTab] = useState<RosterTab>("teachers");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [feesStudent, setFeesStudent] = useState<Member | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -227,6 +229,15 @@ export function SectionRosterPanel({
               userId={m.userId}
               name={formatUserName(m)}
               subtitle={m.email || undefined}
+              extraAction={
+                <button
+                  type="button"
+                  onClick={() => setFeesStudent(m)}
+                  className="text-xs font-medium text-primary hover:underline"
+                >
+                  Fees
+                </button>
+              }
               onRemove={canManage ? () => void remove(m.userId) : undefined}
             />
           ))}
@@ -257,6 +268,15 @@ export function SectionRosterPanel({
           ) : undefined
         }
       />
+
+      {feesStudent && (
+        <StudentFeesPanel
+          instituteId={instituteId}
+          sectionId={sectionId}
+          student={feesStudent}
+          onClose={() => setFeesStudent(null)}
+        />
+      )}
 
       {canManage && (
         <SectionMemberPickerDialog

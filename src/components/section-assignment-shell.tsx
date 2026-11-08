@@ -1,5 +1,7 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 type Props = {
   title?: string;
   description?: string;
@@ -86,11 +88,13 @@ export function PersonRow({
   name,
   subtitle,
   onRemove,
+  extraAction,
 }: {
   userId: string;
   name: string;
   subtitle?: string;
   onRemove?: () => void;
+  extraAction?: ReactNode;
 }) {
   const initials = name
     .split(/\s+/)
@@ -113,15 +117,18 @@ export function PersonRow({
           {subtitle && <p className="truncate text-xs text-muted-foreground">{subtitle}</p>}
         </div>
       </div>
-      {onRemove && (
-        <button
-          type="button"
-          onClick={onRemove}
-          className="shrink-0 text-xs font-medium text-destructive hover:underline"
-        >
-          Remove
-        </button>
-      )}
+      <div className="flex shrink-0 items-center gap-2">
+        {extraAction}
+        {onRemove && (
+          <button
+            type="button"
+            onClick={onRemove}
+            className="text-xs font-medium text-destructive hover:underline"
+          >
+            Remove
+          </button>
+        )}
+      </div>
     </li>
   );
 }
