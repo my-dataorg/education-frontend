@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { DataTable, formatPaise, ModuleHeader, Panel } from "@/components/institute-tabs/module-tab-ui";
+import { DataTable, formatPaise, LabeledInput, ModuleHeader, Panel } from "@/components/institute-tabs/module-tab-ui";
 import { paiseToRupeesInput, rupeesInputToPaise } from "@/lib/fee-money";
 
 type FeePlan = {
@@ -11,7 +11,13 @@ type FeePlan = {
   discountPercent: number;
   lateFeePaise: number;
   dueScheduleNotes?: string;
+  sectionId?: string | null;
+  appliesToLabel?: string;
 };
+
+function plansForSection(plans: FeePlan[], sectionId: string): FeePlan[] {
+  return plans.filter((p) => !p.sectionId || p.sectionId === sectionId);
+}
 
 type SectionRow = {
   sectionId: string;
@@ -52,6 +58,8 @@ export function ConfigureFeesTab({ instituteId }: { instituteId: string }) {
   const [discount, setDiscount] = useState("0");
   const [lateFeeRupees, setLateFeeRupees] = useState("");
   const [dueScheduleNotes, setDueScheduleNotes] = useState("");
+  const [planScope, setPlanScope] = useState<"all" | "section">("all");
+  const [planSectionId, setPlanSectionId] = useState("");
   const [structureName, setStructureName] = useState("Annual tuition");
   const [structureRupees, setStructureRupees] = useState("12000");
   const [applyStructureId, setApplyStructureId] = useState("");
@@ -104,14 +112,17 @@ export function ConfigureFeesTab({ instituteId }: { instituteId: string }) {
         discountPercent: Number(discount) || 0,
         lateFeePaise: rupeesInputToPaise(lateFeeRupees),
         dueScheduleNotes: dueScheduleNotes.trim(),
+        sectionId: planScope === "section" && planSectionId ? planSectionId : null,
       }),
     });
     if (!response.ok) {
-      setError("Could not create plan");
+      setError(await apiErrorMessage(response, "Could not create plan"));
       return;
     }
     setPlanName("");
     setDueScheduleNotes("");
+    setPlanScope("all");
+    setPlanSectionId("");
     setMessage("Payment plan saved — assign it to classes in step 1.");
     await load();
   }
@@ -282,9 +293,10 @@ export function ConfigureFeesTab({ instituteId }: { instituteId: string }) {
                     className="max-w-[12rem] rounded-lg border border-border bg-background px-2 py-1 text-sm"
                   >
                     <option value="">Pay in full</option>
-                    {plans.map((p) => (
+                    {plansForSection(plans, row.sectionId).map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.name}
+                        {p.appliesToLabel && p.appliesToLabel !== "All classes" ? ` (${p.appliesToLabel})` : ""}
                       </option>
                     ))}
                   </select>,
@@ -309,60 +321,100 @@ export function ConfigureFeesTab({ instituteId }: { instituteId: string }) {
 
       {step === "plans" && (
         <Panel title="Payment plans">
-          <p className="mb-3 text-sm text-muted-foreground">
-            Plans describe how families pay: number of installments, when each is due, discounts, and late payment fine.
+          <p className="mb-4 text-sm text-muted-foreground">
+            Define how payment is split over the year. Generic plans can be assigned to any class in step 1; class-only
+            plans appear only for that class.
           </p>
-          <div className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            <input
+          <div className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <LabeledInput
+              label="Plan name"
+              hint="Short label families will see, e.g. Quarterly or 3 installments"
               value={planName}
-              onChange={(e) => setPlanName(e.target.value)}
-              placeholder="Plan name (e.g. Quarterly)"
-              className="rounded-lg border border-border px-3 py-2 text-sm"
+              onChange={setPlanName}
             />
-            <input
+            <label className="block text-xs font-medium text-foreground">
+              Applies to
+              <span className="mt-0.5 block font-normal text-muted-foreground">
+                Generic = reusable in step 1 for any class; one class = only that section
+              </span>
+              <select
+                value={planScope}
+                onChange={(e) => setPlanScope(e.target.value as "all" | "section")}
+                className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm"
+              >
+                <option value="all">All classes (generic)</option>
+                <option value="section">One class only</option>
+              </select>
+            </label>
+            {planScope === "section" && (
+              <label className="block text-xs font-medium text-foreground">
+                Class
+                <select
+                  value={planSectionId}
+                  onChange={(e) => setPlanSectionId(e.target.value)}
+                  className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm"
+                >
+                  <option value="">Select class…</option>
+                  {sections.map((s) => (
+                    <option key={s.sectionId} value={s.sectionId}>
+                      {s.className} · {s.sectionName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <LabeledInput
+              label="Number of installments"
+              hint="How many payments in the year (1 = pay in full)"
               type="number"
               min={1}
               max={24}
               value={installments}
-              onChange={(e) => setInstallments(e.target.value)}
-              placeholder="Installments"
-              className="rounded-lg border px-3 py-2 text-sm"
+              onChange={setInstallments}
             />
-            <input
+            <LabeledInput
+              label="Discount on total fee (%)"
+              hint="Optional reduction when this plan is used; 0 if none"
               type="number"
               min={0}
               max={100}
               value={discount}
-              onChange={(e) => setDiscount(e.target.value)}
-              placeholder="Discount %"
-              className="rounded-lg border px-3 py-2 text-sm"
+              onChange={setDiscount}
             />
-            <input
-              type="text"
+            <LabeledInput
+              label="Late fee fine (₹)"
+              hint="Extra charge if an installment is paid after the due date"
               inputMode="decimal"
               value={lateFeeRupees}
-              onChange={(e) => setLateFeeRupees(e.target.value)}
-              placeholder="Late fee fine (₹)"
-              className="rounded-lg border px-3 py-2 text-sm"
+              onChange={setLateFeeRupees}
             />
-            <input
+            <LabeledInput
+              label="Installment due dates"
+              hint="When each installment is due, e.g. 1 Apr, 1 Jul, 1 Oct"
               value={dueScheduleNotes}
-              onChange={(e) => setDueScheduleNotes(e.target.value)}
-              placeholder="When to pay (e.g. 1 Apr, 1 Jul, 1 Oct)"
-              className="sm:col-span-2 rounded-lg border px-3 py-2 text-sm"
+              onChange={setDueScheduleNotes}
             />
-            <button
-              type="button"
-              onClick={() => void createPlan()}
-              className="rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground"
-            >
-              Add plan
-            </button>
+            <div className="flex items-end">
+              <button
+                type="button"
+                onClick={() => {
+                  if (planScope === "section" && !planSectionId) {
+                    setError("Select which class this plan is for.");
+                    return;
+                  }
+                  void createPlan();
+                }}
+                className="w-full rounded-lg bg-primary px-3 py-2.5 text-sm text-primary-foreground"
+              >
+                Add plan
+              </button>
+            </div>
           </div>
           <DataTable
-            headers={["Plan", "Installments", "Discount", "Late fine", "Due dates"]}
+            headers={["Plan", "Applies to", "Installments", "Discount", "Late fine", "Due dates"]}
             rows={plans.map((p) => [
               p.name,
+              p.appliesToLabel || "All classes",
               String(p.installmentCount),
               p.discountPercent ? `${p.discountPercent}%` : "—",
               p.lateFeePaise ? `₹${paiseToRupeesInput(p.lateFeePaise)}` : "—",
