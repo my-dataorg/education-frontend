@@ -19,11 +19,21 @@ type SectionRow = {
   sectionName: string;
   amountPaise: number;
   feePlanId: string | null;
+  feeStructureId?: string | null;
 };
 
 type FeeStructure = { id: string; name: string; amountPaise: number };
 
 type SetupStep = "classes" | "plans" | "overrides" | "heads";
+
+async function apiErrorMessage(response: Response, fallback: string): Promise<string> {
+  const body = await response.json().catch(() => ({}));
+  if (typeof body.detail === "string") return body.detail;
+  if (Array.isArray(body.detail)) {
+    return body.detail.map((item: { msg?: string }) => item.msg).filter(Boolean).join("; ") || fallback;
+  }
+  return fallback;
+}
 
 const STEPS: { id: SetupStep; label: string; hint: string }[] = [
   { id: "classes", label: "1. Class fees", hint: "One row per class — annual amount and payment plan" },
@@ -60,12 +70,15 @@ export function ConfigureFeesTab({ instituteId }: { instituteId: string }) {
     ]);
     if (!plansRes.ok || !sectionsRes.ok || !structRes.ok) throw new Error("Could not load fee setup");
     setPlans(await plansRes.json());
-    setSections(await sectionsRes.json());
-    const structs = await structRes.json();
+    const sectionRows: SectionRow[] = await sectionsRes.json();
+    setSections(sectionRows);
+    const structs: FeeStructure[] = await structRes.json();
     setStructures(structs);
-    if (structs[0]) {
-      setApplyStructureId((prev) => prev || structs[0].id);
-      setOverrideStructureId((prev) => prev || structs[0].id);
+    const fromSection = sectionRows.find((r) => r.feeStructureId)?.feeStructureId;
+    const headId = fromSection || structs[0]?.id || "";
+    if (headId) {
+      setApplyStructureId((prev) => prev || headId);
+      setOverrideStructureId((prev) => prev || headId);
     }
   }, [instituteId]);
 
@@ -132,10 +145,14 @@ export function ConfigureFeesTab({ instituteId }: { instituteId: string }) {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ amountPaise: row.amountPaise, feePlanId: row.feePlanId || null }),
+      body: JSON.stringify({
+        amountPaise: row.amountPaise,
+        feePlanId: row.feePlanId || null,
+        feeStructureId: applyStructureId || null,
+      }),
     });
     if (!response.ok) {
-      setError("Could not save class fee");
+      setError(await apiErrorMessage(response, "Could not save class fee"));
       return;
     }
     setMessage(`Saved ${row.className} · ${row.sectionName}`);
@@ -144,20 +161,19 @@ export function ConfigureFeesTab({ instituteId }: { instituteId: string }) {
 
   async function applySection(sectionId: string) {
     clearFeedback();
-    if (!applyStructureId) {
-      setError("Add a fee head in step 4 first");
-      setStep("heads");
+    const row = sections.find((s) => s.sectionId === sectionId);
+    if (!row?.amountPaise) {
+      setError("Enter the annual fee and click Save before billing the class.");
       return;
     }
     const response = await fetch(`/api/institutes/${instituteId}/sections/${sectionId}/fee-default/apply`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ feeStructureId: applyStructureId }),
+      body: JSON.stringify({ feeStructureId: applyStructureId || null }),
     });
     if (!response.ok) {
-      const body = await response.json().catch(() => ({}));
-      setError(typeof body.detail === "string" ? body.detail : "Could not bill students in this class");
+      setError(await apiErrorMessage(response, "Could not bill students in this class"));
       return;
     }
     const body = await response.json();
@@ -222,11 +238,16 @@ export function ConfigureFeesTab({ instituteId }: { instituteId: string }) {
       {step === "classes" && (
         <Panel title="Fee per class">
           <p className="mb-3 text-sm text-muted-foreground">
-            Reference fee head when you bill the class roster:{" "}
+            Choose the fee head used when you bill the class roster. If none exist yet, we create Annual tuition
+            automatically; add more heads in step 4 if needed.
+          </p>
+          <label className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+            <span className="text-muted-foreground">Bill students under</span>
             <select
               value={applyStructureId}
               onChange={(e) => setApplyStructureId(e.target.value)}
               className="rounded border border-border bg-background px-2 py-1 text-sm"
+              disabled={!structures.length}
             >
               {structures.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -234,10 +255,7 @@ export function ConfigureFeesTab({ instituteId }: { instituteId: string }) {
                 </option>
               ))}
             </select>
-            {!structures.length && (
-              <span className="ml-2 text-amber-700">Add a fee head in step 4 before assigning students.</span>
-            )}
-          </p>
+          </label>
           {!sections.length ? (
             <p className="text-sm text-muted-foreground">Add classes under Configure → Classes first.</p>
           ) : (
