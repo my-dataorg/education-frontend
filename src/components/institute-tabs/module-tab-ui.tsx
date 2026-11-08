@@ -38,23 +38,35 @@ export function Panel({ title, children }: { title: string; children: React.Reac
 
 export function LabeledInput({
   label,
+  hint,
   value,
   onChange,
   type = "text",
+  min,
+  max,
+  inputMode,
 }: {
   label: string;
+  hint?: string;
   value: string;
   onChange: (value: string) => void;
   type?: string;
+  min?: number;
+  max?: number;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
 }) {
   return (
-    <label className="text-xs text-muted-foreground">
+    <label className="block text-xs font-medium text-foreground">
       {label}
+      {hint ? <span className="mt-0.5 block font-normal text-muted-foreground">{hint}</span> : null}
       <input
         type={type}
+        inputMode={inputMode}
+        min={min}
+        max={max}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground"
+        className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground"
       />
     </label>
   );
