@@ -12,7 +12,7 @@ import { SectionSyllabusPanel } from "@/components/section-syllabus-panel";
 import type { SyllabusMode } from "@/lib/syllabus-types";
 import { SectionClassBoardPanel } from "@/components/section-class-board-panel";
 import { SectionTimetablePanel } from "@/components/section-timetable-panel";
-import { SectionFeesPanel } from "@/components/section-fees-panel";
+import { SectionFeesLedger } from "@/components/section-fees-ledger";
 import { formatUserName } from "@/components/user-identity";
 import type { Member } from "@/lib/api";
 import type { SectionSubject } from "@/lib/api";
@@ -153,7 +153,7 @@ export function SectionWorkspace({
     },
     {
       id: "fees",
-      label: "Fees",
+      label: "Student fees",
       shortLabel: "Fees",
       show:
         canManage && isClassSectionTabVisible(role, "fees", navOverrides),
@@ -213,8 +213,6 @@ export function SectionWorkspace({
     canEditNotes && isClassSectionTabEditable(role, "class-board", navOverrides);
   const assignmentsTeacherMayEdit =
     isTeacher && isClassSectionTabEditable(role, "assignments", navOverrides);
-  const feesMayEdit = canManage && isClassSectionTabEditable(role, "fees", navOverrides);
-
   const visibleTabIdsKey = visibleTabs.map((t) => t.id).join("|");
   useEffect(() => {
     const ids = visibleTabs.map((t) => t.id);
@@ -376,7 +374,11 @@ export function SectionWorkspace({
         )}
 
         {tab === "fees" && canManage && (
-          <SectionFeesPanel instituteId={instituteId} sectionId={sectionId} canEdit={feesMayEdit} />
+          <SectionFeesLedger
+            instituteId={instituteId}
+            sectionId={sectionId}
+            rosterStudents={overview.students}
+          />
         )}
 
         {tab === "progress" && (

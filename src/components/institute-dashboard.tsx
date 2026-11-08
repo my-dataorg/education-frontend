@@ -260,6 +260,7 @@ export function InstituteDashboard({
                       instituteId={instituteId}
                       branches={branches}
                       showRoles={isOwner}
+                      showFees={INSTITUTE_ADMIN_ROLES.has(detail.role)}
                     />
                   </TabsContent>
                 )}
