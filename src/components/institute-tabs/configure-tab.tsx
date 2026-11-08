@@ -11,7 +11,7 @@ import { ConfigureFeesTab } from "@/components/institute-tabs/configure-fees-tab
 const CONFIGURE_TABS = [
   { id: "academic-year", label: "Academic year" },
   { id: "fees", label: "Fees & plans" },
-  { id: "sections", label: "Classes" },
+  { id: "sections", label: "Academic structure" },
   { id: "subjects", label: "Subjects" },
   { id: "activities", label: "Activities" },
   { id: "rooms", label: "Rooms" },
