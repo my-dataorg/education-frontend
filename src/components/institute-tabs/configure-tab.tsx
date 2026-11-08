@@ -6,9 +6,11 @@ import { buildInstitutePathFromSearch } from "@/lib/embed-href";
 import { AcademicYearTab } from "@/components/institute-tabs/academic-year-tab";
 import { ClassesTab } from "@/components/institute-tabs/classes-tab";
 import { FeatureAccessTab } from "@/components/institute-tabs/feature-access-tab";
+import { ConfigureFeesTab } from "@/components/institute-tabs/configure-fees-tab";
 
 const CONFIGURE_TABS = [
   { id: "academic-year", label: "Academic year" },
+  { id: "fees", label: "Fees & plans" },
   { id: "sections", label: "Classes" },
   { id: "subjects", label: "Subjects" },
   { id: "activities", label: "Activities" },
@@ -22,9 +24,10 @@ type Props = {
   instituteId: string;
   branches: InstituteSummary["branches"];
   showRoles: boolean;
+  showFees: boolean;
 };
 
-export function ConfigureTab({ instituteId, branches, showRoles }: Props) {
+export function ConfigureTab({ instituteId, branches, showRoles, showFees }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const raw = searchParams.get("configureTab");
@@ -40,7 +43,11 @@ export function ConfigureTab({ instituteId, branches, showRoles }: Props) {
     );
   }
 
-  const visibleTabs = CONFIGURE_TABS.filter((t) => t.id !== "roles" || showRoles);
+  const visibleTabs = CONFIGURE_TABS.filter((t) => {
+    if (t.id === "roles") return showRoles;
+    if (t.id === "fees") return showFees;
+    return true;
+  });
 
   return (
     <div className="space-y-5">
@@ -69,6 +76,7 @@ export function ConfigureTab({ instituteId, branches, showRoles }: Props) {
       </div>
 
       {active === "academic-year" && <AcademicYearTab instituteId={instituteId} />}
+      {active === "fees" && showFees && <ConfigureFeesTab instituteId={instituteId} />}
       {active === "roles" && showRoles && <FeatureAccessTab instituteId={instituteId} />}
       {(["sections", "subjects", "activities", "rooms"] as const).includes(
         active as "sections" | "subjects" | "activities" | "rooms"
