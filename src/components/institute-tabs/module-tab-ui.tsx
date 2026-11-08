@@ -60,7 +60,7 @@ export function LabeledInput({
   );
 }
 
-export function DataTable({ headers, rows }: { headers: string[]; rows: string[][] }) {
+export function DataTable({ headers, rows }: { headers: string[]; rows: React.ReactNode[][] }) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-left text-xs">
@@ -76,7 +76,9 @@ export function DataTable({ headers, rows }: { headers: string[]; rows: string[]
             <tr key={index} className="border-t border-border">
               {row.map((cell, cellIndex) => (
                 <td key={cellIndex} className="px-3 py-2.5">
-                  {cellIndex === row.length - 1 && ["Paid", "Locked", "Yes", "Marked"].includes(cell) ? (
+                  {cellIndex === row.length - 1 &&
+                  typeof cell === "string" &&
+                  ["Paid", "Locked", "Yes", "Marked"].includes(cell) ? (
                     <span className="inline-flex items-center gap-1 text-emerald-700">
                       <Check className="h-3 w-3" aria-hidden />
                       {cell}
