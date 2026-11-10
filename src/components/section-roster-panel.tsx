@@ -274,6 +274,9 @@ export function SectionRosterPanel({
           instituteId={instituteId}
           sectionId={sectionId}
           student={feesStudent}
+          canRecordPayment={canManage}
+          canEditFees={canManage}
+          canPayOutstanding={canManage}
           onClose={() => setFeesStudent(null)}
         />
       )}

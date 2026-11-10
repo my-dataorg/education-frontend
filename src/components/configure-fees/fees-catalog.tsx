@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { DataTable, formatPaise, LabeledInput, ModuleHeader, Panel } from "@/components/institute-tabs/module-tab-ui";
-import { paiseToRupeesInput, rupeesInputToPaise } from "@/lib/fee-money";
+import { DataTable, LabeledInput, ModuleHeader } from "@/components/institute-tabs/module-tab-ui";
+import { CollapsiblePanel } from "@/components/configure-shared/collapsible-panel";
 import { FeeDialog } from "@/components/configure-fees/fee-dialog";
-import { OrgFeePanel, type OrgNode } from "@/components/configure-fees/org-panel";
+import { OrgFeeAssignmentPanel } from "@/components/configure-fees/org-fee-assignment-panel";
+import { FeeTypesPanel } from "@/components/configure-fees/fee-types-panel";
 
 type FeePlan = {
   id: string;
@@ -33,11 +34,7 @@ async function apiErrorMessage(response: Response, fallback: string): Promise<st
 export function FeesCatalog({ instituteId }: { instituteId: string }) {
   const [structures, setStructures] = useState<FeeStructure[]>([]);
   const [plans, setPlans] = useState<FeePlan[]>([]);
-  const [nodes, setNodes] = useState<OrgNode[]>([]);
-  const [showStruct, setShowStruct] = useState(false);
   const [showPlan, setShowPlan] = useState(false);
-  const [structName, setStructName] = useState("");
-  const [structRupees, setStructRupees] = useState("12000");
   const [planName, setPlanName] = useState("");
   const [planType, setPlanType] = useState<(typeof PLAN_TYPES)[number]["id"]>("installment");
   const [discount, setDiscount] = useState("0");
@@ -45,35 +42,18 @@ export function FeesCatalog({ instituteId }: { instituteId: string }) {
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
-    const [sRes, pRes, nRes] = await Promise.all([
+    const [sRes, pRes] = await Promise.all([
       fetch(`/api/institutes/${instituteId}/fee-structures`, { credentials: "include" }),
       fetch(`/api/institutes/${instituteId}/fee-plans`, { credentials: "include" }),
-      fetch(`/api/institutes/${instituteId}/org-nodes`, { credentials: "include" }),
     ]);
-    if (!sRes.ok || !pRes.ok || !nRes.ok) throw new Error("load");
+    if (!sRes.ok || !pRes.ok) throw new Error("load");
     setStructures(await sRes.json());
     setPlans(await pRes.json());
-    setNodes(await nRes.json());
   }, [instituteId]);
 
   useEffect(() => {
     load().catch(() => setError("Could not load fee catalog"));
   }, [load]);
-
-  async function createStructure() {
-    const res = await fetch(`/api/institutes/${instituteId}/fee-structures`, {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: structName.trim(), amountPaise: rupeesInputToPaise(structRupees) }),
-    });
-    if (!res.ok) {
-      setError(await apiErrorMessage(res, "Could not create structure"));
-      return;
-    }
-    setShowStruct(false);
-    await load();
-  }
 
   async function createPlan() {
     const res = await fetch(`/api/institutes/${instituteId}/fee-plans`, {
@@ -98,83 +78,51 @@ export function FeesCatalog({ instituteId }: { instituteId: string }) {
     await load();
   }
 
-  const nodeLabel = (id: string | null | undefined) => nodes.find((n) => n.id === id)?.label ?? "All";
-
   return (
     <section className="space-y-6">
       <ModuleHeader
         title="Fees & plans"
-        description="Catalog of fee heads and discount plans. Assign amounts on the organization tree below."
+        description="Assign fees by org level on the left. Define payment plans and fee type names on the right."
       />
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Panel title="Fee structures">
-          <div className="mb-3 flex justify-end">
-            <button
-              type="button"
-              onClick={() => setShowStruct(true)}
-              className="rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground"
-            >
-              + New structure
-            </button>
-          </div>
-          {structures.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No fee structures yet.</p>
-          ) : (
-            <DataTable
-              headers={["Name", "Reference", "Scope"]}
-              rows={structures.map((s) => [s.name, formatPaise(s.amountPaise), nodeLabel(s.orgNodeId)])}
-            />
-          )}
-        </Panel>
+      <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[minmax(0,1.4fr)_minmax(16rem,1fr)] xl:items-start xl:gap-6">
+        <OrgFeeAssignmentPanel
+          instituteId={instituteId}
+          plans={plans}
+          structures={structures}
+          onStructuresChange={() => void load()}
+        />
 
-        <Panel title="Discount & payment plans">
-          <div className="mb-3 flex justify-end">
-            <button
-              type="button"
-              onClick={() => setShowPlan(true)}
-              className="rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground"
-            >
-              + New plan
-            </button>
-          </div>
-          {plans.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No payment plans yet.</p>
-          ) : (
-            <DataTable
-              headers={["Name", "Type", "Discount", "Installments", "Applies"]}
-              rows={plans.map((p) => [
-                p.name,
-                p.planType ?? "lump_sum",
-                `${p.discountPercent}%`,
-                String(p.installmentCount),
-                p.appliesToLabel ?? "All classes",
-              ])}
-            />
-          )}
-        </Panel>
-      </div>
+        <div className="flex flex-col gap-4">
+          <CollapsiblePanel title="Discount & payment plans" defaultOpen={false}>
+            <div className="mb-3 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowPlan(true)}
+                className="rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground"
+              >
+                + New plan
+              </button>
+            </div>
+            {plans.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No payment plans yet.</p>
+            ) : (
+              <DataTable
+                headers={["Name", "Type", "Discount", "Inst."]}
+                rows={plans.map((p) => [
+                  p.name,
+                  p.planType ?? "lump_sum",
+                  `${p.discountPercent}%`,
+                  String(p.installmentCount),
+                ])}
+              />
+            )}
+          </CollapsiblePanel>
 
-      <OrgFeePanel instituteId={instituteId} nodes={nodes} plans={plans} structures={structures} onSaved={() => void load()} />
-
-      <details className="rounded-lg border border-border p-4">
-        <summary className="cursor-pointer text-sm font-medium">Advanced — legacy ladder (read-only)</summary>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Institute / class / section defaults from the previous setup still work until you fully move to org nodes.
-          Bill class and record payments unchanged.
-        </p>
-      </details>
-
-      <FeeDialog open={showStruct} title="New fee structure" onClose={() => setShowStruct(false)}>
-        <div className="space-y-3">
-          <LabeledInput label="Name" value={structName} onChange={setStructName} />
-          <LabeledInput label="Reference ₹" value={structRupees} onChange={setStructRupees} />
-          <button type="button" onClick={() => void createStructure()} className="rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground">
-            Save structure
-          </button>
+          <FeeTypesPanel instituteId={instituteId} types={structures} onChanged={() => void load()} />
         </div>
-      </FeeDialog>
+      </div>
 
       <FeeDialog open={showPlan} title="New payment plan" onClose={() => setShowPlan(false)}>
         <div className="space-y-3">
@@ -193,7 +141,11 @@ export function FeesCatalog({ instituteId }: { instituteId: string }) {
           </select>
           <LabeledInput label="Discount %" value={discount} onChange={setDiscount} />
           <LabeledInput label="Installment count" value={installments} onChange={setInstallments} />
-          <button type="button" onClick={() => void createPlan()} className="rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground">
+          <button
+            type="button"
+            onClick={() => void createPlan()}
+            className="rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground"
+          >
             Save plan
           </button>
         </div>

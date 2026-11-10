@@ -1,6 +1,10 @@
 export const MANAGE_ROLES = new Set(["owner", "admin"]);
 /** Owner workspace pages (overview, members, timetable, etc.) */
 export const INSTITUTE_ADMIN_ROLES = new Set(["owner", "admin", "principal"]);
+/** Matches education-backend `_require_fee_manage` (record pay, edit student fees). */
+export const FEE_MANAGE_ROLES = new Set(["owner", "admin", "principal", "accountant"]);
+/** Students and parents pay via proof submission; staff records payment immediately. */
+export const FEE_FAMILY_PAY_ROLES = new Set(["student", "parent"]);
 export const STAFF_VIEW_ROLES = new Set([
   "owner",
   "admin",
