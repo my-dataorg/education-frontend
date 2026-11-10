@@ -83,6 +83,7 @@ export default async function SectionPage({
         )}
         <SectionWorkspace
           instituteId={id}
+          instituteName={institute.name}
           sectionId={sectionId}
           role={institute.role}
           overview={overview}

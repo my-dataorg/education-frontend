@@ -16,7 +16,7 @@ import { SectionFeesLedger } from "@/components/section-fees-ledger";
 import { formatUserName } from "@/components/user-identity";
 import type { Member } from "@/lib/api";
 import type { SectionSubject } from "@/lib/api";
-import { INSTITUTE_ADMIN_ROLES } from "@/lib/roles";
+import { FEE_MANAGE_ROLES, INSTITUTE_ADMIN_ROLES } from "@/lib/roles";
 import type { NavAccessOverrides } from "@/lib/nav-access";
 import { isClassSectionTabEditable, isClassSectionTabVisible } from "@/lib/education-nav";
 import { teacherUserId } from "@/lib/section-subject-teachers";
@@ -60,6 +60,7 @@ type Overview = {
 };
 export function SectionWorkspace({
   instituteId,
+  instituteName = "",
   sectionId,
   role,
   initialTab = "overview",
@@ -76,6 +77,7 @@ export function SectionWorkspace({
   navOverrides,
 }: {
   instituteId: string;
+  instituteName?: string;
   sectionId: string;
   role: string;
   initialTab?: SectionWorkspaceTab;
@@ -110,6 +112,7 @@ export function SectionWorkspace({
   const [sectionAssignments, setSectionAssignments] = useState(assignments);
   const isTeacher = ["owner", "admin", "principal", "teacher", "lecturer", "professor"].includes(role);
   const canManage = INSTITUTE_ADMIN_ROLES.has(role);
+  const canManageFees = FEE_MANAGE_ROLES.has(role);
   const canViewRosterSubjects = isTeacher || role === "student";
   const isStudent = role === "student";
   const syllabusMode: SyllabusMode = canManage
@@ -156,7 +159,7 @@ export function SectionWorkspace({
       label: "Student fees",
       shortLabel: "Fees",
       show:
-        canManage && isClassSectionTabVisible(role, "fees", navOverrides),
+        (canManage || canViewRosterSubjects) && isClassSectionTabVisible(role, "fees", navOverrides),
     },
     {
       id: "syllabus",
@@ -373,11 +376,16 @@ export function SectionWorkspace({
           />
         )}
 
-        {tab === "fees" && canManage && (
+        {tab === "fees" && (canManage || canViewRosterSubjects) && (
           <SectionFeesLedger
             instituteId={instituteId}
+            instituteName={instituteName || "Institute"}
+            sectionLabel={sectionLabel}
             sectionId={sectionId}
             rosterStudents={overview.students}
+            rosterStaff={overview.teachers}
+            viewerRole={role}
+            canRecordPayments={canManageFees}
           />
         )}
 
