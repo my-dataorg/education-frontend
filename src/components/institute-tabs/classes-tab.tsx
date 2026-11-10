@@ -250,7 +250,30 @@ export function ClassesTab({ instituteId, branches, configureTab }: Props) {
         </FormCard>
       )}
 
-      {activeTab === "sections" && <AcademicStructurePanel instituteId={instituteId} />}
+      {activeTab === "sections" && (
+        <div className="space-y-4">
+          <AcademicStructurePanel instituteId={instituteId} />
+          {sections.length > 0 && (
+            <FormCard title="Remove a section">
+              <p className="mb-2 text-xs text-muted-foreground">Deleting here removes roster data for that section.</p>
+              <ul className="space-y-1 text-sm">
+                {sections.map((section) => (
+                  <li key={section.id} className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
+                    <span>{section.className ? `${section.className} · ${section.name}` : section.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => void deleteSection(section.id)}
+                      className="text-xs text-destructive"
+                    >
+                      Delete
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </FormCard>
+          )}
+        </div>
+      )}
 
       {activeTab === "rooms" && (
         <FormCard title="Rooms">
